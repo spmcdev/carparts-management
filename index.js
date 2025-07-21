@@ -76,21 +76,34 @@ app.get('/', (req, res) => {
 // Debug endpoint to test database connection
 app.get('/debug', async (req, res) => {
   try {
+    console.log('Testing database connection...');
+    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    
     const result = await pool.query('SELECT 1 as test');
+    console.log('Database test successful:', result.rows[0]);
+    
     res.json({ 
       status: 'ok', 
       database: 'connected',
       test_query: result.rows[0],
       jwt_secret_set: !!process.env.JWT_SECRET,
-      node_env: process.env.NODE_ENV 
+      node_env: process.env.NODE_ENV,
+      database_url_exists: !!process.env.DATABASE_URL
     });
   } catch (err) {
+    console.error('Database error:', err);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    
     res.status(500).json({ 
       status: 'error', 
       database: 'failed',
       error: err.message,
+      error_code: err.code,
       jwt_secret_set: !!process.env.JWT_SECRET,
-      node_env: process.env.NODE_ENV
+      node_env: process.env.NODE_ENV,
+      database_url_exists: !!process.env.DATABASE_URL
     });
   }
 });
