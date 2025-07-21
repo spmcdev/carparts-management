@@ -3,13 +3,12 @@ import { API_ENDPOINTS } from './config/api';
 import Modal from 'react-bootstrap/Modal';
 import Button from 'react-bootstrap/Button';
 
-function Sales() {
+function Sales({ token }) {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [token] = useState(localStorage.getItem('token') || '');
   const [showModal, setShowModal] = useState(false);
   const [sellId, setSellId] = useState(null);
   const [sellPrice, setSellPrice] = useState('');

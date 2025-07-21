@@ -194,10 +194,33 @@ app.post('/parts', authenticateToken, async (req, res) => {
 app.post('/register', async (req, res) => {
   const { username, password, role } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const validRoles = ['general', 'admin', 'superadmin'];
-    const userRole = validRoles.includes(role) ? role : 'general';
+    let userRole = 'general'; // Default role for public registration
+    
+    // Check if this is an authenticated admin creating a user
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+        const adminUser = decoded;
+        
+        // If admin is creating user, apply role hierarchy
+        if (adminUser.role === 'admin' || adminUser.role === 'superadmin') {
+          const validRoles = ['general', 'admin'];
+          if (adminUser.role === 'superadmin') {
+            validRoles.push('superadmin');
+          }
+          userRole = validRoles.includes(role) ? role : 'general';
+        }
+      } catch (tokenError) {
+        // Invalid token, proceed with default 'general' role
+        userRole = 'general';
+      }
+    }
+    
     const result = await pool.query(
       'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id, username, role',
       [username, hashedPassword, userRole]
@@ -225,10 +248,19 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Admin-only: Get all users
+// Admin-only: Get all users (role hierarchy applied)
 app.get('/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, username, role FROM users');
+    let query = 'SELECT id, username, role FROM users';
+    let queryParams = [];
+    
+    // If user is admin (not superadmin), exclude superadmin users
+    if (req.user.role === 'admin') {
+      query += ' WHERE role != $1';
+      queryParams.push('superadmin');
+    }
+    
+    const result = await pool.query(query, queryParams);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -239,12 +271,27 @@ app.get('/users', authenticateToken, requireAdmin, async (req, res) => {
 app.patch('/users/:id/role', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
-  if (!['admin', 'general'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  
+  // Role validation based on user's permission level
+  let validRoles = ['admin', 'general'];
+  if (req.user.role === 'superadmin') {
+    validRoles.push('superadmin');
+  }
+  
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role or insufficient permissions' });
+  }
+  
   try {
-    // Get old user data for audit log
+    // Get old user data for audit log and permission check
     const oldUserResult = await pool.query('SELECT id, username, role FROM users WHERE id = $1', [id]);
     if (oldUserResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     const oldUser = oldUserResult.rows[0];
+    
+    // Prevent admin users from modifying superadmin users
+    if (req.user.role === 'admin' && oldUser.role === 'superadmin') {
+      return res.status(403).json({ error: 'Cannot modify superadmin users' });
+    }
     
     const result = await pool.query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, username, role', [role, id]);
     const updatedUser = result.rows[0];
@@ -270,11 +317,17 @@ app.patch('/users/:id/role', authenticateToken, requireAdmin, async (req, res) =
 app.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    // Get user data before deletion for audit log
+    // Get user data before deletion for audit log and permission check
     const userToDelete = await pool.query('SELECT id, username, role FROM users WHERE id = $1', [id]);
     if (userToDelete.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     
     const deletedUserData = userToDelete.rows[0];
+    
+    // Prevent admin users from deleting superadmin users
+    if (req.user.role === 'admin' && deletedUserData.role === 'superadmin') {
+      return res.status(403).json({ error: 'Cannot delete superadmin users' });
+    }
+    
     const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id, username', [id]);
     
     // Log audit action for user deletion

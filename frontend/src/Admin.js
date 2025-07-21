@@ -30,6 +30,20 @@ function Admin({ token, userRole }) {
 
   const handleRoleChange = async (id, newRole) => {
     setError(''); setSuccess('');
+    
+    // Find the user to check their current role
+    const user = users.find(u => u.id === id);
+    if (!user) {
+      setError('User not found.');
+      return;
+    }
+    
+    // Prevent admin from modifying superadmin users
+    if (userRole === 'admin' && user.role === 'superadmin') {
+      setError('Cannot modify superadmin users.');
+      return;
+    }
+    
     try {
       const res = await fetch(`${API_ENDPOINTS.USERS}/${id}/role`, {
         method: 'PATCH',
@@ -49,6 +63,20 @@ function Admin({ token, userRole }) {
 
   const handleDelete = async (id) => {
     setError(''); setSuccess('');
+    
+    // Find the user to check their current role
+    const user = users.find(u => u.id === id);
+    if (!user) {
+      setError('User not found.');
+      return;
+    }
+    
+    // Prevent admin from deleting superadmin users
+    if (userRole === 'admin' && user.role === 'superadmin') {
+      setError('Cannot delete superadmin users.');
+      return;
+    }
+    
     try {
       const res = await fetch(`${API_ENDPOINTS.USERS}/${id}`, {
         method: 'DELETE',
@@ -73,7 +101,10 @@ function Admin({ token, userRole }) {
     try {
       const res = await fetch(API_ENDPOINTS.REGISTER, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ username: newUsername, password: newPassword, role: newRole })
       });
       const data = await res.json();

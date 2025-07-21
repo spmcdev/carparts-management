@@ -141,18 +141,24 @@ function App() {
           </button>
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-              <li className="nav-item">
-                <Link className="nav-link" to="/stock-management"><b>Stock Reports</b></Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="/parts-management"><b>Parts Management</b></Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="/sales"><b>Sales</b></Link>
-              </li>
+              {token && (
+                <li className="nav-item">
+                  <Link className="nav-link" to="/stock-management"><b>Stock Reports</b></Link>
+                </li>
+              )}
+              {token && (
+                <li className="nav-item">
+                  <Link className="nav-link" to="/parts-management"><b>Parts Management</b></Link>
+                </li>
+              )}
+              {token && (
+                <li className="nav-item">
+                  <Link className="nav-link" to="/sales"><b>Sales</b></Link>
+                </li>
+              )}
               {(userRole === 'admin' || userRole === 'superadmin') && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/admin"><b>Admin</b></Link>
+                  <Link className="nav-link" to="/admin">Admin</Link>
                 </li>
               )}
               {(userRole === 'admin' || userRole === 'superadmin') && (
@@ -237,8 +243,20 @@ function App() {
             <p style={{ color: 'red' }}>Please log in to access Parts Management.</p>
           )
         } />
-        <Route path="/sales" element={<Sales />} />
-        <Route path="/admin" element={<Admin token={token} userRole={userRole} />} />
+        <Route path="/sales" element={
+          token ? (
+            <Sales token={token} />
+          ) : (
+            <p style={{ color: 'red' }}>Please log in to access Sales.</p>
+          )
+        } />
+        <Route path="/admin" element={
+          (userRole === 'admin' || userRole === 'superadmin') ? (
+            <Admin token={token} userRole={userRole} />
+          ) : (
+            <p style={{ color: 'red' }}>Admin access required.</p>
+          )
+        } />
         <Route path="/audit-log" element={
           (userRole === 'admin' || userRole === 'superadmin') ? (
             <AuditLog token={token} />
