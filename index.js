@@ -39,8 +39,8 @@ async function logAuditAction(user, action, tableName, recordId, oldValues, newV
 // CORS configuration for production
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL] 
-    : ['http://localhost:3000', 'http://localhost:8080'],
+    ? [process.env.FRONTEND_URL, /\.vercel\.app$/, 'http://localhost:3001'] 
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
