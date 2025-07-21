@@ -16,30 +16,36 @@ This guide will help you deploy your Car Parts Management System using Vercel (f
 4. Select your repository and the root directory (where your main package.json is)
 
 ### Step 2: Configure Environment Variables in Railway
-In your Railway project dashboard, go to **Variables** tab and add:
+In your Railway backend service, go to **Variables** tab and add:
 
 ```env
 NODE_ENV=production
-PORT=3000
 JWT_SECRET=your-super-secure-jwt-secret-key-minimum-32-characters
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=railway
-DB_USER=postgres
-DB_PASSWORD=<railway-will-auto-generate-this>
 FRONTEND_URL=https://your-app-name.vercel.app
 ```
 
+**Note**: Railway will automatically provide database connection variables when you add PostgreSQL:
+- `DATABASE_URL` (complete connection string)
+- `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` (individual components)
+
+You can use either the `DATABASE_URL` or the individual components in your app.
+
 ### Step 3: Add PostgreSQL Database
-1. In your Railway project, click "+ New"
-2. Select "Database" → "PostgreSQL"
-3. Railway will automatically create the database and populate DB_* environment variables
-4. Copy the connection details for later use
+1. In your Railway project dashboard, look for the "Add Service" button (+ icon)
+2. Click "Add Service" → "Database" → "Add PostgreSQL"
+3. Railway will create a new PostgreSQL service in your project
+4. The database will automatically generate connection variables
+5. Copy the connection details for later use
+
+**Alternative method if "Add Service" is not visible:**
+1. Click "New Project" again 
+2. Select "Provision PostgreSQL" 
+3. This will create a separate database project that you can connect to your main project
 
 ### Step 4: Deploy Backend
 1. Railway will automatically deploy your backend from the root directory
 2. Wait for deployment to complete
-3. Note your backend URL: `https://your-project.up.railway.app`
+3. Your backend URL will be: `https://your-service-name.up.railway.app`
 
 ### Step 5: Run Database Migrations
 1. In Railway dashboard, go to your backend service
