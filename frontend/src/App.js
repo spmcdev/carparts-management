@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import './App.css';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import StockManagement from './StockManagement';
@@ -18,12 +18,12 @@ function App() {
 
   // Car parts state
   const [parts, setParts] = useState([]);
-  const [name, setName] = useState('');
-  const [manufacturer, setManufacturer] = useState('');
-  const [stockStatus, setStockStatus] = useState('available');
-  const [availableFrom, setAvailableFrom] = useState('');
-  const [soldDate, setSoldDate] = useState('');
-  const [parentId, setParentId] = useState('');
+  // const [name, setName] = useState('');
+  // const [manufacturer, setManufacturer] = useState('');
+  // const [stockStatus, setStockStatus] = useState('available');
+  // const [availableFrom, setAvailableFrom] = useState('');
+  // const [soldDate, setSoldDate] = useState('');
+  // const [parentId, setParentId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -33,7 +33,7 @@ function App() {
   const navigate = useNavigate();
 
   // Fetch car parts from backend
-  const fetchParts = async () => {
+  const fetchParts = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -48,11 +48,11 @@ function App() {
       setError('Failed to fetch car parts');
     }
     setLoading(false);
-  };
+  }, [token]);
 
   useEffect(() => {
     if (token) fetchParts();
-  }, [token]);
+  }, [token, fetchParts]);
 
   // Add a new car part (refactored for CarPartsManagement)
   const handleAddPart = async (partData) => {
@@ -114,7 +114,7 @@ function App() {
     } else {
       setUserRole('');
     }
-  }, [token]);
+  }, [token, userRole, fetchParts]);
 
   const handleLogout = () => {
     setToken('');

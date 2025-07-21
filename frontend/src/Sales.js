@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { API_ENDPOINTS } from './config/api';
 import Modal from 'react-bootstrap/Modal';
 import Button from 'react-bootstrap/Button';
@@ -13,7 +13,7 @@ function Sales() {
   const [showModal, setShowModal] = useState(false);
   const [sellId, setSellId] = useState(null);
   const [sellPrice, setSellPrice] = useState('');
-  const [showBillModal, setShowBillModal] = useState(false);
+  // const [showBillModal, setShowBillModal] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [billNumber, setBillNumber] = useState('');
   const [bills, setBills] = useState([]);
@@ -147,7 +147,7 @@ function Sales() {
         throw new Error('Failed to save bill');
       }
 
-      const savedBill = await billRes.json();
+      // const savedBill = await billRes.json();
       setSuccess('Part sold and bill saved successfully!');
       
       // Auto-print the bill after successful sale

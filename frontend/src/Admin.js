@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { API_ENDPOINTS } from './config/api';
 
 function Admin({ token, userRole }) {
@@ -10,11 +10,7 @@ function Admin({ token, userRole }) {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('general');
 
-  useEffect(() => {
-    if (userRole === 'admin' || userRole === 'superadmin') fetchUsers();
-  }, [userRole]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setError('');
     try {
       const res = await fetch(API_ENDPOINTS.USERS, {
@@ -26,7 +22,11 @@ function Admin({ token, userRole }) {
     } catch (err) {
       setError('Failed to fetch users.');
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (userRole === 'admin' || userRole === 'superadmin') fetchUsers();
+  }, [userRole, fetchUsers]);
 
   const handleRoleChange = async (id, newRole) => {
     setError(''); setSuccess('');

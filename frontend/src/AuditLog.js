@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { API_ENDPOINTS } from './config/api';
 
 function AuditLog({ token }) {
@@ -14,7 +14,7 @@ function AuditLog({ token }) {
   });
   const [totalCount, setTotalCount] = useState(0);
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     setError('');
     
@@ -44,11 +44,11 @@ function AuditLog({ token }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, filters]);
 
   useEffect(() => {
     fetchAuditLogs();
-  }, [token, filters]);
+  }, [fetchAuditLogs]);
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
