@@ -1,0 +1,20 @@
+# Railway
+.railway/
+
+# Local env files
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+
+# Docker
+Dockerfile.dev
+
+# Test coverage
+coverage/

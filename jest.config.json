@@ -1,0 +1,33 @@
+{
+  "projects": [
+    {
+      "displayName": "backend",
+      "testEnvironment": "node",
+      "testMatch": ["<rootDir>/tests/**/*.test.js"],
+      "transform": {
+        "^.+\\.js$": "babel-jest"
+      },
+      "collectCoverageFrom": [
+        "*.js",
+        "!index.js"
+      ],
+      "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"],
+      "extensionsToTreatAsEsm": [".js"],
+      "globals": {
+        "__DEV__": true
+      }
+    },
+    {
+      "displayName": "frontend",
+      "testEnvironment": "jsdom",
+      "testMatch": ["<rootDir>/frontend/src/**/*.test.js"],
+      "transform": {
+        "^.+\\.js$": "babel-jest"
+      },
+      "moduleNameMapper": {
+        "\\.(css|less|scss|sass)$": "identity-obj-proxy"
+      },
+      "setupFilesAfterEnv": ["<rootDir>/frontend/src/setupTests.js"]
+    }
+  ]
+}

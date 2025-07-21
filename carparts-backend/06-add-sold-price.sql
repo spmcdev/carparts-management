@@ -1,0 +1,1 @@
+ALTER TABLE parts ADD COLUMN sold_price NUMERIC(16,2);

@@ -1,0 +1,45 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=carparts
+    depends_on:
+      - db
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: carparts
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./02-users.sql:/docker-entrypoint-initdb.d/02-users.sql
+      - ./03-update-parts.sql:/docker-entrypoint-initdb.d/03-update-parts.sql
+      - ./04-add-parent-id.sql:/docker-entrypoint-initdb.d/04-add-parent-id.sql
+      - ./05-add-recommended-price.sql:/docker-entrypoint-initdb.d/05-add-recommended-price.sql
+      - ./06-add-sold-price.sql:/docker-entrypoint-initdb.d/06-add-sold-price.sql
+      - ./07-add-cost-price.sql:/docker-entrypoint-initdb.d/07-add-cost-price.sql
+      - ./08-add-local-purchase.sql:/docker-entrypoint-initdb.d/08-add-local-purchase.sql
+      - ./09-create-bills-table.sql:/docker-entrypoint-initdb.d/09-create-bills-table.sql
+      - ./11-create-audit-log.sql:/docker-entrypoint-initdb.d/11-create-audit-log.sql
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - app
+volumes:
+  db_data:

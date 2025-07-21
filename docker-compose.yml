@@ -1,0 +1,19 @@
+services:
+  app:
+    image: 979202697332.dkr.ecr.eu-north-1.amazonaws.com/carparts/carparts-backend:latest
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=carparts.cz6wos0echgd.eu-north-1.rds.amazonaws.com
+      - DB_USER=postgres
+      - DB_PASSWORD=C4r_P4rts
+      - DB_NAME=carparts
+      - JWT_SECRET=mhwSIFkqiVo3iSGN3OcVxIVhsC97LXx1NPnxiq0t6ZGI9Wm/GtbrX7MULavJJPVQ
+    ports:
+      - "3000:3000"
+
+  frontend:
+    image: 979202697332.dkr.ecr.eu-north-1.amazonaws.com/carparts/carparts-frontend:latest
+    ports:
+      - "80:80"
+
+# No db service in production; use AWS RDS

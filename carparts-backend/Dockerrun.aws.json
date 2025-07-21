@@ -1,0 +1,20 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "979202697332.dkr.ecr.eu-north-1.amazonaws.com/carparts/carparts-backend:latest",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": "3000"
+    }
+  ],
+  "Environment": [
+    { "Name": "NODE_ENV", "Value": "production" },
+    { "Name": "DB_HOST", "Value": "carparts.cz6wos0echgd.eu-north-1.rds.amazonaws.com" },
+    { "Name": "DB_USER", "Value": "postgres" },
+    { "Name": "DB_PASSWORD", "Value": "C4r_P4rts" },
+    { "Name": "DB_NAME", "Value": "carparts" },
+    { "Name": "JWT_SECRET", "Value": "mhwSIFkqiVo3iSGN3OcVxIVhsC97LXx1NPnxiq0t6ZGI9Wm/GtbrX7MULavJJPVQ" }
+  ]
+}
