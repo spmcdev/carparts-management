@@ -71,6 +71,28 @@ app.get('/', (req, res) => {
   res.send('Car Parts Management API');
 });
 
+// Debug endpoint to test database connection
+app.get('/debug', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT 1 as test');
+    res.json({ 
+      status: 'ok', 
+      database: 'connected',
+      test_query: result.rows[0],
+      jwt_secret_set: !!process.env.JWT_SECRET,
+      node_env: process.env.NODE_ENV 
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      status: 'error', 
+      database: 'failed',
+      error: err.message,
+      jwt_secret_set: !!process.env.JWT_SECRET,
+      node_env: process.env.NODE_ENV
+    });
+  }
+});
+
 // Example: Get all car parts
 app.get('/parts', authenticateToken, async (req, res) => {
   try {
