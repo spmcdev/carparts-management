@@ -22,6 +22,6 @@ const RouterWrapper = ({ children }) => (
 
 test('renders learn react link', () => {
   render(<App />, { wrapper: RouterWrapper });
-  const appElement = screen.getByRole('heading', { level: 1, name: /Car Parts/i });
+  const appElement = screen.getByRole('heading', { level: 1, name: /Rasuki Group/i });
   expect(appElement).toBeInTheDocument();
 });

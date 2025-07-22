@@ -127,7 +127,7 @@ function App() {
     <div className="App">
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div className="container-fluid">
-          <Link className="navbar-brand" to="/">Rasuki Group Car Parts</Link>
+          <Link className="navbar-brand" to="/">Rasuki Group</Link>
           <button 
             className="navbar-toggler" 
             type="button" 
@@ -183,8 +183,8 @@ function App() {
       <Routes>
         <Route path="/" element={
           <div className="container" style={{ maxWidth: 400 }}>
-            <h1 className="text-center my-4">Car Parts</h1>
-            <p className="text-center">Welcome to the Car Parts Management App! Please log in or register to continue.</p>
+            <h1 className="text-center my-4">Rasuki Group</h1>
+            <p className="text-center">Welcome to the Rasuki Group Car Parts Management App! Please log in or register to continue.</p>
             {!token ? (
               <div className="card p-4 shadow-sm mb-4">
                 <h2 className="mb-3 text-center">{authMode === 'login' ? 'Login' : 'Register'}</h2>

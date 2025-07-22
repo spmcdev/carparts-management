@@ -1,6 +1,6 @@
-# Car Parts Management System
+# Rasuki Group - Car Parts Management System
 
-A comprehensive car parts inventory management system built with React frontend and Node.js backend.
+A comprehensive car parts inventory management system built with React frontend and Node.js backend for Rasuki Group.
 
 ## Features
 

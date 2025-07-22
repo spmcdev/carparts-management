@@ -44,7 +44,7 @@ describe('App Component', () => {
         render(<App />, { wrapper: RouterWrapper });
       });
 
-      expect(screen.getByText('Car Parts')).toBeInTheDocument();
+      expect(screen.getByText('Rasuki Group')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Username')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
