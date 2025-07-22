@@ -184,7 +184,7 @@ function App() {
         <Route path="/" element={
           <div className="container" style={{ maxWidth: 400 }}>
             <h1 className="text-center my-4">Rasuki Group</h1>
-            <p className="text-center">Welcome to the Rasuki Group Car Parts Management App! Please log in or register to continue.</p>
+            <p className="text-center">Welcome to the Rasuki Group Car Parts Management App! Please log in.</p>
             {!token ? (
               <div className="card p-4 shadow-sm mb-4">
                 <h2 className="mb-3 text-center">{authMode === 'login' ? 'Login' : 'Register'}</h2>
