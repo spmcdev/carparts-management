@@ -516,6 +516,38 @@ app.post('/bills', authenticateToken, async (req, res) => {
   }
 });
 
+// Migration endpoint to add customer_phone column
+app.post('/migrate/add-customer-phone', authenticateToken, async (req, res) => {
+  // Only allow superadmin to run migrations
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Only superadmin can run migrations' });
+  }
+
+  try {
+    // Check if column already exists
+    const columnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'bills' AND table_schema = 'public' AND column_name = 'customer_phone'
+    `);
+
+    if (columnCheck.rows.length > 0) {
+      return res.json({ message: 'customer_phone column already exists' });
+    }
+
+    // Add the column
+    await pool.query('ALTER TABLE bills ADD COLUMN customer_phone VARCHAR(20)');
+    
+    // Add index
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_bills_customer_phone ON bills(customer_phone)');
+    
+    res.json({ message: 'Migration completed successfully: customer_phone column added' });
+  } catch (err) {
+    console.error('Migration error:', err);
+    res.status(500).json({ error: `Migration failed: ${err.message}` });
+  }
+});
+
 // New endpoint to retrieve all bills
 app.get('/bills', authenticateToken, async (req, res) => {
   try {
