@@ -468,12 +468,17 @@ app.patch('/parts/:id', authenticateToken, requireAdmin, async (req, res) => {
 // Test bill creation endpoint without transaction
 app.post('/test-bill', authenticateToken, async (req, res) => {
   try {
-    const testResult = await pool.query(
-      `INSERT INTO bills (customer_name, bill_number, total_amount, created_by)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      ['Test Customer', `TEST-${Date.now()}`, 100.00, req.user.id]
-    );
-    res.json({ success: true, bill: testResult.rows[0] });
+    // First check what columns exist in bills table
+    const columnsResult = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'bills' AND table_schema = 'public'
+    `);
+    
+    res.json({ 
+      success: true, 
+      available_columns: columnsResult.rows.map(row => row.column_name)
+    });
   } catch (err) {
     console.error('Test bill error:', err);
     res.status(500).json({ error: err.message });
