@@ -524,8 +524,8 @@ app.get('/bills', authenticateToken, async (req, res) => {
   }
 });
 
-// Admin-only: Get audit logs
-app.get('/audit-logs', authenticateToken, requireAdmin, async (req, res) => {
+// SuperAdmin-only: Get audit logs
+app.get('/audit-logs', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { limit = 50, offset = 0, table_name, action, username } = req.query;
     
