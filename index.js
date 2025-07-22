@@ -42,7 +42,7 @@ const corsOptions = {
     ? [process.env.FRONTEND_URL, /\.vercel\.app$/, 'http://localhost:3001'] 
     : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
@@ -537,17 +537,49 @@ app.post('/bills', authenticateToken, async (req, res) => {
   }
 });
 
+// Debug endpoint to check table schemas
+app.get('/debug/schema', authenticateToken, async (req, res) => {
+  try {
+    const billsSchema = await pool.query(`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_name = 'bills' AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `);
+    
+    const billItemsSchema = await pool.query(`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_name = 'bill_items' AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `);
+    
+    const partsSchema = await pool.query(`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_name = 'parts' AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `);
+    
+    res.json({
+      bills: billsSchema.rows,
+      bill_items: billItemsSchema.rows,
+      parts: partsSchema.rows
+    });
+  } catch (err) {
+    console.error('Error checking schema:', err);
+    res.status(500).json({ error: 'Failed to check schema' });
+  }
+});
+
 // New endpoint to retrieve all bills
 app.get('/bills', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM bills');
     res.json(result.rows);
   } catch (err) {
-    console.error('Error retrieving bills:', {
-      message: err.message,
-      stack: err.stack
-    });
-    res.status(500).json({ error: 'Failed to retrieve bills. Please check the server logs for more details.' });
+    console.error('Error fetching bills:', err);
+    res.status(500).json({ error: 'Failed to fetch bills' });
   }
 });
 
