@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS bills (
     id SERIAL PRIMARY KEY,
     bill_number VARCHAR(100) UNIQUE NOT NULL,
     customer_name VARCHAR(255) NOT NULL,
+    customer_phone VARCHAR(20),
     total_amount DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,
@@ -85,6 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_parts_part_number ON parts(part_number);
 CREATE INDEX IF NOT EXISTS idx_parts_stock_status ON parts(stock_status);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_bills_bill_number ON bills(bill_number);
+CREATE INDEX IF NOT EXISTS idx_bills_customer_phone ON bills(customer_phone);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
 

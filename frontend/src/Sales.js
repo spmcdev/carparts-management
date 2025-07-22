@@ -14,6 +14,7 @@ function Sales({ token }) {
   const [sellPrice, setSellPrice] = useState('');
   // const [showBillModal, setShowBillModal] = useState(false);
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [billNumber, setBillNumber] = useState('');
   const [bills, setBills] = useState([]);
 
@@ -41,6 +42,7 @@ function Sales({ token }) {
           <div class="bill-details">
             <p><strong>Bill Number:</strong> ${bill.bill_number}</p>
             <p><strong>Customer Name:</strong> ${bill.customer_name}</p>
+            ${bill.customer_phone ? `<p><strong>Phone Number:</strong> ${bill.customer_phone}</p>` : ''}
             <p><strong>Date:</strong> ${new Date(bill.date).toLocaleDateString()}</p>
           </div>
           <table class="items-table">
@@ -161,6 +163,7 @@ function Sales({ token }) {
       console.log('Sales - Step 2: Creating bill...');
       const newBill = {
         customerName,
+        customerPhone,
         billNumber: billNumber || `BILL-${Date.now()}`,
         items: [updatedItem]
       };
@@ -192,10 +195,17 @@ function Sales({ token }) {
       const billToPrint = {
         bill_number: newBill.billNumber,
         customer_name: newBill.customerName,
+        customer_phone: newBill.customerPhone,
         date: new Date().toISOString().split('T')[0],
         items: newBill.items
       };
       printBill(billToPrint);
+      
+      // Clear form fields
+      setCustomerName('');
+      setCustomerPhone('');
+      setBillNumber('');
+      setSellPrice('');
       
       setShowModal(false);
     } catch (err) {
@@ -343,6 +353,7 @@ function Sales({ token }) {
                 <tr>
                   <th>Bill Number</th>
                   <th>Customer Name</th>
+                  <th>Phone Number</th>
                   <th>Date</th>
                   <th>Items</th>
                   <th>Actions</th>
@@ -353,6 +364,7 @@ function Sales({ token }) {
                   <tr key={index}>
                     <td>{bill.bill_number}</td>
                     <td>{bill.customer_name}</td>
+                    <td>{bill.customer_phone || 'N/A'}</td>
                     <td>{bill.date}</td>
                     <td>
                       {bill.items.map(item => (
@@ -388,6 +400,13 @@ function Sales({ token }) {
             value={customerName}
             onChange={e => setCustomerName(e.target.value)}
             required
+          />
+          <input
+            type="tel"
+            className="form-control mb-3"
+            placeholder="Customer Phone Number (Optional)"
+            value={customerPhone}
+            onChange={e => setCustomerPhone(e.target.value)}
           />
           <input
             type="text"

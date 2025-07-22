@@ -466,7 +466,7 @@ app.patch('/parts/:id', authenticateToken, requireAdmin, async (req, res) => {
 
 // New endpoint to handle bill creation
 app.post('/bills', authenticateToken, async (req, res) => {
-  const { customerName, billNumber, items } = req.body;
+  const { customerName, customerPhone, billNumber, items } = req.body;
 
   // Validate input
   if (!customerName || !items || !Array.isArray(items) || items.length === 0) {
@@ -474,12 +474,13 @@ app.post('/bills', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Insert bill with current database schema (customer_name, bill_number, date, items)
+    // Insert bill with current database schema (customer_name, customer_phone, bill_number, date, items)
     const billResult = await pool.query(
-      `INSERT INTO bills (customer_name, bill_number, date, items)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
+      `INSERT INTO bills (customer_name, customer_phone, bill_number, date, items)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [
-        customerName, 
+        customerName,
+        customerPhone || null, // Optional phone number
         billNumber || `BILL-${Date.now()}`, 
         new Date(),
         JSON.stringify(items)
@@ -497,6 +498,7 @@ app.post('/bills', authenticateToken, async (req, res) => {
       null,
       {
         customer_name: customerName,
+        customer_phone: customerPhone,
         bill_number: newBill.bill_number,
         items_count: items.length
       },
@@ -508,7 +510,7 @@ app.post('/bills', authenticateToken, async (req, res) => {
     console.error('Error creating bill:', {
       message: err.message,
       stack: err.stack,
-      input: { customerName, billNumber, items }
+      input: { customerName, customerPhone, billNumber, items }
     });
     res.status(500).json({ error: 'Failed to create bill. Please check the server logs for more details.' });
   }
