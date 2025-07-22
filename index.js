@@ -465,26 +465,6 @@ app.patch('/parts/:id', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // New endpoint to handle bill creation
-// Test bill creation endpoint without transaction
-app.post('/test-bill', authenticateToken, async (req, res) => {
-  try {
-    // First check what columns exist in bills table
-    const columnsResult = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'bills' AND table_schema = 'public'
-    `);
-    
-    res.json({ 
-      success: true, 
-      available_columns: columnsResult.rows.map(row => row.column_name)
-    });
-  } catch (err) {
-    console.error('Test bill error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.post('/bills', authenticateToken, async (req, res) => {
   const { customerName, billNumber, items } = req.body;
 
@@ -493,39 +473,20 @@ app.post('/bills', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Invalid input. Ensure customerName and items are provided.' });
   }
 
-  // Calculate total amount
-  const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.sold_price || 0), 0);
-
   try {
-    // Start transaction
-    await pool.query('BEGIN');
-
-    // Insert bill
+    // Insert bill with current database schema (customer_name, bill_number, date, items)
     const billResult = await pool.query(
-      `INSERT INTO bills (customer_name, bill_number, total_amount, created_by)
+      `INSERT INTO bills (customer_name, bill_number, date, items)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [customerName, billNumber || `BILL-${Date.now()}`, totalAmount, req.user.id]
+      [
+        customerName, 
+        billNumber || `BILL-${Date.now()}`, 
+        new Date(),
+        JSON.stringify(items)
+      ]
     );
     
     const newBill = billResult.rows[0];
-    
-    // Insert bill items
-    for (const item of items) {
-      await pool.query(
-        `INSERT INTO bill_items (bill_id, part_id, quantity, unit_price, total_price)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          newBill.id,
-          item.id,
-          1, // quantity (assuming 1 for parts sales)
-          parseFloat(item.sold_price || 0),
-          parseFloat(item.sold_price || 0)
-        ]
-      );
-    }
-
-    // Commit transaction
-    await pool.query('COMMIT');
     
     // Log audit action for bill creation
     await logAuditAction(
@@ -537,7 +498,6 @@ app.post('/bills', authenticateToken, async (req, res) => {
       {
         customer_name: customerName,
         bill_number: newBill.bill_number,
-        total_amount: totalAmount,
         items_count: items.length
       },
       req
@@ -545,50 +505,12 @@ app.post('/bills', authenticateToken, async (req, res) => {
     
     res.status(201).json(newBill);
   } catch (err) {
-    // Rollback transaction on error
-    await pool.query('ROLLBACK');
-    
     console.error('Error creating bill:', {
       message: err.message,
       stack: err.stack,
       input: { customerName, billNumber, items }
     });
     res.status(500).json({ error: 'Failed to create bill. Please check the server logs for more details.' });
-  }
-});
-
-// Debug endpoint to check table schemas
-app.get('/debug/schema', authenticateToken, async (req, res) => {
-  try {
-    const billsSchema = await pool.query(`
-      SELECT column_name, data_type, is_nullable 
-      FROM information_schema.columns 
-      WHERE table_name = 'bills' AND table_schema = 'public'
-      ORDER BY ordinal_position
-    `);
-    
-    const billItemsSchema = await pool.query(`
-      SELECT column_name, data_type, is_nullable 
-      FROM information_schema.columns 
-      WHERE table_name = 'bill_items' AND table_schema = 'public'
-      ORDER BY ordinal_position
-    `);
-    
-    const partsSchema = await pool.query(`
-      SELECT column_name, data_type, is_nullable 
-      FROM information_schema.columns 
-      WHERE table_name = 'parts' AND table_schema = 'public'
-      ORDER BY ordinal_position
-    `);
-    
-    res.json({
-      bills: billsSchema.rows,
-      bill_items: billItemsSchema.rows,
-      parts: partsSchema.rows
-    });
-  } catch (err) {
-    console.error('Error checking schema:', err);
-    res.status(500).json({ error: 'Failed to check schema' });
   }
 });
 
