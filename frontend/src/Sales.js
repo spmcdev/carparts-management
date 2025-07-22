@@ -125,7 +125,15 @@ function Sales({ token }) {
   const handleConfirmSell = async () => {
     setError('');
     setSuccess('');
+    
+    console.log('Sales - Starting sell process for part ID:', sellId);
+    console.log('Sales - Sell price:', sellPrice);
+    console.log('Sales - Customer name:', customerName);
+    console.log('Sales - Bill number:', billNumber);
+    
     try {
+      // Step 1: Mark part as sold
+      console.log('Sales - Step 1: Marking part as sold...');
       const res = await fetch(`${API_ENDPOINTS.PARTS}/${sellId}/sell`, {
         method: 'PATCH',
         headers: {
@@ -134,20 +142,30 @@ function Sales({ token }) {
         },
         body: JSON.stringify({ sold_price: sellPrice })
       });
+      
+      console.log('Sales - Sell response status:', res.status);
       if (!res.ok) {
-        throw new Error('Failed to sell part');
+        const errorText = await res.text();
+        console.error('Sales - Sell failed:', errorText);
+        throw new Error(`Failed to sell part: ${res.status} - ${errorText}`);
       }
+
+      const soldPartResponse = await res.json();
+      console.log('Sales - Part marked as sold:', soldPartResponse);
 
       const soldItem = results.find(part => part.id === sellId);
       const updatedItem = { ...soldItem, stock_status: 'sold', sold_date: new Date().toISOString().split('T')[0], sold_price: sellPrice };
       setResults(results.map(part => part.id === sellId ? updatedItem : part));
 
+      // Step 2: Create bill
+      console.log('Sales - Step 2: Creating bill...');
       const newBill = {
         customerName,
-        billNumber: billNumber || `${Date.now()}`,
-        items: [updatedItem],
-        date: new Date().toISOString().split('T')[0]
+        billNumber: billNumber || `BILL-${Date.now()}`,
+        items: [updatedItem]
       };
+      
+      console.log('Sales - Bill data:', newBill);
 
       const billRes = await fetch(API_ENDPOINTS.BILLS, {
         method: 'POST',
@@ -157,25 +175,32 @@ function Sales({ token }) {
         },
         body: JSON.stringify(newBill)
       });
+      
+      console.log('Sales - Bill response status:', billRes.status);
       if (!billRes.ok) {
-        throw new Error('Failed to save bill');
+        const billErrorText = await billRes.text();
+        console.error('Sales - Bill creation failed:', billErrorText);
+        throw new Error(`Failed to save bill: ${billRes.status} - ${billErrorText}`);
       }
 
-      // const savedBill = await billRes.json();
+      const savedBill = await billRes.json();
+      console.log('Sales - Bill created successfully:', savedBill);
+      
       setSuccess('Part sold and bill saved successfully!');
       
       // Auto-print the bill after successful sale
       const billToPrint = {
         bill_number: newBill.billNumber,
         customer_name: newBill.customerName,
-        date: newBill.date,
+        date: new Date().toISOString().split('T')[0],
         items: newBill.items
       };
       printBill(billToPrint);
       
       setShowModal(false);
     } catch (err) {
-      setError('Failed to sell part or save bill.');
+      console.error('Sales - Overall sell process failed:', err);
+      setError(`Failed to sell part or save bill: ${err.message}`);
     }
   };
 

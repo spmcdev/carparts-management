@@ -466,21 +466,46 @@ app.patch('/parts/:id', authenticateToken, requireAdmin, async (req, res) => {
 
 // New endpoint to handle bill creation
 app.post('/bills', authenticateToken, async (req, res) => {
-  const { customerName, billNumber, date, items } = req.body;
+  const { customerName, billNumber, items } = req.body;
 
   // Validate input
-  if (!customerName || !date || !items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Invalid input. Ensure customerName, date, and items are provided.' });
+  if (!customerName || !items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Invalid input. Ensure customerName and items are provided.' });
   }
 
+  // Calculate total amount
+  const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.sold_price || 0), 0);
+
   try {
-    const result = await pool.query(
-      `INSERT INTO bills (customer_name, bill_number, date, items)
+    // Start transaction
+    await pool.query('BEGIN');
+
+    // Insert bill
+    const billResult = await pool.query(
+      `INSERT INTO bills (customer_name, bill_number, total_amount, created_by)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [customerName, billNumber, date, JSON.stringify(items)]
+      [customerName, billNumber || `BILL-${Date.now()}`, totalAmount, req.user.id]
     );
     
-    const newBill = result.rows[0];
+    const newBill = billResult.rows[0];
+    
+    // Insert bill items
+    for (const item of items) {
+      await pool.query(
+        `INSERT INTO bill_items (bill_id, part_id, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          newBill.id,
+          item.id,
+          1, // quantity (assuming 1 for parts sales)
+          parseFloat(item.sold_price || 0),
+          parseFloat(item.sold_price || 0)
+        ]
+      );
+    }
+
+    // Commit transaction
+    await pool.query('COMMIT');
     
     // Log audit action for bill creation
     await logAuditAction(
@@ -491,20 +516,22 @@ app.post('/bills', authenticateToken, async (req, res) => {
       null,
       {
         customer_name: customerName,
-        bill_number: billNumber,
-        date: date,
-        items_count: items.length,
-        total_amount: items.reduce((sum, item) => sum + parseFloat(item.sold_price || 0), 0)
+        bill_number: newBill.bill_number,
+        total_amount: totalAmount,
+        items_count: items.length
       },
       req
     );
     
     res.status(201).json(newBill);
   } catch (err) {
+    // Rollback transaction on error
+    await pool.query('ROLLBACK');
+    
     console.error('Error creating bill:', {
       message: err.message,
       stack: err.stack,
-      input: { customerName, billNumber, date, items }
+      input: { customerName, billNumber, items }
     });
     res.status(500).json({ error: 'Failed to create bill. Please check the server logs for more details.' });
   }
