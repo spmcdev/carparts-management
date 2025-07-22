@@ -81,13 +81,27 @@ function Sales({ token }) {
     setLoading(true);
     setError('');
     setSuccess('');
+    
+    console.log('Sales - Token:', token ? 'Present' : 'Missing');
+    console.log('Sales - API URL:', API_ENDPOINTS.PARTS);
+    
     try {
       const res = await fetch(API_ENDPOINTS.PARTS, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` })
         }
       });
+      
+      console.log('Sales - Response status:', res.status);
+      console.log('Sales - Response ok:', res.ok);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
       const data = await res.json();
+      console.log('Sales - Parts data received:', data.length, 'parts');
+      
       const filtered = data.filter(
         part =>
           part.id.toString() === search.trim() ||
@@ -96,7 +110,8 @@ function Sales({ token }) {
       setResults(filtered);
       if (filtered.length === 0) setError('No matching parts found.');
     } catch (err) {
-      setError('Failed to search parts.');
+      console.error('Sales - Search error:', err);
+      setError(`Failed to search parts: ${err.message}`);
     }
     setLoading(false);
   };
@@ -167,16 +182,26 @@ function Sales({ token }) {
   const handleRetrieveBills = async (searchTerm = '') => {
     setError('');
     setLoading(true);
+    
+    console.log('Sales - Retrieving bills, Token:', token ? 'Present' : 'Missing');
+    console.log('Sales - Bills API URL:', API_ENDPOINTS.BILLS);
+    
     try {
       const res = await fetch(API_ENDPOINTS.BILLS, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` })
         }
       });
+      
+      console.log('Sales - Bills response status:', res.status);
+      console.log('Sales - Bills response ok:', res.ok);
+      
       if (!res.ok) {
-        throw new Error('Failed to fetch bills');
+        throw new Error(`Failed to fetch bills - HTTP ${res.status}`);
       }
       const data = await res.json();
+      console.log('Sales - Bills data received:', data.length, 'bills');
+      
       const filteredBills = searchTerm.trim() === ''
         ? data
         : data.filter(
@@ -186,8 +211,8 @@ function Sales({ token }) {
           );
       setBills(filteredBills);
     } catch (err) {
-      console.error('Error retrieving bills:', err);
-      setError('Failed to retrieve bills.');
+      console.error('Sales - Bills retrieval error:', err);
+      setError(`Failed to retrieve bills: ${err.message}`);
     } finally {
       setLoading(false);
     }
