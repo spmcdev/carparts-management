@@ -474,14 +474,14 @@ app.post('/bills', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Insert bill with current database schema (customer_name, customer_phone, bill_number, date, items)
+    // Insert bill with updated schema - bill_number is now optional
     const billResult = await pool.query(
       `INSERT INTO bills (customer_name, customer_phone, bill_number, date, items)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [
         customerName,
-        customerPhone || null, // Optional phone number
-        billNumber || `BILL-${Date.now()}`, 
+        customerPhone || null,
+        billNumber || null, // Allow null if user doesn't provide bill number
         new Date(),
         JSON.stringify(items)
       ]
@@ -523,6 +523,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
       SELECT 
         id,
         customer_name,
+        customer_phone,
         bill_number,
         TO_CHAR(date, 'YYYY-MM-DD') as date,
         items
@@ -533,6 +534,87 @@ app.get('/bills', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error fetching bills:', err);
     res.status(500).json({ error: 'Failed to fetch bills' });
+  }
+});
+
+// New endpoint to edit a bill
+app.put('/bills/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customer_name, customer_phone, bill_number, items } = req.body;
+
+    // Validate input
+    if (!customer_name || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invalid input. Ensure customer_name and items are provided.' });
+    }
+
+    // Get the current bill for audit logging
+    const currentBillResult = await pool.query('SELECT * FROM bills WHERE id = $1', [id]);
+    if (currentBillResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    
+    const currentBill = currentBillResult.rows[0];
+
+    // Update the bill
+    const updateResult = await pool.query(
+      `UPDATE bills 
+       SET customer_name = $1, customer_phone = $2, bill_number = $3, items = $4
+       WHERE id = $5 
+       RETURNING *`,
+      [
+        customer_name,
+        customer_phone || null,
+        bill_number || null,
+        JSON.stringify(items),
+        id
+      ]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+
+    const updatedBill = updateResult.rows[0];
+
+    // Log audit action for bill update
+    await logAuditAction(
+      req.user,
+      'UPDATE',
+      'bills',
+      id,
+      {
+        customer_name: currentBill.customer_name,
+        customer_phone: currentBill.customer_phone,
+        bill_number: currentBill.bill_number,
+        items_count: Array.isArray(currentBill.items) ? currentBill.items.length : 0
+      },
+      {
+        customer_name: customer_name,
+        customer_phone: customer_phone,
+        bill_number: bill_number,
+        items_count: items.length
+      },
+      req
+    );
+
+    // Return updated bill with formatted date
+    const formattedResult = await pool.query(`
+      SELECT 
+        id,
+        customer_name,
+        customer_phone,
+        bill_number,
+        TO_CHAR(date, 'YYYY-MM-DD') as date,
+        items
+      FROM bills 
+      WHERE id = $1
+    `, [id]);
+
+    res.json(formattedResult.rows[0]);
+  } catch (err) {
+    console.error('Error updating bill:', err);
+    res.status(500).json({ error: 'Failed to update bill' });
   }
 });
 
@@ -797,9 +879,9 @@ app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) =
       }];
 
       const billResult = await pool.query(
-        `INSERT INTO bills (bill_number, customer_name, date, items)
-         VALUES ($1, $2, CURRENT_DATE, $3) RETURNING *`,
-        [billNumber, customer_name, JSON.stringify(billItems)]
+        `INSERT INTO bills (bill_number, customer_name, customer_phone, date, items)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4) RETURNING *`,
+        [billNumber, customer_name, customer_phone, JSON.stringify(billItems)]
       );
 
       const bill = billResult.rows[0];
