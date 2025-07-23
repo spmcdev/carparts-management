@@ -335,4 +335,116 @@ describe('CarPartsManagement Component', () => {
       expect(availableFromInput.value).toBe('2023-06-15');
     });
   });
+
+  describe('Table Sorting', () => {
+    const mockPartsData = [
+      {
+        id: 1,
+        name: 'Part A',
+        manufacturer: 'Manufacturer Z',
+        recommended_price: '100.00',
+        container_no: 'C001',
+        parent_id: 2,
+        stock_status: 'available',
+        available_from: '2025-07-20',
+        sold_date: null,
+        local_purchase: false
+      },
+      {
+        id: 2,
+        name: 'Part B',
+        manufacturer: 'Manufacturer A',
+        recommended_price: '50.00',
+        container_no: 'C002',
+        parent_id: 1,
+        stock_status: 'sold',
+        available_from: '2025-07-21',
+        sold_date: '2025-07-22',
+        local_purchase: true
+      }
+    ];
+
+    const mockPropsWithData = {
+      ...mockProps,
+      parts: mockPartsData
+    };
+
+    it('should render clickable column headers with sort icons', () => {
+      render(<CarPartsManagement {...mockPropsWithData} />);
+      
+      // Check that column headers are clickable and have sort icons
+      expect(screen.getByText('Part Name')).toBeInTheDocument();
+      expect(screen.getByText('Manufacturer')).toBeInTheDocument();
+      expect(screen.getByText('Recommended Price')).toBeInTheDocument();
+      
+      // Check for sort icons (arrows) in headers by looking for buttons
+      const headers = screen.getAllByRole('button');
+      expect(headers.length).toBeGreaterThan(0);
+    });
+
+    it('should sort by ID in descending order by default', () => {
+      render(<CarPartsManagement {...mockPropsWithData} />);
+      
+      const rows = screen.getAllByRole('row');
+      // Skip header row, check data rows
+      const firstDataRow = rows[1];
+      const secondDataRow = rows[2];
+      
+      // ID 2 should come first (descending order)
+      expect(firstDataRow).toHaveTextContent('2');
+      expect(secondDataRow).toHaveTextContent('1');
+    });
+
+    it('should toggle sort direction when clicking the same column', () => {
+      render(<CarPartsManagement {...mockPropsWithData} />);
+      
+      // Find the ID header more specifically by getting all headers with "ID" and filtering
+      const allHeaders = screen.getAllByRole('button');
+      const idHeader = allHeaders.find(header => header.textContent.trim().startsWith('ID') && !header.textContent.includes('Parent'));
+      
+      // First click should sort ascending (toggle from default descending)
+      fireEvent.click(idHeader);
+      
+      let rows = screen.getAllByRole('row');
+      let firstDataRow = rows[1];
+      expect(firstDataRow).toHaveTextContent('1'); // ID 1 should come first
+      
+      // Second click should sort descending again
+      fireEvent.click(idHeader);
+      
+      rows = screen.getAllByRole('row');
+      firstDataRow = rows[1];
+      expect(firstDataRow).toHaveTextContent('2'); // ID 2 should come first
+    });
+
+    it('should sort by part name alphabetically', () => {
+      render(<CarPartsManagement {...mockPropsWithData} />);
+      
+      const nameHeader = screen.getByText('Part Name');
+      fireEvent.click(nameHeader); // Sort ascending
+      
+      const rows = screen.getAllByRole('row');
+      const firstDataRow = rows[1];
+      const secondDataRow = rows[2];
+      
+      // "Part A" should come before "Part B"
+      expect(firstDataRow).toHaveTextContent('Part A');
+      expect(secondDataRow).toHaveTextContent('Part B');
+    });
+
+    it('should sort by price numerically', () => {
+      render(<CarPartsManagement {...mockPropsWithData} />);
+      
+      const priceHeader = screen.getByText('Recommended Price');
+      fireEvent.click(priceHeader); // Sort ascending
+      
+      const rows = screen.getAllByRole('row');
+      const firstDataRow = rows[1];
+      const secondDataRow = rows[2];
+      
+      // Rs. 50.00 should come before Rs. 100.00
+      expect(firstDataRow).toHaveTextContent('50.00');
+      expect(secondDataRow).toHaveTextContent('100.00');
+    });
+  });
 });

@@ -15,6 +15,12 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const [editFields, setEditFields] = useState({});
   const [editError, setEditError] = useState('');
   const [localPurchase, setLocalPurchase] = useState(false);
+  
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({
+    key: 'id',
+    direction: 'desc' // Default to show newest first
+  });
 
   useEffect(() => {
     fetchParts();
@@ -25,6 +31,59 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const getTodayDate = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
+  };
+
+  // Sorting functions
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedParts = () => {
+    if (!sortConfig.key) return parts;
+    
+    return [...parts].sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+      
+      // Handle null/undefined values
+      if (aValue == null) aValue = '';
+      if (bValue == null) bValue = '';
+      
+      // Handle numeric values
+      if (sortConfig.key === 'id' || sortConfig.key === 'parent_id' || 
+          sortConfig.key === 'recommended_price' || sortConfig.key === 'cost_price' || 
+          sortConfig.key === 'sold_price') {
+        aValue = parseFloat(aValue) || 0;
+        bValue = parseFloat(bValue) || 0;
+      }
+      
+      // Handle string values (case insensitive)
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toString().toLowerCase();
+      }
+      
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <span className="text-muted ms-1">⇅</span>;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <span className="text-white ms-1">↑</span> : 
+      <span className="text-white ms-1">↓</span>;
   };
 
   const onSubmit = (e) => {
@@ -166,23 +225,111 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
         <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
           <thead className="table-dark">
             <tr>
-              <th>ID</th>
-              <th>Part Name</th>
-              <th>Manufacturer</th>
-              {userRole === 'superadmin' && <th>Cost Price</th>}
-              <th>Recommended Price</th>
-              <th>Container No</th>
-              <th>Local Purchase</th>
-              <th>Parent ID</th>
-              <th>Stock Status</th>
-              <th>Available From</th>
-              <th>Sold Date</th>
-              {(userRole === 'admin' || userRole === 'superadmin') && <th>Sold Price</th>}
+              <th 
+                role="button" 
+                onClick={() => handleSort('id')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                ID{getSortIcon('id')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('name')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Part Name{getSortIcon('name')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('manufacturer')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Manufacturer{getSortIcon('manufacturer')}
+              </th>
+              {userRole === 'superadmin' && (
+                <th 
+                  role="button" 
+                  onClick={() => handleSort('cost_price')} 
+                  className="user-select-none"
+                  style={{ cursor: 'pointer' }}
+                >
+                  Cost Price{getSortIcon('cost_price')}
+                </th>
+              )}
+              <th 
+                role="button" 
+                onClick={() => handleSort('recommended_price')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Recommended Price{getSortIcon('recommended_price')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('container_no')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Container No{getSortIcon('container_no')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('local_purchase')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Local Purchase{getSortIcon('local_purchase')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('parent_id')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Parent ID{getSortIcon('parent_id')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('stock_status')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Stock Status{getSortIcon('stock_status')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('available_from')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Available From{getSortIcon('available_from')}
+              </th>
+              <th 
+                role="button" 
+                onClick={() => handleSort('sold_date')} 
+                className="user-select-none"
+                style={{ cursor: 'pointer' }}
+              >
+                Sold Date{getSortIcon('sold_date')}
+              </th>
+              {(userRole === 'admin' || userRole === 'superadmin') && (
+                <th 
+                  role="button" 
+                  onClick={() => handleSort('sold_price')} 
+                  className="user-select-none"
+                  style={{ cursor: 'pointer' }}
+                >
+                  Sold Price{getSortIcon('sold_price')}
+                </th>
+              )}
               {(userRole === 'admin' || userRole === 'superadmin') && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {parts.map(part => (
+            {getSortedParts().map(part => (
               <tr key={part.id}>
                 <td>{part.id}</td>
                 {editId === part.id ? (
