@@ -4,6 +4,7 @@ import { API_ENDPOINTS } from './config/api';
 function StockManagement() {
   const [availableStock, setAvailableStock] = useState([]);
   const [soldStock, setSoldStock] = useState([]);
+  const [parentChildRelations, setParentChildRelations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -69,6 +70,12 @@ function StockManagement() {
                 ${reportType === 'Available Stock' ? `
                   <th>Available From</th>
                   <th>Recommended Price (Rs.)</th>
+                ` : reportType === 'Parent-Child Relationships' ? `
+                  <th>Parent ID</th>
+                  <th>Parent Name</th>
+                  <th>Child ID</th>
+                  <th>Child Name</th>
+                  <th>Child Status</th>
                 ` : `
                   <th>Sold Date</th>
                   <th>Sold Price (Rs.)</th>
@@ -79,16 +86,27 @@ function StockManagement() {
             <tbody>
               ${stockData.map(item => `
                 <tr>
-                  <td>${item.id}</td>
-                  <td>${item.name}</td>
-                  <td>${item.manufacturer || 'N/A'}</td>
-                  ${reportType === 'Available Stock' ? `
-                    <td>${item.available_from ? new Date(item.available_from).toLocaleDateString() : 'N/A'}</td>
-                    <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  ${reportType === 'Parent-Child Relationships' ? `
+                    <td>-</td>
+                    <td>Relationship</td>
+                    <td>-</td>
+                    <td>${item.parentId}</td>
+                    <td>${item.parentName}</td>
+                    <td>${item.childId}</td>
+                    <td>${item.childName}</td>
+                    <td>${item.childStatus}</td>
                   ` : `
-                    <td>${item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
-                    <td>Rs. ${parseFloat(item.sold_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>${item.id}</td>
+                    <td>${item.name}</td>
+                    <td>${item.manufacturer || 'N/A'}</td>
+                    ${reportType === 'Available Stock' ? `
+                      <td>${item.available_from ? new Date(item.available_from).toLocaleDateString() : 'N/A'}</td>
+                      <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    ` : `
+                      <td>${item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
+                      <td>Rs. ${parseFloat(item.sold_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    `}
                   `}
                 </tr>
               `).join('')}
@@ -160,6 +178,65 @@ function StockManagement() {
     } catch (err) {
       console.error('Error fetching sold stock:', err);
       setError('Failed to retrieve sold stock.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetParentChildRelations = async () => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(API_ENDPOINTS.PARTS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      if (!res.ok) {
+        throw new Error('Failed to fetch parts');
+      }
+      const data = await res.json();
+      
+      // Create a map of parent ID to parent part details
+      const parentMap = {};
+      data.forEach(part => {
+        parentMap[part.id] = part;
+      });
+      
+      // Find all parts that have parent_id (child parts) and match with their parents
+      const relations = [];
+      data.forEach(part => {
+        if (part.parent_id && parentMap[part.parent_id]) {
+          relations.push({
+            parentId: part.parent_id,
+            parentName: parentMap[part.parent_id].name,
+            parentManufacturer: parentMap[part.parent_id].manufacturer,
+            parentStatus: parentMap[part.parent_id].stock_status,
+            childId: part.id,
+            childName: part.name,
+            childManufacturer: part.manufacturer,
+            childStatus: part.stock_status,
+            childRecommendedPrice: part.recommended_price,
+            childAvailableFrom: part.available_from,
+            childSoldDate: part.sold_date
+          });
+        }
+      });
+      
+      // Sort by parent ID, then by child ID
+      relations.sort((a, b) => {
+        if (a.parentId !== b.parentId) {
+          return a.parentId - b.parentId;
+        }
+        return a.childId - b.childId;
+      });
+      
+      setParentChildRelations(relations);
+      setSuccess(`Found ${relations.length} parent-child relationships.`);
+    } catch (err) {
+      console.error('Error fetching parent-child relations:', err);
+      setError('Failed to retrieve parent-child relationships.');
     } finally {
       setLoading(false);
     }
@@ -333,6 +410,103 @@ function StockManagement() {
                       Rs. {soldStock.reduce((total, item) => total + (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}
                     </span></li>
                     <li>Average Sale Price: Rs. {soldStock.length > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0) / soldStock.length).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Parent-Child Relationship Report Section */}
+        <div className="card">
+          <div className="card-header">
+            <h4>Parent-Child Relationship Report</h4>
+          </div>
+          <div className="card-body">
+            <div className="d-flex gap-2 mb-3">
+              <button 
+                className="btn btn-info" 
+                onClick={handleGetParentChildRelations}
+                disabled={loading}
+              >
+                Generate Parent-Child Report
+              </button>
+              {parentChildRelations.length > 0 && (
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => printStockReport(parentChildRelations, 'Parent-Child Relationships')}
+                >
+                  Print Report
+                </button>
+              )}
+            </div>
+            
+            {parentChildRelations.length > 0 && (
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
+                  <thead className="table-dark">
+                    <tr>
+                      <th>Parent ID</th>
+                      <th>Parent Name</th>
+                      <th>Parent Manufacturer</th>
+                      <th>Parent Status</th>
+                      <th>Child ID</th>
+                      <th>Child Name</th>
+                      <th>Child Manufacturer</th>
+                      <th>Child Status</th>
+                      <th>Child Price (Rs.)</th>
+                      <th>Child Available From</th>
+                      <th>Child Sold Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parentChildRelations.map((relation, index) => (
+                      <tr key={index}>
+                        <td>{relation.parentId}</td>
+                        <td>{relation.parentName}</td>
+                        <td>{relation.parentManufacturer || 'N/A'}</td>
+                        <td>
+                          <span className={
+                            relation.parentStatus === 'available' ? 'badge bg-success' :
+                            relation.parentStatus === 'sold' ? 'badge bg-danger' :
+                            relation.parentStatus === 'reserved' ? 'badge bg-warning text-dark' :
+                            'badge bg-secondary'
+                          }>
+                            {relation.parentStatus ? relation.parentStatus.charAt(0).toUpperCase() + relation.parentStatus.slice(1) : 'N/A'}
+                          </span>
+                        </td>
+                        <td>{relation.childId}</td>
+                        <td>{relation.childName}</td>
+                        <td>{relation.childManufacturer || 'N/A'}</td>
+                        <td>
+                          <span className={
+                            relation.childStatus === 'available' ? 'badge bg-success' :
+                            relation.childStatus === 'sold' ? 'badge bg-danger' :
+                            relation.childStatus === 'reserved' ? 'badge bg-warning text-dark' :
+                            'badge bg-secondary'
+                          }>
+                            {relation.childStatus ? relation.childStatus.charAt(0).toUpperCase() + relation.childStatus.slice(1) : 'N/A'}
+                          </span>
+                        </td>
+                        <td>{
+                          relation.childRecommendedPrice !== null && relation.childRecommendedPrice !== undefined
+                            ? `Rs. ${parseFloat(relation.childRecommendedPrice).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</td>
+                        <td>{relation.childAvailableFrom ? relation.childAvailableFrom.slice(0, 10) : 'N/A'}</td>
+                        <td>{relation.childSoldDate ? relation.childSoldDate.slice(0, 10) : 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-3">
+                  <strong>Summary:</strong>
+                  <ul>
+                    <li>Total Parent-Child Relationships: {parentChildRelations.length}</li>
+                    <li>Unique Parent Parts: {new Set(parentChildRelations.map(r => r.parentId)).size}</li>
+                    <li>Child Parts with Available Status: {parentChildRelations.filter(r => r.childStatus === 'available').length}</li>
+                    <li>Child Parts with Sold Status: {parentChildRelations.filter(r => r.childStatus === 'sold').length}</li>
+                    <li>Total Value of Child Parts: Rs. {parentChildRelations.reduce((total, relation) => total + parseFloat(relation.childRecommendedPrice || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
                   </ul>
                 </div>
               </div>
