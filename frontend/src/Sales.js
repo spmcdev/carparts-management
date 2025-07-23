@@ -22,6 +22,23 @@ function Sales({ token }) {
   const [parentSearch, setParentSearch] = useState('');
   const [showChildPartsOnly, setShowChildPartsOnly] = useState(false);
 
+  // Reservation States
+  const [showReserveModal, setShowReserveModal] = useState(false);
+  const [reserveId, setReserveId] = useState(null);
+  const [reserveCustomerName, setReserveCustomerName] = useState('');
+  const [reserveCustomerPhone, setReserveCustomerPhone] = useState('');
+  const [reservePriceAgreed, setReservePriceAgreed] = useState('');
+  const [reserveDepositAmount, setReserveDepositAmount] = useState('');
+  const [reserveNotes, setReserveNotes] = useState('');
+  const [reservations, setReservations] = useState([]);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [completeReservationId, setCompleteReservationId] = useState(null);
+  const [completeFinalPrice, setCompleteFinalPrice] = useState('');
+  const [completeCustomerName, setCompleteCustomerName] = useState('');
+  const [completeCustomerPhone, setCompleteCustomerPhone] = useState('');
+  const [reservationSearch, setReservationSearch] = useState('');
+  const [reservationStatus, setReservationStatus] = useState('reserved');
+
   const printBill = (bill) => {
     const printContent = `
       <html>
@@ -164,6 +181,170 @@ function Sales({ token }) {
     } catch (err) {
       console.error('Sales - Child Parts Search error:', err);
       setError(`Failed to search child parts: ${err.message}`);
+    }
+    setLoading(false);
+  };
+
+  // Reservation Functions
+  const handleReserve = (partId) => {
+    setReserveId(partId);
+    setShowReserveModal(true);
+  };
+
+  const handleReserveSubmit = async () => {
+    if (!reserveCustomerName || !reserveCustomerPhone || !reservePriceAgreed) {
+      setError('Customer name, phone, and agreed price are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.RESERVATIONS, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          part_id: reserveId,
+          customer_name: reserveCustomerName,
+          customer_phone: reserveCustomerPhone,
+          price_agreed: parseFloat(reservePriceAgreed),
+          deposit_amount: parseFloat(reserveDepositAmount) || 0,
+          notes: reserveNotes
+        })
+      });
+
+      if (response.ok) {
+        const reservation = await response.json();
+        setSuccess(`Part reserved successfully! Reservation Number: ${reservation.reservation_number}`);
+        setShowReserveModal(false);
+        resetReserveForm();
+        
+        // Remove the reserved part from current results
+        setResults(prev => prev.filter(part => part.id !== reserveId));
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to reserve part');
+      }
+    } catch (err) {
+      setError('Failed to reserve part');
+    }
+    setLoading(false);
+  };
+
+  const resetReserveForm = () => {
+    setReserveId(null);
+    setReserveCustomerName('');
+    setReserveCustomerPhone('');
+    setReservePriceAgreed('');
+    setReserveDepositAmount('');
+    setReserveNotes('');
+  };
+
+  const handleGetReservations = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const queryParams = new URLSearchParams();
+      if (reservationSearch) queryParams.append('search', reservationSearch);
+      if (reservationStatus) queryParams.append('status', reservationStatus);
+
+      const response = await fetch(`${API_ENDPOINTS.RESERVATIONS}?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setReservations(data);
+      } else {
+        setError('Failed to fetch reservations');
+      }
+    } catch (err) {
+      setError('Failed to fetch reservations');
+    }
+    setLoading(false);
+  };
+
+  const handleCompleteReservation = (reservation) => {
+    setCompleteReservationId(reservation.id);
+    setCompleteCustomerName(reservation.customer_name);
+    setCompleteCustomerPhone(reservation.customer_phone);
+    setCompleteFinalPrice(reservation.price_agreed.toString());
+    setShowCompleteModal(true);
+  };
+
+  const handleCompleteReservationSubmit = async () => {
+    if (!completeCustomerName || !completeCustomerPhone || !completeFinalPrice) {
+      setError('All fields are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_ENDPOINTS.RESERVATIONS}/${completeReservationId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          customer_name: completeCustomerName,
+          customer_phone: completeCustomerPhone,
+          final_price: parseFloat(completeFinalPrice)
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSuccess(`Sale completed successfully! Bill Number: ${data.bill.bill_number}`);
+        setShowCompleteModal(false);
+        resetCompleteForm();
+        
+        // Refresh reservations
+        handleGetReservations();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to complete sale');
+      }
+    } catch (err) {
+      setError('Failed to complete sale');
+    }
+    setLoading(false);
+  };
+
+  const resetCompleteForm = () => {
+    setCompleteReservationId(null);
+    setCompleteCustomerName('');
+    setCompleteCustomerPhone('');
+    setCompleteFinalPrice('');
+  };
+
+  const handleCancelReservation = async (reservationId) => {
+    if (!window.confirm('Are you sure you want to cancel this reservation?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_ENDPOINTS.RESERVATIONS}/${reservationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        setSuccess('Reservation cancelled successfully');
+        handleGetReservations();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to cancel reservation');
+      }
+    } catch (err) {
+      setError('Failed to cancel reservation');
     }
     setLoading(false);
   };
@@ -415,12 +596,21 @@ function Sales({ token }) {
                         : ''
                     }</td>
                     <td>
-                      {part.stock_status !== 'sold' ? (
-                        <button className="btn btn-success btn-sm w-100" onClick={() => handleSell(part.id)}>
-                          Sell
-                        </button>
-                      ) : (
+                      {part.stock_status === 'available' ? (
+                        <div className="d-grid gap-1">
+                          <button className="btn btn-success btn-sm" onClick={() => handleSell(part.id)}>
+                            Sell
+                          </button>
+                          <button className="btn btn-warning btn-sm" onClick={() => handleReserve(part.id)}>
+                            Reserve
+                          </button>
+                        </div>
+                      ) : part.stock_status === 'sold' ? (
                         <span className="badge bg-secondary w-100">Sold</span>
+                      ) : part.stock_status === 'reserved' ? (
+                        <span className="badge bg-warning w-100">Reserved</span>
+                      ) : (
+                        <span className="badge bg-info w-100">{part.stock_status}</span>
                       )}
                     </td>
                   </tr>
@@ -475,7 +665,259 @@ function Sales({ token }) {
             </table>
           </div>
         )}
+
+        {/* Reservations Section */}
+        <div className="mt-4">
+          <h4 className="mb-3">
+            <i className="bi bi-bookmark-check me-2"></i>
+            Reservation Management
+          </h4>
+          
+          <div className="row g-3 mb-3">
+            <div className="col-12 col-md-6">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search reservations by number, customer name, or phone"
+                value={reservationSearch}
+                onChange={e => setReservationSearch(e.target.value)}
+              />
+            </div>
+            <div className="col-12 col-md-3">
+              <select
+                className="form-select"
+                value={reservationStatus}
+                onChange={e => setReservationStatus(e.target.value)}
+              >
+                <option value="">All Statuses</option>
+                <option value="reserved">Reserved</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="col-12 col-md-3">
+              <button 
+                className="btn btn-info w-100" 
+                onClick={handleGetReservations}
+                disabled={loading}
+              >
+                <i className="bi bi-search me-2"></i>
+                Retrieve Reservations
+              </button>
+            </div>
+          </div>
+
+          {reservations.length > 0 && (
+            <div className="table-responsive">
+              <table className="table table-bordered table-striped mt-3 align-middle text-nowrap fs-6">
+                <thead className="table-dark">
+                  <tr>
+                    <th>Reservation #</th>
+                    <th>Customer Name</th>
+                    <th>Phone</th>
+                    <th>Part Name</th>
+                    <th>Price Agreed</th>
+                    <th>Deposit</th>
+                    <th>Remaining</th>
+                    <th>Status</th>
+                    <th>Reserved Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reservations.map(reservation => (
+                    <tr key={reservation.id}>
+                      <td>
+                        <span className="badge bg-info">{reservation.reservation_number}</span>
+                      </td>
+                      <td>{reservation.customer_name}</td>
+                      <td>{reservation.customer_phone}</td>
+                      <td>
+                        <strong>{reservation.part_name}</strong>
+                        <br />
+                        <small className="text-muted">{reservation.manufacturer}</small>
+                      </td>
+                      <td>Rs. {parseFloat(reservation.price_agreed).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                      <td>Rs. {parseFloat(reservation.deposit_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                      <td>Rs. {parseFloat(reservation.remaining_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                      <td>
+                        <span className={`badge ${
+                          reservation.status === 'reserved' ? 'bg-warning' :
+                          reservation.status === 'completed' ? 'bg-success' :
+                          reservation.status === 'cancelled' ? 'bg-danger' : 'bg-secondary'
+                        }`}>
+                          {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+                        </span>
+                      </td>
+                      <td>{new Date(reservation.reserved_date).toLocaleDateString()}</td>
+                      <td>
+                        {reservation.status === 'reserved' && (
+                          <div className="d-grid gap-1">
+                            <button 
+                              className="btn btn-success btn-sm"
+                              onClick={() => handleCompleteReservation(reservation)}
+                            >
+                              Complete Sale
+                            </button>
+                            <button 
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleCancelReservation(reservation.id)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                        {reservation.status === 'completed' && (
+                          <span className="badge bg-success">Sold</span>
+                        )}
+                        {reservation.status === 'cancelled' && (
+                          <span className="badge bg-danger">Cancelled</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Reserve Modal */}
+      <Modal show={showReserveModal} onHide={() => setShowReserveModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className="bi bi-bookmark-plus me-2"></i>
+            Reserve Part
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="row g-3">
+            <div className="col-12 col-md-6">
+              <label className="form-label">Customer Name *</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Enter customer name"
+                value={reserveCustomerName}
+                onChange={e => setReserveCustomerName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="col-12 col-md-6">
+              <label className="form-label">Customer Phone *</label>
+              <input
+                type="tel"
+                className="form-control"
+                placeholder="Enter phone number"
+                value={reserveCustomerPhone}
+                onChange={e => setReserveCustomerPhone(e.target.value)}
+                required
+              />
+            </div>
+            <div className="col-12 col-md-6">
+              <label className="form-label">Price Agreed *</label>
+              <input
+                type="number"
+                className="form-control"
+                placeholder="Enter agreed price"
+                value={reservePriceAgreed}
+                onChange={e => setReservePriceAgreed(e.target.value)}
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <div className="col-12 col-md-6">
+              <label className="form-label">Deposit Amount</label>
+              <input
+                type="number"
+                className="form-control"
+                placeholder="Enter deposit amount (optional)"
+                value={reserveDepositAmount}
+                onChange={e => setReserveDepositAmount(e.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div className="col-12">
+              <label className="form-label">Notes</label>
+              <textarea
+                className="form-control"
+                placeholder="Any additional notes (optional)"
+                value={reserveNotes}
+                onChange={e => setReserveNotes(e.target.value)}
+                rows="3"
+              />
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowReserveModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="warning" onClick={handleReserveSubmit} disabled={loading}>
+            <i className="bi bi-bookmark-check me-2"></i>
+            Reserve Part
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Complete Reservation Modal */}
+      <Modal show={showCompleteModal} onHide={() => setShowCompleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className="bi bi-check-circle me-2"></i>
+            Complete Reservation Sale
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="mb-3">
+            <label className="form-label">Customer Name *</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Customer Name"
+              value={completeCustomerName}
+              onChange={e => setCompleteCustomerName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label">Customer Phone *</label>
+            <input
+              type="tel"
+              className="form-control"
+              placeholder="Customer Phone Number"
+              value={completeCustomerPhone}
+              onChange={e => setCompleteCustomerPhone(e.target.value)}
+              required
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label">Final Selling Price *</label>
+            <input
+              type="number"
+              className="form-control"
+              placeholder="Enter final selling price"
+              value={completeFinalPrice}
+              onChange={e => setCompleteFinalPrice(e.target.value)}
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCompleteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="success" onClick={handleCompleteReservationSubmit} disabled={loading}>
+            <i className="bi bi-check-circle me-2"></i>
+            Complete Sale
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Modal for selling price */}
       <Modal show={showModal} onHide={() => setShowModal(false)}>
