@@ -540,14 +540,16 @@ app.get('/bills', authenticateToken, async (req, res) => {
     const params = [];
     const conditions = [];
     
-    if (status) {
-      conditions.push(`status = $${params.length + 1}`);
-      params.push(status);
+    // Case-insensitive status filter, ignore empty strings
+    if (status && status.trim() !== '') {
+      conditions.push(`LOWER(status) = LOWER($${params.length + 1})`);
+      params.push(status.trim());
     }
     
-    if (customer) {
+    // Case-insensitive customer name filter, ignore empty strings
+    if (customer && customer.trim() !== '') {
       conditions.push(`customer_name ILIKE $${params.length + 1}`);
-      params.push(`%${customer}%`);
+      params.push(`%${customer.trim()}%`);
     }
     
     if (conditions.length > 0) {
