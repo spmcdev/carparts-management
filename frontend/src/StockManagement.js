@@ -47,24 +47,18 @@ function StockManagement() {
               </div>
               <div class="stat-box">
                 <h4>Total Value (Recommended)</h4>
-                <p>₹${stockData.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p>Rs. ${stockData.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
           ` : `
-            <div class="stats">
-              <div class="stat-box">
-                <h4>Total Sold Items</h4>
-                <p>${stockData.length}</p>
+                          <div className="col-md-4">
+                <strong>Total Value Sold:</strong>
+                <p>Rs. ${stockData.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
-              <div class="stat-box">
-                <h4>Total Revenue</h4>
-                <p>₹${stockData.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <div className="col-md-4">
+                <strong>Average Sale Price:</strong>
+                <p>Rs. ${stockData.length > 0 ? (stockData.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0) / stockData.length).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</p>
               </div>
-              <div class="stat-box">
-                <h4>Average Sale Price</h4>
-                <p>₹${stockData.length > 0 ? (stockData.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0) / stockData.length).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</p>
-              </div>
-            </div>
           `}
           <table class="stock-table">
             <thead>
@@ -74,11 +68,11 @@ function StockManagement() {
                 <th>Manufacturer</th>
                 ${reportType === 'Available Stock' ? `
                   <th>Available From</th>
-                  <th>Recommended Price (₹)</th>
+                  <th>Recommended Price (Rs.)</th>
                 ` : `
                   <th>Sold Date</th>
-                  <th>Sold Price (₹)</th>
-                  <th>Recommended Price (₹)</th>
+                  <th>Sold Price (Rs.)</th>
+                  <th>Recommended Price (Rs.)</th>
                 `}
               </tr>
             </thead>
@@ -90,11 +84,11 @@ function StockManagement() {
                   <td>${item.manufacturer || 'N/A'}</td>
                   ${reportType === 'Available Stock' ? `
                     <td>${item.available_from ? new Date(item.available_from).toLocaleDateString() : 'N/A'}</td>
-                    <td>₹${parseFloat(item.recommended_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   ` : `
                     <td>${item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
-                    <td>₹${parseFloat(item.sold_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td>₹${parseFloat(item.recommended_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>Rs. ${parseFloat(item.sold_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   `}
                 </tr>
               `).join('')}
@@ -209,7 +203,7 @@ function StockManagement() {
                       <th>Name</th>
                       <th>Manufacturer</th>
                       <th>Available From</th>
-                      <th>Recommended Price (₹)</th>
+                      <th>Recommended Price (Rs.)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -221,7 +215,7 @@ function StockManagement() {
                         <td>{part.available_from ? part.available_from.slice(0, 10) : 'N/A'}</td>
                         <td>{
                           part.recommended_price !== null && part.recommended_price !== undefined
-                            ? `₹${parseFloat(part.recommended_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</td>
                       </tr>
@@ -232,7 +226,7 @@ function StockManagement() {
                   <strong>Summary:</strong>
                   <ul>
                     <li>Total Available Items: {availableStock.length}</li>
-                    <li>Total Inventory Value: ₹{availableStock.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                    <li>Total Inventory Value: Rs. {availableStock.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
                   </ul>
                 </div>
               </div>
@@ -289,9 +283,9 @@ function StockManagement() {
                       <th>Name</th>
                       <th>Manufacturer</th>
                       <th>Sold Date</th>
-                      <th>Sold Price (₹)</th>
-                      <th>Recommended Price (₹)</th>
-                      <th>Profit/Loss (₹)</th>
+                      <th>Sold Price (Rs.)</th>
+                      <th>Recommended Price (Rs.)</th>
+                      <th>Profit/Loss (Rs.)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -303,12 +297,12 @@ function StockManagement() {
                         <td>{part.sold_date ? part.sold_date.slice(0, 10) : 'N/A'}</td>
                         <td>{
                           part.sold_price !== null && part.sold_price !== undefined
-                            ? `₹${parseFloat(part.sold_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            ? `Rs. ${parseFloat(part.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</td>
                         <td>{
                           part.recommended_price !== null && part.recommended_price !== undefined
-                            ? `₹${parseFloat(part.recommended_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</td>
                         <td className={
@@ -317,7 +311,7 @@ function StockManagement() {
                             : 'text-danger'
                         }>
                           {part.sold_price && part.recommended_price
-                            ? `₹${(parseFloat(part.sold_price) - parseFloat(part.recommended_price)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            ? `Rs. ${(parseFloat(part.sold_price) - parseFloat(part.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                           }
                         </td>
@@ -329,16 +323,16 @@ function StockManagement() {
                   <strong>Summary:</strong>
                   <ul>
                     <li>Total Items Sold: {soldStock.length}</li>
-                    <li>Total Revenue: ₹{soldStock.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
-                    <li>Expected Revenue (Recommended Price): ₹{soldStock.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                    <li>Total Revenue: Rs. {soldStock.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                    <li>Expected Revenue (Recommended Price): Rs. {soldStock.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
                     <li>Total Profit/Loss: <span className={
                       soldStock.reduce((total, item) => total + (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0)), 0) >= 0
                         ? 'text-success'
                         : 'text-danger'
                     }>
-                      ₹{soldStock.reduce((total, item) => total + (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}
+                      Rs. {soldStock.reduce((total, item) => total + (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}
                     </span></li>
-                    <li>Average Sale Price: ₹{soldStock.length > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0) / soldStock.length).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
+                    <li>Average Sale Price: Rs. {soldStock.length > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0) / soldStock.length).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
                   </ul>
                 </div>
               </div>

@@ -51,7 +51,7 @@ function Sales({ token }) {
                 <th>Item ID</th>
                 <th>Name</th>
                 <th>Manufacturer</th>
-                <th>Price (₹)</th>
+                <th>Price (Rs.)</th>
               </tr>
             </thead>
             <tbody>
@@ -60,13 +60,13 @@ function Sales({ token }) {
                   <td>${item.id}</td>
                   <td>${item.name}</td>
                   <td>${item.manufacturer || 'N/A'}</td>
-                  <td>₹${parseFloat(item.sold_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td>Rs. ${parseFloat(item.sold_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
           <div class="total">
-            <p>Total Amount: ₹${bill.items.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p>Total Amount: Rs. ${bill.items.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
           <button onclick="window.print()">Print Bill</button>
         </body>
@@ -291,8 +291,8 @@ function Sales({ token }) {
                   <th>Status</th>
                   <th>Available From</th>
                   <th>Sold Date</th>
-                  <th>Recommended Price (₹)</th>
-                  <th>Sold Price (₹)</th>
+                  <th>Recommended Price (Rs.)</th>
+                  <th>Sold Price (Rs.)</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -316,12 +316,12 @@ function Sales({ token }) {
                     <td>{part.sold_date ? part.sold_date.slice(0, 10) : ''}</td>
                     <td>{
                       part.recommended_price !== null && part.recommended_price !== undefined
-                        ? `₹${parseFloat(part.recommended_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                        ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                         : ''
                     }</td>
                     <td>{
                       part.sold_price !== null && part.sold_price !== undefined
-                        ? `₹${parseFloat(part.sold_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                        ? `Rs. ${parseFloat(part.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                         : ''
                     }</td>
                     <td>
@@ -368,7 +368,7 @@ function Sales({ token }) {
                     <td>{bill.date}</td>
                     <td>
                       {bill.items.map(item => (
-                        <div key={item.id}>{item.name} - ₹{item.sold_price}</div>
+                        <div key={item.id}>{item.name} - Rs. {item.sold_price}</div>
                       ))}
                     </td>
                     <td>

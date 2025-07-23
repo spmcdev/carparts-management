@@ -229,20 +229,20 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
                     {userRole === 'superadmin' && (
                       <td>{
                         part.cost_price !== null && part.cost_price !== undefined
-                          ? `₹${parseFloat(part.cost_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                          ? `Rs. ${parseFloat(part.cost_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                           : ''
                       }</td>
                     )}
                     <td>{
                       part.recommended_price !== null && part.recommended_price !== undefined
-                        ? `₹${parseFloat(part.recommended_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                        ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                         : ''
                     }</td>
                     <td>{part.local_purchase ? 'Yes' : 'No'}</td>
                     {(userRole === 'admin' || userRole === 'superadmin') && (
                       <td>{
                         part.sold_price !== null && part.sold_price !== undefined
-                          ? `₹${parseFloat(part.sold_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                          ? `Rs. ${parseFloat(part.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                           : ''
                       }</td>
                     )}

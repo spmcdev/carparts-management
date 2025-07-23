@@ -272,7 +272,7 @@ describe('CarPartsManagement Component', () => {
       const superAdminProps = { ...mockProps, parts: partsData, userRole: 'superadmin' };
       render(<CarPartsManagement {...superAdminProps} />);
 
-      expect(screen.getByText('₹1,200.00')).toBeInTheDocument();
+      expect(screen.getByText('Rs. 1,200.00')).toBeInTheDocument();
     });
 
     it('should hide cost price for admin in display', () => {
@@ -280,7 +280,7 @@ describe('CarPartsManagement Component', () => {
       render(<CarPartsManagement {...adminProps} />);
 
       // Cost price should not be visible
-      const costPriceElements = screen.queryAllByText('₹1,200.00');
+      const costPriceElements = screen.queryAllByText('Rs. 1,200.00');
       expect(costPriceElements).toHaveLength(0);
     });
 
@@ -289,7 +289,7 @@ describe('CarPartsManagement Component', () => {
       render(<CarPartsManagement {...generalProps} />);
 
       // Cost price should not be visible
-      const costPriceElements = screen.queryAllByText('₹1,200.00');
+      const costPriceElements = screen.queryAllByText('Rs. 1,200.00');
       expect(costPriceElements).toHaveLength(0);
     });
   });

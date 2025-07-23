@@ -140,7 +140,7 @@ describe('StockManagement Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Sold Part')).toBeInTheDocument();
-        expect(screen.getByText('₹1,200.00')).toBeInTheDocument();
+        expect(screen.getByText('Rs. 1,200.00')).toBeInTheDocument();
       });
     });
 
@@ -180,7 +180,7 @@ describe('StockManagement Component', () => {
       fireEvent.click(getSoldStockButton);
 
       await waitFor(() => {
-        expect(screen.getByText('₹200.00')).toBeInTheDocument();
+        expect(screen.getByText('Rs. 200.00')).toBeInTheDocument();
       });
     });
 
