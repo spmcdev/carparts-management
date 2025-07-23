@@ -707,11 +707,15 @@ app.get('/api/reservations', authenticateToken, async (req, res) => {
   try {
     const { search, status } = req.query;
     
+    // Start with a simple query to test basic functionality
     let query = `
-      SELECT rb.*, p.name as part_name, p.manufacturer, p.part_number,
+      SELECT rb.id, rb.reservation_number, rb.customer_name, rb.customer_phone,
+             rb.part_id, rb.price_agreed, rb.deposit_amount, rb.remaining_amount,
+             rb.status, rb.reserved_date, rb.completed_date, rb.notes,
+             p.name as part_name, p.manufacturer, p.part_number,
              u.username as created_by_username
       FROM reserved_bills rb
-      JOIN parts p ON rb.part_id = p.id
+      LEFT JOIN parts p ON rb.part_id = p.id
       LEFT JOIN users u ON rb.created_by = u.id
       WHERE 1=1
     `;
@@ -737,11 +741,45 @@ app.get('/api/reservations', authenticateToken, async (req, res) => {
 
     query += ' ORDER BY rb.reserved_date DESC';
 
+    console.log('Executing reservation query:', query);
+    console.log('With params:', params);
+    
     const result = await pool.query(query, params);
+    console.log('Query result rows:', result.rows.length);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching reservations:', err);
-    res.status(500).json({ error: 'Failed to fetch reservations' });
+    console.error('Error details:', err.message);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch reservations',
+      details: err.message 
+    });
+  }
+});
+
+// Test endpoint for debugging reservations
+app.get('/api/reservations/test', authenticateToken, async (req, res) => {
+  try {
+    // Test 1: Check if reserved_bills table exists and has data
+    const simpleQuery = 'SELECT COUNT(*) as count FROM reserved_bills';
+    const countResult = await pool.query(simpleQuery);
+    
+    // Test 2: Get basic reservation data without joins
+    const basicQuery = 'SELECT * FROM reserved_bills ORDER BY id DESC LIMIT 5';
+    const basicResult = await pool.query(basicQuery);
+    
+    res.json({
+      message: 'Database test successful',
+      reservationCount: countResult.rows[0].count,
+      sampleReservations: basicResult.rows
+    });
+  } catch (err) {
+    console.error('Database test error:', err);
+    res.status(500).json({ 
+      error: 'Database test failed',
+      details: err.message 
+    });
   }
 });
 
