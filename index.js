@@ -519,7 +519,7 @@ app.post('/bills', authenticateToken, async (req, res) => {
 // New endpoint to retrieve all bills
 app.get('/bills', authenticateToken, async (req, res) => {
   try {
-    const { status } = req.query; // Optional filter by status
+    const { status, customer } = req.query; // Optional filters by status and customer
     
     let query = `
       SELECT 
@@ -538,9 +538,20 @@ app.get('/bills', authenticateToken, async (req, res) => {
     `;
     
     const params = [];
+    const conditions = [];
+    
     if (status) {
-      query += ` WHERE status = $1`;
+      conditions.push(`status = $${params.length + 1}`);
       params.push(status);
+    }
+    
+    if (customer) {
+      conditions.push(`customer_name ILIKE $${params.length + 1}`);
+      params.push(`%${customer}%`);
+    }
+    
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
     }
     
     query += ` ORDER BY date DESC, id DESC`;
