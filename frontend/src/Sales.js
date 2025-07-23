@@ -244,7 +244,8 @@ function Sales({ token }) {
         : data.filter(
             bill =>
               bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())
+              bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (bill.customer_phone && bill.customer_phone.includes(searchTerm.trim()))
           );
       setBills(filteredBills);
     } catch (err) {
@@ -345,7 +346,7 @@ function Sales({ token }) {
         <input
           type="text"
           className="form-control mt-3"
-          placeholder="Search bills by number or customer name"
+          placeholder="Search bills by number, customer name, or phone number"
           onChange={e => handleRetrieveBills(e.target.value)}
         />
         {bills.length > 0 && (

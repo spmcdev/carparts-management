@@ -498,10 +498,46 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchBillsInput = screen.getByPlaceholderText('Search bills by number or customer name');
+      const searchBillsInput = screen.getByPlaceholderText('Search bills by number, customer name, or phone number');
       fireEvent.change(searchBillsInput, { target: { value: 'John' } });
 
       // The component should filter the results
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalled();
+      });
+    });
+
+    it('should filter bills by phone number', async () => {
+      const mockBills = [
+        {
+          id: 1,
+          customer_name: 'John Doe',
+          customer_phone: '0771234567',
+          bill_number: 'BILL001',
+          date: '2025-07-20',
+          items: []
+        },
+        {
+          id: 2,
+          customer_name: 'Jane Smith',
+          customer_phone: '0779876543',
+          bill_number: 'BILL002',
+          date: '2025-07-20',
+          items: []
+        }
+      ];
+
+      fetch.mockResolvedValue({
+        ok: true,
+        json: async () => mockBills
+      });
+
+      render(<Sales />);
+      
+      const searchBillsInput = screen.getByPlaceholderText('Search bills by number, customer name, or phone number');
+      fireEvent.change(searchBillsInput, { target: { value: '0771234567' } });
+
+      // The component should filter the results by phone number
       await waitFor(() => {
         expect(fetch).toHaveBeenCalled();
       });
