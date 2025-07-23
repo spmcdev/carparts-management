@@ -29,8 +29,9 @@ describe('CarPartsManagement Component', () => {
       
       expect(screen.getByPlaceholderText('Part Name')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Manufacturer')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Parent Part ID (optional)')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Recommended Price')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Container No')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Parent Part ID (optional)')).toBeInTheDocument();
       expect(screen.getByText('Add Part')).toBeInTheDocument();
     });
 
@@ -71,11 +72,12 @@ describe('CarPartsManagement Component', () => {
         name: 'Test Part',
         manufacturer: 'Test Manufacturer',
         stock_status: 'available',
-        available_from: '',
+        available_from: '2025-07-23',
         sold_date: '',
         parent_id: '',
         recommended_price: '',
-        local_purchase: false
+        local_purchase: false,
+        container_no: ''
       });
     });
 
@@ -97,11 +99,12 @@ describe('CarPartsManagement Component', () => {
         name: 'Admin Part',
         manufacturer: 'Admin Manufacturer',
         stock_status: 'available',
-        available_from: '',
+        available_from: '2025-07-23',
         sold_date: '',
         parent_id: '',
         recommended_price: '',
         local_purchase: false,
+        container_no: '',
         cost_price: '100.50'
       });
     });
@@ -130,14 +133,16 @@ describe('CarPartsManagement Component', () => {
           name: 'Brake Pad',
           manufacturer: 'Brand A',
           stock_status: 'available',
-          recommended_price: '1500.00'
+          recommended_price: '1500.00',
+          container_no: null
         },
         {
           id: 2,
           name: 'Oil Filter',
           manufacturer: 'Brand B',
           stock_status: 'sold',
-          sold_price: '800.00'
+          sold_price: '800.00',
+          container_no: null
         }
       ];
 
@@ -173,7 +178,8 @@ describe('CarPartsManagement Component', () => {
         manufacturer: 'Brand A',
         stock_status: 'available',
         recommended_price: '1500.00',
-        cost_price: '1200.00'
+        cost_price: '1200.00',
+        container_no: null
       }
     ];
 
@@ -224,7 +230,7 @@ describe('CarPartsManagement Component', () => {
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('http://localhost:3000/parts/1', {
+        expect(fetch).toHaveBeenCalledWith('https://carparts-management-production.up.railway.app/parts/1', {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -264,7 +270,8 @@ describe('CarPartsManagement Component', () => {
         stock_status: 'available',
         recommended_price: '1500.00',
         cost_price: '1200.00',
-        sold_price: '1300.00'
+        sold_price: '1300.00',
+        container_no: null
       }
     ];
 
@@ -322,7 +329,7 @@ describe('CarPartsManagement Component', () => {
     it('should handle date input changes', () => {
       render(<CarPartsManagement {...mockProps} />);
       
-      const availableFromInput = screen.getByPlaceholderText('Available From');
+      const availableFromInput = screen.getByPlaceholderText('Available From (default: 2025-07-23)');
       fireEvent.change(availableFromInput, { target: { value: '2023-06-15' } });
 
       expect(availableFromInput.value).toBe('2023-06-15');

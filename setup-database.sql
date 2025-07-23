@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS parts (
     recommended_price DECIMAL(10,2),
     sold_price DECIMAL(10,2),
     cost_price DECIMAL(10,2),
+    container_no VARCHAR(255),
     is_local_purchase BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

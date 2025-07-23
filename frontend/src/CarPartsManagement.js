@@ -10,6 +10,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const [parentId, setParentId] = useState('');
   const [recommendedPrice, setRecommendedPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
+  const [containerNo, setContainerNo] = useState('');
   const [editId, setEditId] = useState(null);
   const [editFields, setEditFields] = useState({});
   const [editError, setEditError] = useState('');
@@ -39,7 +40,8 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
       sold_date: soldDate, 
       parent_id: parentId, 
       recommended_price: recommendedPrice, 
-      local_purchase: localPurchase 
+      local_purchase: localPurchase,
+      container_no: containerNo
     };
     if (userRole === 'superadmin') partData.cost_price = costPrice;
     handleAddPart(partData);
@@ -51,6 +53,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
     setParentId('');
     setRecommendedPrice('');
     setCostPrice('');
+    setContainerNo('');
     setLocalPurchase(false);
   };
 
@@ -66,6 +69,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
       recommended_price: part.recommended_price || '',
       sold_price: part.sold_price || '',
       local_purchase: !!part.local_purchase,
+      container_no: part.container_no || '',
       ...(userRole === 'superadmin' && { cost_price: part.cost_price || '' })
     });
     setEditError('');
@@ -111,6 +115,24 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
         <div className="col-12 col-md-2 mb-2 mb-md-0">
           <input type="text" className="form-control" placeholder="Manufacturer" value={manufacturer} onChange={e => setManufacturer(e.target.value)} required />
         </div>
+        {userRole === 'superadmin' && (
+          <div className="col-12 col-md-2 mb-2 mb-md-0">
+            <input type="number" className="form-control" placeholder="Cost Price (SuperAdmin only)" value={costPrice} onChange={e => setCostPrice(e.target.value)} min="0" step="0.01" />
+          </div>
+        )}
+        <div className="col-12 col-md-2 mb-2 mb-md-0">
+          <input type="number" className="form-control" placeholder="Recommended Price" value={recommendedPrice} onChange={e => setRecommendedPrice(e.target.value)} min="0" step="0.01" />
+        </div>
+        <div className="col-12 col-md-2 mb-2 mb-md-0">
+          <input type="text" className="form-control" placeholder="Container No" value={containerNo} onChange={e => setContainerNo(e.target.value)} />
+        </div>
+        <div className="col-12 col-md-2 mb-2 mb-md-0 d-flex align-items-center">
+          <input type="checkbox" className="form-check-input me-2" id="localPurchase" checked={localPurchase} onChange={e => setLocalPurchase(e.target.checked)} />
+          <label htmlFor="localPurchase" className="form-check-label">Local Purchase</label>
+        </div>
+        <div className="col-12 col-md-2 mb-2 mb-md-0">
+          <input type="number" className="form-control" placeholder="Parent Part ID (optional)" value={parentId} onChange={e => setParentId(e.target.value)} min="1" />
+        </div>
         <div className="col-12 col-md-2 mb-2 mb-md-0">
           <select className="form-select" value={stockStatus} onChange={e => setStockStatus(e.target.value)}>
             <option value="available">Available</option>
@@ -133,21 +155,6 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
           <label className="form-label">Sold Date</label>
           <input type="date" className="form-control" placeholder="Sold Date" value={soldDate} onChange={e => setSoldDate(e.target.value)} />
         </div>
-        <div className="col-12 col-md-2 mb-2 mb-md-0">
-          <input type="number" className="form-control" placeholder="Parent Part ID (optional)" value={parentId} onChange={e => setParentId(e.target.value)} min="1" />
-        </div>
-        {userRole === 'superadmin' && (
-          <div className="col-12 col-md-2 mb-2 mb-md-0">
-            <input type="number" className="form-control" placeholder="Cost Price (SuperAdmin only)" value={costPrice} onChange={e => setCostPrice(e.target.value)} min="0" step="0.01" />
-          </div>
-        )}
-        <div className="col-12 col-md-2 mb-2 mb-md-0">
-          <input type="number" className="form-control" placeholder="Recommended Price" value={recommendedPrice} onChange={e => setRecommendedPrice(e.target.value)} min="0" step="0.01" />
-        </div>
-        <div className="col-12 col-md-2 mb-2 mb-md-0 d-flex align-items-center">
-          <input type="checkbox" className="form-check-input me-2" id="localPurchase" checked={localPurchase} onChange={e => setLocalPurchase(e.target.checked)} />
-          <label htmlFor="localPurchase" className="form-check-label">Local Purchase</label>
-        </div>
         <div className="col-12 col-md-1 d-grid">
           <button type="submit" className="btn btn-primary w-100">Add Part</button>
         </div>
@@ -160,15 +167,16 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
           <thead className="table-dark">
             <tr>
               <th>ID</th>
-              <th>Name</th>
+              <th>Part Name</th>
               <th>Manufacturer</th>
+              {userRole === 'superadmin' && <th>Cost Price</th>}
+              <th>Recommended Price</th>
+              <th>Container No</th>
+              <th>Local Purchase</th>
+              <th>Parent ID</th>
               <th>Stock Status</th>
               <th>Available From</th>
               <th>Sold Date</th>
-              <th>Parent ID</th>
-              {userRole === 'superadmin' && <th>Cost Price</th>}
-              <th>Recommended Price</th>
-              <th>Local Purchase</th>
               {(userRole === 'admin' || userRole === 'superadmin') && <th>Sold Price</th>}
               {(userRole === 'admin' || userRole === 'superadmin') && <th>Actions</th>}
             </tr>
@@ -181,6 +189,16 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
                   <>
                     <td><input type="text" className="form-control" value={editFields.name} onChange={e => handleEditChange('name', e.target.value)} /></td>
                     <td><input type="text" className="form-control" value={editFields.manufacturer} onChange={e => handleEditChange('manufacturer', e.target.value)} /></td>
+                    {userRole === 'superadmin' && (
+                      <td><input type="number" className="form-control" value={editFields.cost_price} onChange={e => handleEditChange('cost_price', e.target.value)} min="0" step="0.01" /></td>
+                    )}
+                    <td><input type="number" className="form-control" value={editFields.recommended_price} onChange={e => handleEditChange('recommended_price', e.target.value)} min="0" step="0.01" /></td>
+                    <td><input type="text" className="form-control" value={editFields.container_no} onChange={e => handleEditChange('container_no', e.target.value)} /></td>
+                    <td>
+                      <input type="checkbox" className="form-check-input me-2" id={`localPurchaseEdit${part.id}`} checked={!!editFields.local_purchase} onChange={e => handleEditChange('local_purchase', e.target.checked)} />
+                      <label htmlFor={`localPurchaseEdit${part.id}`} className="form-check-label">Local</label>
+                    </td>
+                    <td><input type="number" className="form-control" value={editFields.parent_id} onChange={e => handleEditChange('parent_id', e.target.value)} min="1" /></td>
                     <td>
                       <select className="form-select" value={editFields.stock_status} onChange={e => handleEditChange('stock_status', e.target.value)}>
                         <option value="available">Available</option>
@@ -190,15 +208,6 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
                     </td>
                     <td><input type="date" className="form-control" value={editFields.available_from} onChange={e => handleEditChange('available_from', e.target.value)} /></td>
                     <td><input type="date" className="form-control" value={editFields.sold_date} onChange={e => handleEditChange('sold_date', e.target.value)} /></td>
-                    <td><input type="number" className="form-control" value={editFields.parent_id} onChange={e => handleEditChange('parent_id', e.target.value)} min="1" /></td>
-                    {userRole === 'superadmin' && (
-                      <td><input type="number" className="form-control" value={editFields.cost_price} onChange={e => handleEditChange('cost_price', e.target.value)} min="0" step="0.01" /></td>
-                    )}
-                    <td><input type="number" className="form-control" value={editFields.recommended_price} onChange={e => handleEditChange('recommended_price', e.target.value)} min="0" step="0.01" /></td>
-                    <td>
-                      <input type="checkbox" className="form-check-input me-2" id={`localPurchaseEdit${part.id}`} checked={!!editFields.local_purchase} onChange={e => handleEditChange('local_purchase', e.target.checked)} />
-                      <label htmlFor={`localPurchaseEdit${part.id}`} className="form-check-label">Local</label>
-                    </td>
                     {(userRole === 'admin' || userRole === 'superadmin') && (
                       <td><input type="number" className="form-control" value={editFields.sold_price} onChange={e => handleEditChange('sold_price', e.target.value)} min="0" step="0.01" /></td>
                     )}
@@ -213,19 +222,6 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
                   <>
                     <td>{part.name}</td>
                     <td>{part.manufacturer}</td>
-                    <td>
-                      <span className={
-                        part.stock_status === 'available' ? 'badge bg-success' :
-                        part.stock_status === 'sold' ? 'badge bg-danger' :
-                        part.stock_status === 'reserved' ? 'badge bg-warning text-dark' :
-                        'badge bg-secondary'
-                      }>
-                        {part.stock_status.charAt(0).toUpperCase() + part.stock_status.slice(1)}
-                      </span>
-                    </td>
-                    <td>{part.available_from ? part.available_from.slice(0, 10) : ''}</td>
-                    <td>{part.sold_date ? part.sold_date.slice(0, 10) : ''}</td>
-                    <td>{part.parent_id || ''}</td>
                     {userRole === 'superadmin' && (
                       <td>{
                         part.cost_price !== null && part.cost_price !== undefined
@@ -238,7 +234,21 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
                         ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                         : ''
                     }</td>
+                    <td>{part.container_no || ''}</td>
                     <td>{part.local_purchase ? 'Yes' : 'No'}</td>
+                    <td>{part.parent_id || ''}</td>
+                    <td>
+                      <span className={
+                        part.stock_status === 'available' ? 'badge bg-success' :
+                        part.stock_status === 'sold' ? 'badge bg-danger' :
+                        part.stock_status === 'reserved' ? 'badge bg-warning text-dark' :
+                        'badge bg-secondary'
+                      }>
+                        {part.stock_status.charAt(0).toUpperCase() + part.stock_status.slice(1)}
+                      </span>
+                    </td>
+                    <td>{part.available_from ? part.available_from.slice(0, 10) : ''}</td>
+                    <td>{part.sold_date ? part.sold_date.slice(0, 10) : ''}</td>
                     {(userRole === 'admin' || userRole === 'superadmin') && (
                       <td>{
                         part.sold_price !== null && part.sold_price !== undefined

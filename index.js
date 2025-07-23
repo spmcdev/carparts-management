@@ -157,7 +157,7 @@ const requireSuperAdmin = (req, res, next) => {
 
 // Protect add car part route
 app.post('/parts', authenticateToken, async (req, res) => {
-  const { name, manufacturer, stock_status, available_from, sold_date, parent_id, recommended_price, cost_price, local_purchase } = req.body;
+  const { name, manufacturer, stock_status, available_from, sold_date, parent_id, recommended_price, cost_price, local_purchase, container_no } = req.body;
   try {
     // Only allow cost_price if superadmin
     let costPriceValue = null;
@@ -165,9 +165,9 @@ app.post('/parts', authenticateToken, async (req, res) => {
       costPriceValue = cost_price || null;
     }
     const result = await pool.query(
-      `INSERT INTO parts (name, manufacturer, stock_status, available_from, sold_date, parent_id, recommended_price, cost_price, local_purchase)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [name, manufacturer, stock_status || 'available', available_from || null, sold_date || null, parent_id || null, recommended_price || null, costPriceValue, local_purchase === true || local_purchase === 'true']
+      `INSERT INTO parts (name, manufacturer, stock_status, available_from, sold_date, parent_id, recommended_price, cost_price, local_purchase, container_no)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [name, manufacturer, stock_status || 'available', available_from || null, sold_date || null, parent_id || null, recommended_price || null, costPriceValue, local_purchase === true || local_purchase === 'true', container_no || null]
     );
     
     const newPart = result.rows[0];
