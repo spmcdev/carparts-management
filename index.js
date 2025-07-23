@@ -604,6 +604,317 @@ app.get('/audit-logs', authenticateToken, requireSuperAdmin, async (req, res) =>
   }
 });
 
+// Reservation endpoints
+// Create a new reservation
+app.post('/api/reservations', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      part_id, 
+      customer_name, 
+      customer_phone, 
+      price_agreed, 
+      deposit_amount, 
+      notes 
+    } = req.body;
+
+    // Validate required fields
+    if (!part_id || !customer_name || !customer_phone || !price_agreed) {
+      return res.status(400).json({ 
+        error: 'Part ID, customer name, phone, and agreed price are required' 
+      });
+    }
+
+    // Generate reservation number
+    const reservationNumber = `RES-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // Check if part is available
+    const partResult = await pool.query(
+      'SELECT * FROM parts WHERE id = $1 AND stock_status = $2',
+      [part_id, 'available']
+    );
+
+    if (partResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Part not available for reservation' });
+    }
+
+    const part = partResult.rows[0];
+
+    // Start transaction
+    await pool.query('BEGIN');
+
+    try {
+      // Create reservation
+      const reservationResult = await pool.query(
+        `INSERT INTO reserved_bills 
+         (reservation_number, customer_name, customer_phone, part_id, price_agreed, deposit_amount, notes, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [reservationNumber, customer_name, customer_phone, part_id, price_agreed, deposit_amount || 0, notes, req.user.id]
+      );
+
+      const reservation = reservationResult.rows[0];
+
+      // Update part status to reserved
+      await pool.query(
+        'UPDATE parts SET stock_status = $1, reservation_id = $2 WHERE id = $3',
+        ['reserved', reservation.id, part_id]
+      );
+
+      // Log audit action
+      await logAuditAction(
+        req.user,
+        'CREATE_RESERVATION',
+        'reserved_bills',
+        reservation.id,
+        null,
+        reservation,
+        req
+      );
+
+      await logAuditAction(
+        req.user,
+        'UPDATE_PART_STATUS',
+        'parts',
+        part_id,
+        { stock_status: part.stock_status, reservation_id: part.reservation_id },
+        { stock_status: 'reserved', reservation_id: reservation.id },
+        req
+      );
+
+      await pool.query('COMMIT');
+
+      // Return reservation with part details
+      const fullReservation = await pool.query(
+        `SELECT rb.*, p.name as part_name, p.manufacturer, p.part_number
+         FROM reserved_bills rb
+         JOIN parts p ON rb.part_id = p.id
+         WHERE rb.id = $1`,
+        [reservation.id]
+      );
+
+      res.status(201).json(fullReservation.rows[0]);
+    } catch (err) {
+      await pool.query('ROLLBACK');
+      throw err;
+    }
+  } catch (err) {
+    console.error('Error creating reservation:', err);
+    res.status(500).json({ error: 'Failed to create reservation' });
+  }
+});
+
+// Get all reservations with search and filter
+app.get('/api/reservations', authenticateToken, async (req, res) => {
+  try {
+    const { search, status } = req.query;
+    
+    let query = `
+      SELECT rb.*, p.name as part_name, p.manufacturer, p.part_number,
+             u.username as created_by_username
+      FROM reserved_bills rb
+      JOIN parts p ON rb.part_id = p.id
+      LEFT JOIN users u ON rb.created_by = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (search) {
+      query += ` AND (
+        rb.reservation_number ILIKE $${paramIndex} OR 
+        rb.customer_name ILIKE $${paramIndex} OR 
+        rb.customer_phone ILIKE $${paramIndex} OR
+        p.name ILIKE $${paramIndex}
+      )`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (status) {
+      query += ` AND rb.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY rb.reserved_date DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching reservations:', err);
+    res.status(500).json({ error: 'Failed to fetch reservations' });
+  }
+});
+
+// Complete a reservation (sell the reserved item)
+app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customer_name, customer_phone, final_price } = req.body;
+
+    // Get reservation details
+    const reservationResult = await pool.query(
+      `SELECT rb.*, p.*
+       FROM reserved_bills rb
+       JOIN parts p ON rb.part_id = p.id
+       WHERE rb.id = $1 AND rb.status = 'reserved'`,
+      [id]
+    );
+
+    if (reservationResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found or already completed' });
+    }
+
+    const reservation = reservationResult.rows[0];
+    const sellPrice = final_price || reservation.price_agreed;
+
+    // Start transaction
+    await pool.query('BEGIN');
+
+    try {
+      // Generate bill number
+      const billNumber = `BILL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+      // Create bill
+      const billResult = await pool.query(
+        `INSERT INTO bills (bill_number, customer_name, customer_phone, total_amount, created_by)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [billNumber, customer_name, customer_phone, sellPrice, req.user.id]
+      );
+
+      const bill = billResult.rows[0];
+
+      // Create bill item
+      await pool.query(
+        `INSERT INTO bill_items (bill_id, part_id, quantity, unit_price, total_price)
+         VALUES ($1, $2, 1, $3, $4)`,
+        [bill.id, reservation.part_id, sellPrice, sellPrice]
+      );
+
+      // Update part status to sold
+      await pool.query(
+        `UPDATE parts SET 
+         stock_status = 'sold', 
+         sold_date = CURRENT_DATE, 
+         sold_price = $1,
+         reservation_id = NULL
+         WHERE id = $2`,
+        [sellPrice, reservation.part_id]
+      );
+
+      // Update reservation status
+      await pool.query(
+        `UPDATE reserved_bills SET 
+         status = 'completed', 
+         completed_date = CURRENT_TIMESTAMP,
+         completed_by = $1
+         WHERE id = $2`,
+        [req.user.id, id]
+      );
+
+      // Log audit actions
+      await logAuditAction(
+        req.user,
+        'COMPLETE_RESERVATION',
+        'reserved_bills',
+        id,
+        { status: reservation.status },
+        { status: 'completed', completed_date: new Date(), completed_by: req.user.id },
+        req
+      );
+
+      await logAuditAction(
+        req.user,
+        'SELL_PART',
+        'parts',
+        reservation.part_id,
+        { 
+          stock_status: reservation.stock_status, 
+          sold_price: reservation.sold_price,
+          reservation_id: reservation.reservation_id 
+        },
+        { 
+          stock_status: 'sold', 
+          sold_date: new Date().toISOString().split('T')[0], 
+          sold_price: sellPrice,
+          reservation_id: null 
+        },
+        req
+      );
+
+      await pool.query('COMMIT');
+
+      res.json({ 
+        message: 'Reservation completed successfully',
+        bill: bill,
+        reservation_id: id
+      });
+    } catch (err) {
+      await pool.query('ROLLBACK');
+      throw err;
+    }
+  } catch (err) {
+    console.error('Error completing reservation:', err);
+    res.status(500).json({ error: 'Failed to complete reservation' });
+  }
+});
+
+// Cancel a reservation
+app.delete('/api/reservations/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get reservation details
+    const reservationResult = await pool.query(
+      'SELECT * FROM reserved_bills WHERE id = $1 AND status = $2',
+      [id, 'reserved']
+    );
+
+    if (reservationResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found or already processed' });
+    }
+
+    const reservation = reservationResult.rows[0];
+
+    // Start transaction
+    await pool.query('BEGIN');
+
+    try {
+      // Update reservation status to cancelled
+      await pool.query(
+        'UPDATE reserved_bills SET status = $1 WHERE id = $2',
+        ['cancelled', id]
+      );
+
+      // Update part status back to available
+      await pool.query(
+        'UPDATE parts SET stock_status = $1, reservation_id = NULL WHERE id = $2',
+        ['available', reservation.part_id]
+      );
+
+      // Log audit actions
+      await logAuditAction(
+        req.user,
+        'CANCEL_RESERVATION',
+        'reserved_bills',
+        id,
+        { status: reservation.status },
+        { status: 'cancelled' },
+        req
+      );
+
+      await pool.query('COMMIT');
+
+      res.json({ message: 'Reservation cancelled successfully' });
+    } catch (err) {
+      await pool.query('ROLLBACK');
+      throw err;
+    }
+  } catch (err) {
+    console.error('Error cancelling reservation:', err);
+    res.status(500).json({ error: 'Failed to cancel reservation' });
+  }
+});
+
 // Export app for testing
 export default app;
 
