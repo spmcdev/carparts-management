@@ -472,8 +472,8 @@ function Sales({ token }) {
         ? data
         : data.filter(
             bill =>
-              bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (bill.bill_number && bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+              (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
               (bill.customer_phone && bill.customer_phone.includes(searchTerm.trim()))
           );
       setBills(filteredBills);
