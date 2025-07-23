@@ -707,12 +707,12 @@ app.get('/api/reservations', authenticateToken, async (req, res) => {
   try {
     const { search, status } = req.query;
     
-    // Start with a simple query to test basic functionality
+    // Fixed query - removed part_number since it doesn't exist in parts table
     let query = `
       SELECT rb.id, rb.reservation_number, rb.customer_name, rb.customer_phone,
              rb.part_id, rb.price_agreed, rb.deposit_amount, rb.remaining_amount,
              rb.status, rb.reserved_date, rb.completed_date, rb.notes,
-             p.name as part_name, p.manufacturer, p.part_number,
+             p.name as part_name, p.manufacturer,
              u.username as created_by_username
       FROM reserved_bills rb
       LEFT JOIN parts p ON rb.part_id = p.id
