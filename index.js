@@ -684,7 +684,7 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
 
       // Return reservation with part details
       const fullReservation = await pool.query(
-        `SELECT rb.*, p.name as part_name, p.manufacturer, p.part_number
+        `SELECT rb.*, p.name as part_name, p.manufacturer
          FROM reserved_bills rb
          JOIN parts p ON rb.part_id = p.id
          WHERE rb.id = $1`,
