@@ -215,6 +215,140 @@ describe('Sales Component', () => {
       });
     });
 
+    it('should render child parts search interface', () => {
+      render(<Sales />);
+      
+      expect(screen.getByText('Child Parts Search')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Enter Parent Part ID to find all child parts')).toBeInTheDocument();
+      expect(screen.getByText('Search Child Parts')).toBeInTheDocument();
+    });
+
+    it('should search for child parts successfully', async () => {
+      const mockParts = [
+        {
+          id: 1,
+          name: 'Child Part 1',
+          manufacturer: 'Test Manufacturer',
+          stock_status: 'available',
+          parent_id: 123,
+          recommended_price: '100.00'
+        },
+        {
+          id: 2,
+          name: 'Child Part 2',
+          manufacturer: 'Another Manufacturer',
+          stock_status: 'available',
+          parent_id: 123,
+          recommended_price: '200.00'
+        },
+        {
+          id: 3,
+          name: 'Unrelated Part',
+          manufacturer: 'Other Manufacturer',
+          stock_status: 'available',
+          parent_id: 456,
+          recommended_price: '150.00'
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      });
+
+      render(<Sales />);
+      
+      const childSearchInput = screen.getByPlaceholderText('Enter Parent Part ID to find all child parts');
+      const childSearchButton = screen.getByText('Search Child Parts');
+
+      fireEvent.change(childSearchInput, { target: { value: '123' } });
+      fireEvent.click(childSearchButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Child Part 1')).toBeInTheDocument();
+        expect(screen.getByText('Child Part 2')).toBeInTheDocument();
+        expect(screen.queryByText('Unrelated Part')).not.toBeInTheDocument();
+        expect(screen.getByText('Found 2 child part(s) for Parent ID: 123')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle child parts search with no results', async () => {
+      const mockParts = [
+        {
+          id: 1,
+          name: 'Unrelated Part',
+          manufacturer: 'Test Manufacturer',
+          stock_status: 'available',
+          parent_id: 456,
+          recommended_price: '100.00'
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      });
+
+      render(<Sales />);
+      
+      const childSearchInput = screen.getByPlaceholderText('Enter Parent Part ID to find all child parts');
+      const childSearchButton = screen.getByText('Search Child Parts');
+
+      fireEvent.change(childSearchInput, { target: { value: '999' } });
+      fireEvent.click(childSearchButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('No child parts found for Parent ID: 999')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle child parts search error', async () => {
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      render(<Sales />);
+      
+      const childSearchInput = screen.getByPlaceholderText('Enter Parent Part ID to find all child parts');
+      const childSearchButton = screen.getByText('Search Child Parts');
+
+      fireEvent.change(childSearchInput, { target: { value: '123' } });
+      fireEvent.click(childSearchButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to search child parts: Network error')).toBeInTheDocument();
+      });
+    });
+
+    it('should display Parent ID column in table when child parts are shown', async () => {
+      const mockParts = [
+        {
+          id: 1,
+          name: 'Child Part',
+          manufacturer: 'Test Manufacturer',
+          stock_status: 'available',
+          parent_id: 123,
+          recommended_price: '100.00'
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      });
+
+      render(<Sales />);
+      
+      const childSearchInput = screen.getByPlaceholderText('Enter Parent Part ID to find all child parts');
+      const childSearchButton = screen.getByText('Search Child Parts');
+
+      fireEvent.change(childSearchInput, { target: { value: '123' } });
+      fireEvent.click(childSearchButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Parent ID')).toBeInTheDocument();
+        expect(screen.getByText('123')).toBeInTheDocument();
+      });
+    });
+
     it('should search manufacturer case-insensitively', async () => {
       const mockParts = [
         {

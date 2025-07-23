@@ -17,6 +17,10 @@ function Sales({ token }) {
   const [customerPhone, setCustomerPhone] = useState('');
   const [billNumber, setBillNumber] = useState('');
   const [bills, setBills] = useState([]);
+  
+  // Child Parts Search States
+  const [parentSearch, setParentSearch] = useState('');
+  const [showChildPartsOnly, setShowChildPartsOnly] = useState(false);
 
   const printBill = (bill) => {
     const printContent = `
@@ -116,6 +120,50 @@ function Sales({ token }) {
     } catch (err) {
       console.error('Sales - Search error:', err);
       setError(`Failed to search parts: ${err.message}`);
+    }
+    setLoading(false);
+  };
+
+  const handleChildPartsSearch = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    console.log('Sales - Child Parts Search - Token:', token ? 'Present' : 'Missing');
+    console.log('Sales - Child Parts Search - API URL:', API_ENDPOINTS.PARTS);
+    
+    try {
+      const res = await fetch(API_ENDPOINTS.PARTS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      
+      console.log('Sales - Child Parts Search - Response status:', res.status);
+      console.log('Sales - Child Parts Search - Response ok:', res.ok);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      console.log('Sales - Child Parts Search - Parts data received:', data.length, 'parts');
+      
+      // Filter to get only child parts of the specified parent ID
+      const filtered = data.filter(part => 
+        part.parent_id && part.parent_id.toString() === parentSearch.trim()
+      );
+      
+      setResults(filtered);
+      if (filtered.length === 0) {
+        setError(`No child parts found for Parent ID: ${parentSearch.trim()}`);
+      } else {
+        setSuccess(`Found ${filtered.length} child part(s) for Parent ID: ${parentSearch.trim()}`);
+      }
+    } catch (err) {
+      console.error('Sales - Child Parts Search error:', err);
+      setError(`Failed to search child parts: ${err.message}`);
     }
     setLoading(false);
   };
@@ -280,6 +328,37 @@ function Sales({ token }) {
             <button type="submit" className="btn btn-primary w-100">Search</button>
           </div>
         </form>
+
+        {/* Child Parts Search Section */}
+        <div className="card mb-3 border-info">
+          <div className="card-header bg-light">
+            <div className="d-flex align-items-center justify-content-between">
+              <h6 className="mb-0 text-info">
+                <i className="bi bi-diagram-3"></i> Child Parts Search
+              </h6>
+              <small className="text-muted">Find child parts by Parent Part ID</small>
+            </div>
+          </div>
+          <div className="card-body">
+            <form className="row g-2 g-md-3" onSubmit={handleChildPartsSearch}>
+              <div className="col-12 col-md-8 mb-2 mb-md-0">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter Parent Part ID to find all child parts"
+                  value={parentSearch}
+                  onChange={e => setParentSearch(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="col-12 col-md-4 d-grid">
+                <button type="submit" className="btn btn-info w-100">
+                  <i className="bi bi-search"></i> Search Child Parts
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
         {loading && <div className="alert alert-info">Loading...</div>}
         {error && <div className="alert alert-danger">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
@@ -291,6 +370,7 @@ function Sales({ token }) {
                   <th>ID</th>
                   <th>Name</th>
                   <th>Manufacturer</th>
+                  <th>Parent ID</th>
                   <th>Status</th>
                   <th>Available From</th>
                   <th>Sold Date</th>
@@ -305,6 +385,13 @@ function Sales({ token }) {
                     <td>{part.id}</td>
                     <td>{part.name}</td>
                     <td>{part.manufacturer}</td>
+                    <td>
+                      {part.parent_id ? (
+                        <span className="badge bg-info">{part.parent_id}</span>
+                      ) : (
+                        <span className="text-muted">-</span>
+                      )}
+                    </td>
                     <td>
                       <span className={
                         part.stock_status === 'available' ? 'badge bg-success' :
