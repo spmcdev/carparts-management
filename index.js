@@ -519,7 +519,16 @@ app.post('/bills', authenticateToken, async (req, res) => {
 // New endpoint to retrieve all bills
 app.get('/bills', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bills');
+    const result = await pool.query(`
+      SELECT 
+        id,
+        customer_name,
+        bill_number,
+        TO_CHAR(date, 'YYYY-MM-DD') as date,
+        items
+      FROM bills 
+      ORDER BY date DESC, id DESC
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching bills:', err);
