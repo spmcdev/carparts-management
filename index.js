@@ -519,7 +519,7 @@ app.post('/bills', authenticateToken, async (req, res) => {
 // New endpoint to retrieve all bills
 app.get('/bills', authenticateToken, async (req, res) => {
   try {
-    const { status, customer } = req.query; // Optional filters by status and customer
+    const { status, customer, billNumber } = req.query; // Optional filters by status, customer, and bill number
     
     let query = `
       SELECT 
@@ -550,6 +550,12 @@ app.get('/bills', authenticateToken, async (req, res) => {
     if (customer && customer.trim() !== '') {
       conditions.push(`customer_name ILIKE $${params.length + 1}`);
       params.push(`%${customer.trim()}%`);
+    }
+    
+    // Bill number filter (exact or partial match), ignore empty strings
+    if (billNumber && billNumber.trim() !== '') {
+      conditions.push(`bill_number ILIKE $${params.length + 1}`);
+      params.push(`%${billNumber.trim()}%`);
     }
     
     if (conditions.length > 0) {
