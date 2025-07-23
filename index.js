@@ -519,17 +519,33 @@ app.post('/bills', authenticateToken, async (req, res) => {
 // New endpoint to retrieve all bills
 app.get('/bills', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
+    const { status } = req.query; // Optional filter by status
+    
+    let query = `
       SELECT 
         id,
         customer_name,
         customer_phone,
         bill_number,
         TO_CHAR(date, 'YYYY-MM-DD') as date,
-        items
+        items,
+        status,
+        TO_CHAR(refund_date, 'YYYY-MM-DD') as refund_date,
+        refund_reason,
+        refund_amount,
+        refunded_by
       FROM bills 
-      ORDER BY date DESC, id DESC
-    `);
+    `;
+    
+    const params = [];
+    if (status) {
+      query += ` WHERE status = $1`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY date DESC, id DESC`;
+    
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching bills:', err);
@@ -541,11 +557,25 @@ app.get('/bills', authenticateToken, async (req, res) => {
 app.put('/bills/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { customer_name, customer_phone, bill_number, items } = req.body;
+    const { 
+      customer_name, 
+      customer_phone, 
+      bill_number, 
+      items, 
+      status, 
+      refund_reason, 
+      refund_amount 
+    } = req.body;
 
     // Validate input
     if (!customer_name || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Invalid input. Ensure customer_name and items are provided.' });
+    }
+
+    // Validate status if provided
+    const validStatuses = ['active', 'refunded', 'partially_refunded'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be: active, refunded, or partially_refunded' });
     }
 
     // Get the current bill for audit logging
@@ -556,20 +586,57 @@ app.put('/bills/:id', authenticateToken, async (req, res) => {
     
     const currentBill = currentBillResult.rows[0];
 
-    // Update the bill
-    const updateResult = await pool.query(
-      `UPDATE bills 
-       SET customer_name = $1, customer_phone = $2, bill_number = $3, items = $4
-       WHERE id = $5 
-       RETURNING *`,
-      [
-        customer_name,
-        customer_phone || null,
-        bill_number || null,
-        JSON.stringify(items),
-        id
-      ]
-    );
+    // Prepare update fields
+    let updateQuery = `
+      UPDATE bills 
+      SET customer_name = $1, 
+          customer_phone = $2, 
+          bill_number = $3, 
+          items = $4
+    `;
+    let params = [
+      customer_name,
+      customer_phone || null,
+      bill_number || null,
+      JSON.stringify(items)
+    ];
+    let paramIndex = 5;
+
+    // Handle refund status updates
+    if (status) {
+      updateQuery += `, status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+
+      // If marking as refunded, set refund date and related fields
+      if (status === 'refunded' || status === 'partially_refunded') {
+        updateQuery += `, refund_date = CURRENT_DATE`;
+        
+        if (refund_reason) {
+          updateQuery += `, refund_reason = $${paramIndex}`;
+          params.push(refund_reason);
+          paramIndex++;
+        }
+        
+        if (refund_amount) {
+          updateQuery += `, refund_amount = $${paramIndex}`;
+          params.push(parseFloat(refund_amount));
+          paramIndex++;
+        }
+        
+        updateQuery += `, refunded_by = $${paramIndex}`;
+        params.push(req.user.id);
+        paramIndex++;
+      } else if (status === 'active') {
+        // If changing back to active, clear refund fields
+        updateQuery += `, refund_date = NULL, refund_reason = NULL, refund_amount = NULL, refunded_by = NULL`;
+      }
+    }
+
+    updateQuery += ` WHERE id = $${paramIndex} RETURNING *`;
+    params.push(id);
+
+    const updateResult = await pool.query(updateQuery, params);
 
     if (updateResult.rows.length === 0) {
       return res.status(404).json({ error: 'Bill not found' });
@@ -587,12 +654,14 @@ app.put('/bills/:id', authenticateToken, async (req, res) => {
         customer_name: currentBill.customer_name,
         customer_phone: currentBill.customer_phone,
         bill_number: currentBill.bill_number,
+        status: currentBill.status,
         items_count: Array.isArray(currentBill.items) ? currentBill.items.length : 0
       },
       {
         customer_name: customer_name,
         customer_phone: customer_phone,
         bill_number: bill_number,
+        status: status || currentBill.status,
         items_count: items.length
       },
       req
@@ -606,7 +675,12 @@ app.put('/bills/:id', authenticateToken, async (req, res) => {
         customer_phone,
         bill_number,
         TO_CHAR(date, 'YYYY-MM-DD') as date,
-        items
+        items,
+        status,
+        TO_CHAR(refund_date, 'YYYY-MM-DD') as refund_date,
+        refund_reason,
+        refund_amount,
+        refunded_by
       FROM bills 
       WHERE id = $1
     `, [id]);
@@ -615,6 +689,129 @@ app.put('/bills/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error updating bill:', err);
     res.status(500).json({ error: 'Failed to update bill' });
+  }
+});
+
+// New endpoint to process refunds
+app.post('/bills/:id/refund', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { refund_amount, refund_reason, refund_type = 'full' } = req.body;
+
+    // Validate input
+    if (!refund_reason) {
+      return res.status(400).json({ error: 'Refund reason is required' });
+    }
+
+    // Get the current bill
+    const billResult = await pool.query('SELECT * FROM bills WHERE id = $1', [id]);
+    if (billResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+
+    const bill = billResult.rows[0];
+
+    // Check if bill is already refunded
+    if (bill.status === 'refunded') {
+      return res.status(400).json({ error: 'Bill is already fully refunded' });
+    }
+
+    // Determine refund status
+    let newStatus = 'refunded';
+    let finalRefundAmount = refund_amount;
+
+    if (refund_type === 'partial' && refund_amount) {
+      newStatus = 'partially_refunded';
+      finalRefundAmount = parseFloat(refund_amount);
+    }
+
+    // Update bill with refund information
+    const updateResult = await pool.query(
+      `UPDATE bills 
+       SET status = $1, 
+           refund_date = CURRENT_DATE, 
+           refund_reason = $2, 
+           refund_amount = $3, 
+           refunded_by = $4
+       WHERE id = $5 
+       RETURNING *`,
+      [newStatus, refund_reason, finalRefundAmount, req.user.id, id]
+    );
+
+    // Log audit action for refund
+    await logAuditAction(
+      req.user,
+      'REFUND',
+      'bills',
+      id,
+      { status: bill.status },
+      { 
+        status: newStatus, 
+        refund_amount: finalRefundAmount, 
+        refund_reason: refund_reason,
+        refund_type: refund_type 
+      },
+      req
+    );
+
+    // Return updated bill with formatted dates
+    const formattedResult = await pool.query(`
+      SELECT 
+        id,
+        customer_name,
+        customer_phone,
+        bill_number,
+        TO_CHAR(date, 'YYYY-MM-DD') as date,
+        items,
+        status,
+        TO_CHAR(refund_date, 'YYYY-MM-DD') as refund_date,
+        refund_reason,
+        refund_amount,
+        refunded_by
+      FROM bills 
+      WHERE id = $1
+    `, [id]);
+
+    res.json({
+      message: `Bill ${refund_type} refund processed successfully`,
+      bill: formattedResult.rows[0]
+    });
+  } catch (err) {
+    console.error('Error processing refund:', err);
+    res.status(500).json({ error: 'Failed to process refund' });
+  }
+});
+
+// Get a single bill by ID
+app.get('/bills/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        id,
+        customer_name,
+        customer_phone,
+        bill_number,
+        TO_CHAR(date, 'YYYY-MM-DD') as date,
+        items,
+        status,
+        TO_CHAR(refund_date, 'YYYY-MM-DD') as refund_date,
+        refund_reason,
+        refund_amount,
+        refunded_by
+      FROM bills 
+      WHERE id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching bill:', err);
+    res.status(500).json({ error: 'Failed to fetch bill' });
   }
 });
 
