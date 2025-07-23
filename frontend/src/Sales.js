@@ -43,7 +43,7 @@ function Sales({ token }) {
     const printContent = `
       <html>
         <head>
-          <title>Bill - ${bill.bill_number}</title>
+          <title>Bill - ${bill.bill_number || 'No Bill Number'}</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             .header { text-align: center; margin-bottom: 20px; }
@@ -61,8 +61,8 @@ function Sales({ token }) {
             <h2>Bill Receipt</h2>
           </div>
           <div class="bill-details">
-            <p><strong>Bill Number:</strong> ${bill.bill_number}</p>
-            <p><strong>Customer Name:</strong> ${bill.customer_name}</p>
+            <p><strong>Bill Number:</strong> ${bill.bill_number || 'No Bill Number'}</p>
+            <p><strong>Customer Name:</strong> ${bill.customer_name || 'N/A'}</p>
             ${bill.customer_phone ? `<p><strong>Phone Number:</strong> ${bill.customer_phone}</p>` : ''}
             <p><strong>Date:</strong> ${new Date(bill.date).toLocaleDateString()}</p>
           </div>
@@ -642,8 +642,8 @@ function Sales({ token }) {
               <tbody>
                 {bills.map((bill, index) => (
                   <tr key={index}>
-                    <td>{bill.bill_number}</td>
-                    <td>{bill.customer_name}</td>
+                    <td>{bill.bill_number || 'No Bill Number'}</td>
+                    <td>{bill.customer_name || 'N/A'}</td>
                     <td>{bill.customer_phone || 'N/A'}</td>
                     <td>{bill.date}</td>
                     <td>
