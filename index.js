@@ -756,7 +756,7 @@ app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) =
 
     // Get reservation details
     const reservationResult = await pool.query(
-      `SELECT rb.*, p.*
+      `SELECT rb.*, p.name as part_name, p.manufacturer
        FROM reserved_bills rb
        JOIN parts p ON rb.part_id = p.id
        WHERE rb.id = $1 AND rb.status = 'reserved'`,
@@ -777,21 +777,23 @@ app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) =
       // Generate bill number
       const billNumber = `BILL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-      // Create bill
+      // Create bill using the existing schema structure
+      const billItems = [{
+        part_id: reservation.part_id,
+        part_name: reservation.part_name,
+        manufacturer: reservation.manufacturer,
+        quantity: 1,
+        unit_price: parseFloat(sellPrice),
+        total_price: parseFloat(sellPrice)
+      }];
+
       const billResult = await pool.query(
-        `INSERT INTO bills (bill_number, customer_name, customer_phone, total_amount, created_by)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [billNumber, customer_name, customer_phone, sellPrice, req.user.id]
+        `INSERT INTO bills (bill_number, customer_name, date, items)
+         VALUES ($1, $2, CURRENT_DATE, $3) RETURNING *`,
+        [billNumber, customer_name, JSON.stringify(billItems)]
       );
 
       const bill = billResult.rows[0];
-
-      // Create bill item
-      await pool.query(
-        `INSERT INTO bill_items (bill_id, part_id, quantity, unit_price, total_price)
-         VALUES ($1, $2, 1, $3, $4)`,
-        [bill.id, reservation.part_id, sellPrice, sellPrice]
-      );
 
       // Update part status to sold
       await pool.query(
