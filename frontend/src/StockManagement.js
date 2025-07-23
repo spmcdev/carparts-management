@@ -425,7 +425,7 @@ function StockManagement() {
           <div className="card-body">
             <div className="d-flex gap-2 mb-3">
               <button 
-                className="btn btn-info" 
+                className="btn btn-primary" 
                 onClick={handleGetParentChildRelations}
                 disabled={loading}
               >
