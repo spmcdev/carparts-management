@@ -107,7 +107,9 @@ function Sales({ token }) {
       const filtered = data.filter(
         part =>
           part.id.toString() === search.trim() ||
-          part.name.toLowerCase().includes(search.trim().toLowerCase())
+          part.name.toLowerCase().includes(search.trim().toLowerCase()) ||
+          (part.parent_id && part.parent_id.toString() === search.trim()) ||
+          (part.manufacturer && part.manufacturer.toLowerCase().includes(search.trim().toLowerCase()))
       );
       setResults(filtered);
       if (filtered.length === 0) setError('No matching parts found.');
@@ -267,7 +269,7 @@ function Sales({ token }) {
             <input
               type="text"
               className="form-control"
-              placeholder="Search by ID or Name"
+              placeholder="Search by ID, Name, Parent Part ID, or Manufacturer"
               value={search}
               onChange={e => setSearch(e.target.value)}
               required

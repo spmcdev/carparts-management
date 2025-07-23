@@ -56,7 +56,7 @@ describe('Sales Component', () => {
     it('should render search form', () => {
       render(<Sales />);
       
-      expect(screen.getByPlaceholderText('Search by ID or Name')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer')).toBeInTheDocument();
       expect(screen.getByText('Search')).toBeInTheDocument();
     });
 
@@ -81,7 +81,7 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       const searchButton = screen.getByText('Search');
 
       fireEvent.change(searchInput, { target: { value: 'Test Part' } });
@@ -112,7 +112,7 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       const searchButton = screen.getByText('Search');
 
       fireEvent.change(searchInput, { target: { value: 'Non-existent Part' } });
@@ -128,7 +128,7 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       const searchButton = screen.getByText('Search');
 
       fireEvent.change(searchInput, { target: { value: 'Test Part' } });
@@ -136,6 +136,111 @@ describe('Sales Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Failed to search parts.')).toBeInTheDocument();
+      });
+    });
+
+    it('should search by parent part ID', async () => {
+      const mockParts = [
+        {
+          id: 1,
+          name: 'Child Part',
+          manufacturer: 'Test Manufacturer',
+          stock_status: 'available',
+          parent_id: 5,
+          recommended_price: '100.00'
+        },
+        {
+          id: 2,
+          name: 'Another Part',
+          manufacturer: 'Other Manufacturer',
+          stock_status: 'available',
+          parent_id: 6,
+          recommended_price: '200.00'
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      });
+
+      render(<Sales />);
+      
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
+      const searchButton = screen.getByText('Search');
+
+      fireEvent.change(searchInput, { target: { value: '5' } });
+      fireEvent.click(searchButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Child Part')).toBeInTheDocument();
+        expect(screen.queryByText('Another Part')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should search by manufacturer', async () => {
+      const mockParts = [
+        {
+          id: 1,
+          name: 'Part A',
+          manufacturer: 'Toyota',
+          stock_status: 'available',
+          recommended_price: '100.00'
+        },
+        {
+          id: 2,
+          name: 'Part B',
+          manufacturer: 'Honda',
+          stock_status: 'available',
+          recommended_price: '200.00'
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      });
+
+      render(<Sales />);
+      
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
+      const searchButton = screen.getByText('Search');
+
+      fireEvent.change(searchInput, { target: { value: 'Toyota' } });
+      fireEvent.click(searchButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Part A')).toBeInTheDocument();
+        expect(screen.queryByText('Part B')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should search manufacturer case-insensitively', async () => {
+      const mockParts = [
+        {
+          id: 1,
+          name: 'Part A',
+          manufacturer: 'Toyota',
+          stock_status: 'available',
+          recommended_price: '100.00'
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      });
+
+      render(<Sales />);
+      
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
+      const searchButton = screen.getByText('Search');
+
+      fireEvent.change(searchInput, { target: { value: 'toyota' } });
+      fireEvent.click(searchButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Part A')).toBeInTheDocument();
       });
     });
   });
@@ -160,7 +265,7 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       const searchButton = screen.getByText('Search');
 
       fireEvent.change(searchInput, { target: { value: '1' } });
@@ -215,7 +320,7 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       const searchButton = screen.getByText('Search');
 
       fireEvent.change(searchInput, { target: { value: '1' } });
@@ -297,7 +402,7 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       const searchButton = screen.getByText('Search');
 
       fireEvent.change(searchInput, { target: { value: '1' } });
@@ -474,7 +579,7 @@ describe('Sales Component', () => {
 
       render(<Sales />);
       
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       const searchButton = screen.getByText('Search');
 
       fireEvent.change(searchInput, { target: { value: 'Test' } });
@@ -510,7 +615,7 @@ describe('Sales Component', () => {
       render(<Sales />);
 
       // Perform search and open sell modal
-      const searchInput = screen.getByPlaceholderText('Search by ID or Name');
+      const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
       fireEvent.change(searchInput, { target: { value: '1' } });
       fireEvent.click(screen.getByText('Search'));
 
