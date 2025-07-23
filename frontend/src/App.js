@@ -90,7 +90,12 @@ function App() {
         setToken(data.token);
         localStorage.setItem('token', data.token);
         setUserRole(data.role || '');
-        navigate('/stock-management');
+        // Redirect based on user role
+        if (data.role === 'general') {
+          navigate('/sales');
+        } else {
+          navigate('/stock-management');
+        }
       } else {
         setAuthMode('login');
       }
