@@ -587,11 +587,12 @@ function Sales({ token }) {
     
     try {
       const refundData = {
-        refundReason: refundReason
+        refund_reason: refundReason,
+        refund_type: isPartialRefund ? 'partial' : 'full'
       };
       
       if (isPartialRefund && refundAmount) {
-        refundData.refundAmount = parseFloat(refundAmount);
+        refundData.refund_amount = parseFloat(refundAmount);
       }
 
       const response = await fetch(`${API_ENDPOINTS.BILLS}/${refundingBill.id}/refund`, {
@@ -604,7 +605,8 @@ function Sales({ token }) {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to process refund - HTTP ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to process refund - HTTP ${response.status}`);
       }
 
       const result = await response.json();
