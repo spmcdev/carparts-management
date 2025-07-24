@@ -20,6 +20,20 @@ function Sales({ token }) {
   const [allBills, setAllBills] = useState([]); // Store all bills for filtering
   const [billSearchTerm, setBillSearchTerm] = useState(''); // Search term for bills
   
+  // Bill Edit States
+  const [showEditBillModal, setShowEditBillModal] = useState(false);
+  const [editingBill, setEditingBill] = useState(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editBillNumber, setEditBillNumber] = useState('');
+  
+  // Bill Refund States
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundingBill, setRefundingBill] = useState(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [isPartialRefund, setIsPartialRefund] = useState(false);
+  
   // Child Parts Search States
   const [parentSearch, setParentSearch] = useState('');
   const [showChildPartsOnly, setShowChildPartsOnly] = useState(false);
@@ -502,6 +516,111 @@ function Sales({ token }) {
     return () => clearTimeout(timeoutId);
   }, [billSearchTerm, allBills]);
 
+  // Bill Edit Handlers
+  const handleEditBill = (bill) => {
+    setEditingBill(bill);
+    setEditCustomerName(bill.customer_name || '');
+    setEditCustomerPhone(bill.customer_phone || '');
+    setEditBillNumber(bill.bill_number || '');
+    setShowEditBillModal(true);
+  };
+
+  const handleSaveEditBill = async () => {
+    if (!editingBill) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch(`${API_ENDPOINTS.BILLS}/${editingBill.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          customerName: editCustomerName,
+          customerPhone: editCustomerPhone,
+          billNumber: editBillNumber || null
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update bill - HTTP ${response.status}`);
+      }
+
+      const updatedBill = await response.json();
+      setSuccess('Bill updated successfully!');
+      
+      // Update the bills in state
+      const updatedAllBills = allBills.map(bill => 
+        bill.id === editingBill.id ? { ...bill, ...updatedBill } : bill
+      );
+      setAllBills(updatedAllBills);
+      
+      setShowEditBillModal(false);
+      setEditingBill(null);
+    } catch (err) {
+      console.error('Edit bill error:', err);
+      setError(`Failed to update bill: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Bill Refund Handlers
+  const handleRefundBill = (bill) => {
+    setRefundingBill(bill);
+    setRefundReason('');
+    setRefundAmount('');
+    setIsPartialRefund(false);
+    setShowRefundModal(true);
+  };
+
+  const handleProcessRefund = async () => {
+    if (!refundingBill) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const refundData = {
+        refundReason: refundReason
+      };
+      
+      if (isPartialRefund && refundAmount) {
+        refundData.refundAmount = parseFloat(refundAmount);
+      }
+
+      const response = await fetch(`${API_ENDPOINTS.BILLS}/${refundingBill.id}/refund`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
+        body: JSON.stringify(refundData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to process refund - HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setSuccess(`${isPartialRefund ? 'Partial refund' : 'Full refund'} processed successfully!`);
+      
+      // Refresh bills to show updated status
+      await handleRetrieveBills();
+      
+      setShowRefundModal(false);
+      setRefundingBill(null);
+    } catch (err) {
+      console.error('Refund processing error:', err);
+      setError(`Failed to process refund: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="container-fluid px-2 px-md-4">
       <div className="card p-2 p-md-4 mt-4 shadow-sm">
@@ -687,12 +806,36 @@ function Sales({ token }) {
                       ))}
                     </td>
                     <td>
-                      <button 
-                        className="btn btn-primary btn-sm"
-                        onClick={() => printBill(bill)}
-                      >
-                        Print Bill
-                      </button>
+                      <div className="d-flex gap-1 flex-wrap">
+                        <button 
+                          className="btn btn-primary btn-sm"
+                          onClick={() => printBill(bill)}
+                          title="Print Bill"
+                        >
+                          Print
+                        </button>
+                        <button 
+                          className="btn btn-warning btn-sm"
+                          onClick={() => handleEditBill(bill)}
+                          title="Edit Bill"
+                        >
+                          Edit
+                        </button>
+                        {bill.status === 'active' && (
+                          <button 
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleRefundBill(bill)}
+                            title="Process Refund"
+                          >
+                            Refund
+                          </button>
+                        )}
+                        {bill.status !== 'active' && (
+                          <span className="badge bg-secondary text-capitalize">
+                            {bill.status.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -999,6 +1142,153 @@ function Sales({ token }) {
           </Button>
           <Button variant="primary" onClick={handleConfirmSell}>
             Confirm Sell
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Edit Bill Modal */}
+      <Modal show={showEditBillModal} onHide={() => setShowEditBillModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Bill #{editingBill?.id}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="mb-3">
+            <label className="form-label">Customer Name</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editCustomerName}
+              onChange={e => setEditCustomerName(e.target.value)}
+              placeholder="Enter customer name"
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label">Customer Phone</label>
+            <input
+              type="tel"
+              className="form-control"
+              value={editCustomerPhone}
+              onChange={e => setEditCustomerPhone(e.target.value)}
+              placeholder="Enter phone number (optional)"
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label">Bill Number</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editBillNumber}
+              onChange={e => setEditBillNumber(e.target.value)}
+              placeholder="Enter bill number (optional)"
+            />
+          </div>
+          {error && <div className="alert alert-danger">{error}</div>}
+          {success && <div className="alert alert-success">{success}</div>}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEditBillModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSaveEditBill} disabled={loading}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Refund Bill Modal */}
+      <Modal show={showRefundModal} onHide={() => setShowRefundModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Process Refund - Bill #{refundingBill?.id}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="mb-3">
+            <div className="form-check">
+              <input
+                className="form-check-input"
+                type="radio"
+                name="refundType"
+                id="fullRefund"
+                checked={!isPartialRefund}
+                onChange={() => setIsPartialRefund(false)}
+              />
+              <label className="form-check-label" htmlFor="fullRefund">
+                Full Refund
+              </label>
+            </div>
+            <div className="form-check">
+              <input
+                className="form-check-input"
+                type="radio"
+                name="refundType"
+                id="partialRefund"
+                checked={isPartialRefund}
+                onChange={() => setIsPartialRefund(true)}
+              />
+              <label className="form-check-label" htmlFor="partialRefund">
+                Partial Refund
+              </label>
+            </div>
+          </div>
+          
+          {isPartialRefund && (
+            <div className="mb-3">
+              <label className="form-label">Refund Amount (Rs.)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={refundAmount}
+                onChange={e => setRefundAmount(e.target.value)}
+                placeholder="Enter refund amount"
+                required
+              />
+            </div>
+          )}
+          
+          <div className="mb-3">
+            <label className="form-label">Refund Reason</label>
+            <textarea
+              className="form-control"
+              rows="3"
+              value={refundReason}
+              onChange={e => setRefundReason(e.target.value)}
+              placeholder="Enter reason for refund"
+              required
+            />
+          </div>
+          
+          {refundingBill && (
+            <div className="mb-3">
+              <div className="card">
+                <div className="card-body">
+                  <h6 className="card-title">Bill Details</h6>
+                  <p className="card-text mb-1">
+                    <strong>Customer:</strong> {refundingBill.customer_name}
+                  </p>
+                  <p className="card-text mb-1">
+                    <strong>Bill Number:</strong> {refundingBill.bill_number || 'No Bill Number'}
+                  </p>
+                  <p className="card-text mb-0">
+                    <strong>Date:</strong> {refundingBill.date}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {error && <div className="alert alert-danger">{error}</div>}
+          {success && <div className="alert alert-success">{success}</div>}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowRefundModal(false)}>
+            Cancel
+          </Button>
+          <Button 
+            variant="danger" 
+            onClick={handleProcessRefund} 
+            disabled={loading || !refundReason.trim() || (isPartialRefund && !refundAmount)}
+          >
+            {loading ? 'Processing...' : `Process ${isPartialRefund ? 'Partial' : 'Full'} Refund`}
           </Button>
         </Modal.Footer>
       </Modal>
