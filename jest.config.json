@@ -1,21 +1,27 @@
 {
   "projects": [
     {
-      "displayName": "backend",
+      "displayName": "backend-unit",
       "testEnvironment": "node",
       "testMatch": ["<rootDir>/tests/**/*.test.js"],
-      "transform": {
-        "^.+\\.js$": "babel-jest"
-      },
+      "testPathIgnorePatterns": ["<rootDir>/tests/api-integration.test.js"],
+      "transform": {},
       "collectCoverageFrom": [
         "*.js",
         "!index.js"
       ],
       "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"],
-      "extensionsToTreatAsEsm": [".js"],
       "globals": {
         "__DEV__": true
       }
+    },
+    {
+      "displayName": "backend-integration",
+      "testEnvironment": "node",
+      "testMatch": ["<rootDir>/tests/api-integration.test.js"],
+      "transform": {},
+      "testTimeout": 30000,
+      "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"]
     },
     {
       "displayName": "frontend",

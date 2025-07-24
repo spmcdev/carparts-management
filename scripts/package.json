@@ -1,0 +1,16 @@
+{
+  "name": "carparts-production-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Production testing and health check scripts for Car Parts Management System",
+  "scripts": {
+    "health-check": "node production-health-check.js",
+    "test-prod": "node production-health-check.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {},
+  "author": "Car Parts Management Team",
+  "license": "MIT"
+}
