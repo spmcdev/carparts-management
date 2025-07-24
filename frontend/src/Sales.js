@@ -27,6 +27,10 @@ function Sales({ token, userRole }) {
 
   // Reservation state
   const [showReservationModal, setShowReservationModal] = useState(false);
+  const [reservations, setReservations] = useState([]);
+  const [showReservationHistory, setShowReservationHistory] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const [processingReservation, setProcessingReservation] = useState(null);
   const [reservationData, setReservationData] = useState({
     customer_name: '',
     customer_phone: '',
@@ -101,9 +105,24 @@ function Sales({ token, userRole }) {
     }
   };
 
+  // Fetch reservations
+  const fetchReservations = async () => {
+    try {
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch reservations');
+      const data = await res.json();
+      setReservations(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   useEffect(() => {
     fetchAvailableParts();
     fetchBills();
+    fetchReservations();
   }, [token]);
 
   // Handle search with debouncing
@@ -208,7 +227,75 @@ function Sales({ token, userRole }) {
       });
       setShowReservationModal(false);
       
-      // Refresh available parts
+      // Refresh data
+      fetchAvailableParts();
+      fetchReservations();
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Complete reservation (convert to sale)
+  const completeReservation = async (reservation) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${reservation.id}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to complete reservation');
+      }
+
+      const result = await res.json();
+      setSuccess(`Reservation completed! Bill created with ID: ${result.bill_id}`);
+      
+      // Refresh data
+      fetchReservations();
+      fetchBills();
+      fetchAvailableParts();
+      setProcessingReservation(null);
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cancel reservation
+  const cancelReservation = async (reservationId) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${reservationId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to cancel reservation');
+      }
+
+      setSuccess('Reservation cancelled successfully! Stock has been released.');
+      
+      // Refresh data
+      fetchReservations();
       fetchAvailableParts();
       
     } catch (err) {
@@ -683,6 +770,207 @@ function Sales({ token, userRole }) {
           )}
         </div>
       </div>
+
+      {/* Reservation History Section */}
+      <div className="card mt-4">
+        <div className="card-header d-flex justify-content-between align-items-center">
+          <h5>Reservation Management</h5>
+          <div className="btn-group">
+            <button 
+              className="btn btn-outline-primary btn-sm"
+              onClick={() => {
+                setShowReservationHistory(!showReservationHistory);
+                if (!showReservationHistory) fetchReservations();
+              }}
+            >
+              {showReservationHistory ? 'Hide Reservations' : 'Show Reservations'}
+            </button>
+          </div>
+        </div>
+        {showReservationHistory && (
+          <div className="card-body">
+            <div className="mb-3 d-flex justify-content-between align-items-center">
+              <div className="btn-group" role="group">
+                <input 
+                  type="radio" 
+                  className="btn-check" 
+                  name="reservationFilter" 
+                  id="activeOnly" 
+                  checked={showActiveOnly}
+                  onChange={() => setShowActiveOnly(true)}
+                />
+                <label className="btn btn-outline-primary" htmlFor="activeOnly">Active Only</label>
+                
+                <input 
+                  type="radio" 
+                  className="btn-check" 
+                  name="reservationFilter" 
+                  id="showAll" 
+                  checked={!showActiveOnly}
+                  onChange={() => setShowActiveOnly(false)}
+                />
+                <label className="btn btn-outline-primary" htmlFor="showAll">All Reservations</label>
+              </div>
+              <small className="text-muted">
+                {reservations.filter(r => showActiveOnly ? r.status === 'reserved' : true).length} reservation(s)
+              </small>
+            </div>
+            
+            {reservations.filter(r => showActiveOnly ? r.status === 'reserved' : true).length === 0 ? (
+              <div className="text-muted text-center">
+                {showActiveOnly ? 'No active reservations found' : 'No reservations found'}
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-striped">
+                  <thead>
+                    <tr>
+                      <th>Reservation #</th>
+                      <th>Date</th>
+                      <th>Customer</th>
+                      <th>Phone</th>
+                      <th>Part</th>
+                      <th>Qty</th>
+                      <th>Agreed Price</th>
+                      <th>Deposit</th>
+                      <th>Remaining</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reservations
+                      .filter(r => showActiveOnly ? r.status === 'reserved' : true)
+                      .map(reservation => (
+                      <tr key={reservation.id}>
+                        <td>
+                          <strong>{reservation.reservation_number}</strong>
+                          {reservation.notes && <br />}
+                          {reservation.notes && <small className="text-muted">📝 Has notes</small>}
+                        </td>
+                        <td>{new Date(reservation.reserved_date).toLocaleDateString()}</td>
+                        <td>{reservation.customer_name}</td>
+                        <td>{reservation.customer_phone}</td>
+                        <td>
+                          <small>
+                            <strong>{reservation.part_name || `Part ID: ${reservation.part_id}`}</strong>
+                            {reservation.manufacturer && <><br /><span className="text-muted">{reservation.manufacturer}</span></>}
+                          </small>
+                        </td>
+                        <td>{reservation.quantity}</td>
+                        <td>Rs {parseFloat(reservation.price_agreed).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                        <td>Rs {parseFloat(reservation.deposit_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                        <td>Rs {parseFloat(reservation.remaining_amount || reservation.price_agreed - reservation.deposit_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                        <td>
+                          <span className={`badge ${
+                            reservation.status === 'reserved' ? 'bg-warning' :
+                            reservation.status === 'completed' ? 'bg-success' :
+                            reservation.status === 'cancelled' ? 'bg-danger' :
+                            'bg-secondary'
+                          }`}>
+                            {reservation.status}
+                          </span>
+                          {reservation.completed_date && (
+                            <><br /><small className="text-muted">
+                              {new Date(reservation.completed_date).toLocaleDateString()}
+                            </small></>
+                          )}
+                        </td>
+                        <td>
+                          <div className="btn-group-vertical">
+                            {reservation.status === 'reserved' && (
+                              <>
+                                <button 
+                                  className="btn btn-success btn-sm" 
+                                  onClick={() => setProcessingReservation(reservation)}
+                                  title="Complete reservation and create sale"
+                                >
+                                  Complete Sale
+                                </button>
+                                <button 
+                                  className="btn btn-danger btn-sm" 
+                                  onClick={() => {
+                                    if (window.confirm('Are you sure you want to cancel this reservation? This will release the reserved stock.')) {
+                                      cancelReservation(reservation.id);
+                                    }
+                                  }}
+                                  title="Cancel reservation and release stock"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            )}
+                            {reservation.notes && (
+                              <button 
+                                className="btn btn-info btn-sm" 
+                                onClick={() => alert(`Notes: ${reservation.notes}`)}
+                                title="View reservation notes"
+                              >
+                                View Notes
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Complete Reservation Modal */}
+      {processingReservation && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Complete Reservation #{processingReservation.reservation_number}</h5>
+                <button type="button" className="btn-close" onClick={() => setProcessingReservation(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row">
+                  <div className="col-md-6">
+                    <strong>Customer:</strong> {processingReservation.customer_name}<br />
+                    <strong>Phone:</strong> {processingReservation.customer_phone}<br />
+                    <strong>Part:</strong> {processingReservation.part_name || `ID: ${processingReservation.part_id}`}<br />
+                  </div>
+                  <div className="col-md-6">
+                    <strong>Quantity:</strong> {processingReservation.quantity}<br />
+                    <strong>Agreed Price:</strong> Rs {parseFloat(processingReservation.price_agreed).toLocaleString('en-LK', { minimumFractionDigits: 2 })}<br />
+                    <strong>Deposit Paid:</strong> Rs {parseFloat(processingReservation.deposit_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}<br />
+                  </div>
+                </div>
+                <hr />
+                <div className="alert alert-info">
+                  <strong>Remaining Amount to Collect:</strong> Rs {parseFloat(processingReservation.remaining_amount || processingReservation.price_agreed - processingReservation.deposit_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                </div>
+                {processingReservation.notes && (
+                  <div className="alert alert-secondary">
+                    <strong>Notes:</strong> {processingReservation.notes}
+                  </div>
+                )}
+                <p>Completing this reservation will:</p>
+                <ul>
+                  <li>Create a new sales bill</li>
+                  <li>Transfer reserved stock to sold</li>
+                  <li>Mark the reservation as completed</li>
+                </ul>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setProcessingReservation(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-success" onClick={() => completeReservation(processingReservation)}>
+                  Complete Sale
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Bill Modal */}
       {editingBill && (
