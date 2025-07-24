@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from './config/api';
 import Modal from 'react-bootstrap/Modal';
 import Button from 'react-bootstrap/Button';
@@ -17,6 +17,8 @@ function Sales({ token }) {
   const [customerPhone, setCustomerPhone] = useState('');
   const [billNumber, setBillNumber] = useState('');
   const [bills, setBills] = useState([]);
+  const [allBills, setAllBills] = useState([]); // Store all bills for filtering
+  const [billSearchTerm, setBillSearchTerm] = useState(''); // Search term for bills
   
   // Child Parts Search States
   const [parentSearch, setParentSearch] = useState('');
@@ -445,7 +447,7 @@ function Sales({ token }) {
     }
   };
 
-  const handleRetrieveBills = async (searchTerm = '') => {
+  const handleRetrieveBills = async () => {
     setError('');
     setLoading(true);
     
@@ -468,15 +470,9 @@ function Sales({ token }) {
       const data = await res.json();
       console.log('Sales - Bills data received:', data.length, 'bills');
       
-      const filteredBills = searchTerm.trim() === ''
-        ? data
-        : data.filter(
-            bill =>
-              (bill.bill_number && bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
-              (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-              (bill.customer_phone && bill.customer_phone.includes(searchTerm.trim()))
-          );
-      setBills(filteredBills);
+      // Store all bills for real-time filtering
+      setAllBills(data);
+      setBills(data); // Initially show all bills
     } catch (err) {
       console.error('Sales - Bills retrieval error:', err);
       setError(`Failed to retrieve bills: ${err.message}`);
@@ -484,6 +480,27 @@ function Sales({ token }) {
       setLoading(false);
     }
   };
+
+  // Real-time filtering effect with debounce
+  useEffect(() => {
+    if (allBills.length === 0) return;
+    
+    // Debounce the search to avoid too many operations
+    const timeoutId = setTimeout(() => {
+      const filteredBills = billSearchTerm.trim() === ''
+        ? allBills
+        : allBills.filter(
+            bill =>
+              (bill.bill_number && bill.bill_number.toLowerCase().includes(billSearchTerm.toLowerCase())) ||
+              (bill.customer_name && bill.customer_name.toLowerCase().includes(billSearchTerm.toLowerCase())) ||
+              (bill.customer_phone && bill.customer_phone.includes(billSearchTerm.trim()))
+          );
+      
+      setBills(filteredBills);
+    }, 150); // 150ms debounce
+    
+    return () => clearTimeout(timeoutId);
+  }, [billSearchTerm, allBills]);
 
   return (
     <div className="container-fluid px-2 px-md-4">
@@ -620,12 +637,30 @@ function Sales({ token }) {
           </div>
         )}
         <button className="btn btn-secondary mt-3 ms-2" onClick={() => handleRetrieveBills()}>Retrieve Bills</button>
-        <input
-          type="text"
-          className="form-control mt-3"
-          placeholder="Search bills by number, customer name, or phone number"
-          onChange={e => handleRetrieveBills(e.target.value)}
-        />
+        <div className="d-flex mt-3 gap-2">
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search bills by number, customer name, or phone number"
+            value={billSearchTerm}
+            onChange={e => setBillSearchTerm(e.target.value)}
+          />
+          {billSearchTerm && (
+            <button 
+              className="btn btn-outline-secondary"
+              onClick={() => setBillSearchTerm('')}
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        {allBills.length > 0 && (
+          <small className="text-muted mt-2 d-block">
+            Showing {bills.length} of {allBills.length} bills
+            {billSearchTerm && ` (filtered by "${billSearchTerm}")`}
+          </small>
+        )}
         {bills.length > 0 && (
           <div className="table-responsive mt-4">
             <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
