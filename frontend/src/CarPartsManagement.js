@@ -16,6 +16,10 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const [editError, setEditError] = useState('');
   const [localPurchase, setLocalPurchase] = useState(false);
   
+  // Search functionality
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredParts, setFilteredParts] = useState([]);
+  
   // Sorting state
   const [sortConfig, setSortConfig] = useState({
     key: 'id',
@@ -26,6 +30,26 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
     fetchParts();
     // eslint-disable-next-line
   }, []);
+
+  // Search filtering effect
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredParts(parts);
+    } else {
+      const filtered = parts.filter(part => {
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          part.name?.toLowerCase().includes(searchLower) ||
+          part.manufacturer?.toLowerCase().includes(searchLower) ||
+          part.stock_status?.toLowerCase().includes(searchLower) ||
+          part.container_no?.toLowerCase().includes(searchLower) ||
+          part.id?.toString().includes(searchLower) ||
+          part.parent_id?.toString().includes(searchLower)
+        );
+      });
+      setFilteredParts(filtered);
+    }
+  }, [parts, searchTerm]);
 
   // Helper function to get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -43,9 +67,10 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   };
 
   const getSortedParts = () => {
-    if (!sortConfig.key) return parts;
+    const partsToSort = filteredParts.length > 0 || searchTerm ? filteredParts : parts;
+    if (!sortConfig.key) return partsToSort;
     
-    return [...parts].sort((a, b) => {
+    return [...partsToSort].sort((a, b) => {
       let aValue = a[sortConfig.key];
       let bValue = b[sortConfig.key];
       
@@ -221,6 +246,39 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
       {loading ? <div className="alert alert-info">Loading...</div> : null}
       {error && <div className="alert alert-danger">{error}</div>}
       {editError && <div className="alert alert-danger">{editError}</div>}
+      
+      {/* Search functionality */}
+      <div className="row mb-3">
+        <div className="col-12 col-md-6">
+          <div className="input-group">
+            <span className="input-group-text">
+              <i className="fas fa-search"></i>
+            </span>
+            <input 
+              type="text" 
+              className="form-control" 
+              placeholder="Search by part name, manufacturer, stock status, container number, or ID..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button 
+                className="btn btn-outline-secondary" 
+                type="button"
+                onClick={() => setSearchTerm('')}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="col-12 col-md-6 d-flex align-items-center">
+          <small className="text-muted">
+            {searchTerm ? `Found ${filteredParts.length} of ${parts.length} parts` : `Total: ${parts.length} parts`}
+          </small>
+        </div>
+      </div>
+      
       <div className="table-responsive">
         <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
           <thead className="table-dark">
