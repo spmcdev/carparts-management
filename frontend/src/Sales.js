@@ -37,6 +37,32 @@ function Sales({ token, userRole }) {
     notes: ''
   });
 
+  // Filter parts based on search term
+  const filterParts = (parts, searchTerm) => {
+    if (!searchTerm.trim()) return parts;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    return parts.filter(part => {
+      // Search by name
+      if (part.name && part.name.toLowerCase().includes(term)) return true;
+      
+      // Search by manufacturer
+      if (part.manufacturer && part.manufacturer.toLowerCase().includes(term)) return true;
+      
+      // Search by part ID (exact match or starts with)
+      if (part.id && (part.id.toString() === term || part.id.toString().startsWith(term))) return true;
+      
+      // Search by part number
+      if (part.part_number && part.part_number.toLowerCase().includes(term)) return true;
+      
+      // Search by parent ID (exact match or starts with)
+      if (part.parent_id && (part.parent_id.toString() === term || part.parent_id.toString().startsWith(term))) return true;
+      
+      return false;
+    });
+  };
+
   // Fetch available parts for sale
   const fetchAvailableParts = async () => {
     try {
@@ -518,30 +544,31 @@ function Sales({ token, userRole }) {
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Search parts by name, manufacturer..."
+                  placeholder="Search by name, manufacturer, part ID, part number, or parent ID..."
                   value={partSearchTerm}
                   onChange={(e) => setPartSearchTerm(e.target.value)}
                 />
+                <small className="text-muted">
+                  💡 Try searching by: part name, manufacturer, ID (e.g., "1", "23"), part number, or parent ID
+                </small>
               </div>
               
               {loading ? (
                 <div className="text-center">Loading parts...</div>
-              ) : availableParts.filter(part => 
-                part.name.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
-                part.manufacturer.toLowerCase().includes(partSearchTerm.toLowerCase())
-              ).length === 0 ? (
+              ) : filterParts(availableParts, partSearchTerm).length === 0 ? (
                 <div className="text-muted">No parts available for sale</div>
               ) : (
                 <div className="row">
-                  {availableParts.filter(part => 
-                    part.name.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
-                    part.manufacturer.toLowerCase().includes(partSearchTerm.toLowerCase())
-                  ).map(part => (
+                  {filterParts(availableParts, partSearchTerm).map(part => (
                     <div key={part.id} className="col-12 mb-2">
                       <div className="card card-body p-2">
                         <div className="d-flex justify-content-between align-items-center">
                           <div>
-                            <strong>{part.name}</strong><br />
+                            <strong>{part.name}</strong>
+                            <span className="badge bg-light text-dark ms-2">ID: {part.id}</span>
+                            {part.part_number && <span className="badge bg-info ms-1">#{part.part_number}</span>}
+                            {part.parent_id && <span className="badge bg-secondary ms-1">Parent: {part.parent_id}</span>}
+                            <br />
                             <small className="text-muted">{part.manufacturer}</small><br />
                             <small>Stock: {part.available_stock} | Rs {part.recommended_price || 0}</small>
                           </div>
@@ -810,7 +837,10 @@ function Sales({ token, userRole }) {
                       <option value="">Choose a part...</option>
                       {availableParts.map(part => (
                         <option key={part.id} value={part.id}>
-                          {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                          ID:{part.id} - {part.name} - {part.manufacturer} 
+                          {part.part_number && ` (#${part.part_number})`}
+                          {part.parent_id && ` (Parent: ${part.parent_id})`} 
+                          (Stock: {part.available_stock})
                         </option>
                       ))}
                     </select>
