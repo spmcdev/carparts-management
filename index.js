@@ -1390,7 +1390,7 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
       const updatedBillResult = await pool.query(
         `UPDATE bills 
          SET status = $1, refund_date = CURRENT_DATE, refund_reason = $2, 
-             refund_amount = $3, refunded_by = $4, updated_at = CURRENT_TIMESTAMP
+             refund_amount = $3, refunded_by = $4
          WHERE id = $5 RETURNING *`,
         [newStatus, refund_reason, refund_amount, req.user.id, id]
       );

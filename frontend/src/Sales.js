@@ -505,11 +505,6 @@ function Sales({ token, userRole }) {
 
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
-      
-      {/* Debug: Show user role */}
-      <div className="alert alert-info">
-        <small>Current User Role: <strong>{userRole || 'Not defined'}</strong></small>
-      </div>
 
       {/* Sale Form */}
       <div className="row mb-4">
@@ -753,17 +748,7 @@ function Sales({ token, userRole }) {
                           <button className="btn btn-info btn-sm" onClick={() => printBill(bill)}>
                             Print
                           </button>
-                          {/* Debug: Always show edit buttons to test */}
-                          <button className="btn btn-warning btn-sm" onClick={() => handleEditBill(bill)}>
-                            Edit
-                          </button>
-                          {bill.status === 'active' && (
-                            <button className="btn btn-danger btn-sm" onClick={() => handleRefund(bill)}>
-                              Refund
-                            </button>
-                          )}
-                          {/* Original role-based condition - commented for debugging */}
-                          {/* {(userRole === 'admin' || userRole === 'superadmin') && (
+                          {(userRole === 'admin' || userRole === 'superadmin') && (
                             <>
                               <button className="btn btn-warning btn-sm" onClick={() => handleEditBill(bill)}>
                                 Edit
@@ -774,7 +759,7 @@ function Sales({ token, userRole }) {
                                 </button>
                               )}
                             </>
-                          )} */}
+                          )}
                         </div>
                       </td>
                     </tr>

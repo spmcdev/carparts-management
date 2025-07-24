@@ -250,7 +250,7 @@ function App() {
         } />
         <Route path="/sales" element={
           token ? (
-            <Sales token={token} />
+            <Sales token={token} userRole={userRole} />
           ) : (
             <p style={{ color: 'red' }}>Please log in to access Sales.</p>
           )
