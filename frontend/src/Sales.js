@@ -539,14 +539,16 @@ function Sales({ token }) {
           ...(token && { Authorization: `Bearer ${token}` })
         },
         body: JSON.stringify({
-          customerName: editCustomerName,
-          customerPhone: editCustomerPhone,
-          billNumber: editBillNumber || null
+          customer_name: editCustomerName,
+          customer_phone: editCustomerPhone,
+          bill_number: editBillNumber || null,
+          items: editingBill.items // Include existing items
         })
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to update bill - HTTP ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to update bill - HTTP ${response.status}`);
       }
 
       const updatedBill = await response.json();
