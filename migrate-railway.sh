@@ -17,16 +17,7 @@ echo ""
 
 # List of migration files in order
 MIGRATIONS=(
-    "01-init.sql"
-    "02-users.sql"
-    "03-update-parts.sql"
-    "04-add-parent-id.sql"
-    "05-add-recommended-price.sql"
-    "06-add-sold-price.sql"
-    "07-add-cost-price.sql"
-    "08-add-local-purchase.sql"
-    "09-create-bills-table.sql"
-    "11-create-audit-log.sql"
+    "16-implement-quantity-management.sql"
 )
 
 # Run each migration

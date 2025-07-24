@@ -353,7 +353,8 @@ app.get('/audit-logs', authenticateToken, requireAdmin, async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     
     res.json({
-      data: result.rows,
+      logs: result.rows,
+      total: total,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
