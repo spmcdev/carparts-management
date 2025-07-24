@@ -153,7 +153,7 @@ function App() {
               )}
               {token && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/parts-management"><b>Parts Management</b></Link>
+                  <Link className="nav-link" to="/parts-management"><b>Stock Management</b></Link>
                 </li>
               )}
               {token && (
@@ -245,7 +245,7 @@ function App() {
               userRole={userRole}
             />
           ) : (
-            <p style={{ color: 'red' }}>Please log in to access Parts Management.</p>
+            <p style={{ color: 'red' }}>Please log in to access Stock Management.</p>
           )
         } />
         <Route path="/sales" element={

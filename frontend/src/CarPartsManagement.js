@@ -150,7 +150,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
 
   return (
     <div className="container-fluid px-2 px-md-4">
-      <h2 className="mb-4 fs-4 fs-md-2">Car Parts Management with Quantity Support</h2>
+      <h2 className="mb-4 fs-4 fs-md-2">Stock Management</h2>
       
       {/* Add Part Form */}
       <form onSubmit={onSubmit} className="row g-2 g-md-3 mb-3 align-items-end">
@@ -174,6 +174,42 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
             required 
           />
         </div>
+        {userRole === 'superadmin' && (
+          <div className="col-12 col-md-2 mb-2 mb-md-0">
+            <input 
+              type="number" 
+              className="form-control" 
+              placeholder="Cost Price (Rs)" 
+              value={costPrice} 
+              onChange={e => setCostPrice(e.target.value)} 
+              min="0" 
+              step="0.01" 
+            />
+          </div>
+        )}
+        <div className="col-12 col-md-2 mb-2 mb-md-0">
+          <input 
+            type="number" 
+            className="form-control" 
+            placeholder="Recommended Price (Rs)" 
+            value={recommendedPrice} 
+            onChange={e => setRecommendedPrice(e.target.value)} 
+            min="0" 
+            step="0.01" 
+          />
+        </div>
+        <div className="col-12 col-md-1 mb-2 mb-md-0">
+          <label className="form-label small mb-0">Qty</label>
+          <input 
+            type="number" 
+            className="form-control" 
+            placeholder="Qty" 
+            value={totalStock} 
+            onChange={e => setTotalStock(e.target.value)} 
+            min="1" 
+            required
+          />
+        </div>
         <div className="col-12 col-md-2 mb-2 mb-md-0">
           <input 
             type="text" 
@@ -181,17 +217,6 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
             placeholder="Part Number (Optional)" 
             value={partNumber} 
             onChange={e => setPartNumber(e.target.value)} 
-          />
-        </div>
-        <div className="col-12 col-md-1 mb-2 mb-md-0">
-          <input 
-            type="number" 
-            className="form-control" 
-            placeholder="Stock Qty" 
-            value={totalStock} 
-            onChange={e => setTotalStock(e.target.value)} 
-            min="1" 
-            required
           />
         </div>
         <div className="col-12 col-md-2 mb-2 mb-md-0">
@@ -213,17 +238,6 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
             min="1" 
           />
         </div>
-        <div className="col-12 col-md-2 mb-2 mb-md-0">
-          <input 
-            type="number" 
-            className="form-control" 
-            placeholder="Recommended Price" 
-            value={recommendedPrice} 
-            onChange={e => setRecommendedPrice(e.target.value)} 
-            min="0" 
-            step="0.01" 
-          />
-        </div>
         <div className="col-12 col-md-1 mb-2 mb-md-0">
           <input 
             type="text" 
@@ -243,19 +257,6 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
           />
           <label htmlFor="localPurchase" className="form-check-label">Local</label>
         </div>
-        {userRole === 'superadmin' && (
-          <div className="col-12 col-md-2 mb-2 mb-md-0">
-            <input 
-              type="number" 
-              className="form-control" 
-              placeholder="Cost Price (SuperAdmin)" 
-              value={costPrice} 
-              onChange={e => setCostPrice(e.target.value)} 
-              min="0" 
-              step="0.01" 
-            />
-          </div>
-        )}
         <div className="col-12 col-md-1 d-grid">
           <button type="submit" className="btn btn-primary w-100">Add Part</button>
         </div>
@@ -374,7 +375,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
                     <td>{part.parent_id || ''}</td>
                     <td>{
                       part.recommended_price !== null && part.recommended_price !== undefined
-                        ? `₹${parseFloat(part.recommended_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                        ? `Rs ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                         : ''
                     }</td>
                     <td>{part.container_no || '-'}</td>
@@ -382,7 +383,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
                     {userRole === 'superadmin' && (
                       <td>{
                         part.cost_price !== null && part.cost_price !== undefined
-                          ? `₹${parseFloat(part.cost_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                          ? `Rs ${parseFloat(part.cost_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                           : ''
                       }</td>
                     )}

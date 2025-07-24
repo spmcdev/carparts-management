@@ -282,6 +282,335 @@ app.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// ====================== AUDIT LOG ROUTES (ADMIN) ======================
+
+// Admin-only: Get audit logs
+app.get('/audit-logs', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 50, table_name, action, username } = req.query;
+    const offset = (page - 1) * limit;
+    
+    let query = `
+      SELECT al.*, u.username as user_username
+      FROM audit_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (table_name) {
+      query += ` AND al.table_name = $${paramIndex}`;
+      params.push(table_name);
+      paramIndex++;
+    }
+    
+    if (action) {
+      query += ` AND al.action = $${paramIndex}`;
+      params.push(action);
+      paramIndex++;
+    }
+    
+    if (username) {
+      query += ` AND al.username ILIKE $${paramIndex}`;
+      params.push(`%${username}%`);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY al.timestamp DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+    
+    const result = await pool.query(query, params);
+    
+    // Get total count for pagination
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM audit_log al
+      WHERE 1=1
+    `;
+    const countParams = [];
+    let countIndex = 1;
+    
+    if (table_name) {
+      countQuery += ` AND al.table_name = $${countIndex}`;
+      countParams.push(table_name);
+      countIndex++;
+    }
+    
+    if (action) {
+      countQuery += ` AND al.action = $${countIndex}`;
+      countParams.push(action);
+      countIndex++;
+    }
+    
+    if (username) {
+      countQuery += ` AND al.username ILIKE $${countIndex}`;
+      countParams.push(`%${username}%`);
+      countIndex++;
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
+    
+    res.json({
+      data: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching audit logs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================== STOCK MOVEMENTS ROUTES ======================
+
+// Get stock movements for a specific part
+app.get('/stock-movements/:partId', authenticateToken, async (req, res) => {
+  const { partId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT sm.*, u.username as created_by_username, p.name as part_name
+      FROM stock_movements sm
+      JOIN users u ON sm.created_by = u.id
+      JOIN parts p ON sm.part_id = p.id
+      WHERE sm.part_id = $1
+      ORDER BY sm.created_at DESC
+    `, [partId]);
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching stock movements:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all stock movements (admin only)
+app.get('/stock-movements', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT sm.*, u.username as created_by_username, p.name as part_name
+      FROM stock_movements sm
+      JOIN users u ON sm.created_by = u.id
+      JOIN parts p ON sm.part_id = p.id
+      ORDER BY sm.created_at DESC
+      LIMIT 100
+    `);
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching stock movements:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================== RESERVATION ROUTES ======================
+
+// Get all reservations
+app.get('/api/reservations', authenticateToken, async (req, res) => {
+  try {
+    const { search } = req.query;
+    let query = `
+      SELECT r.*, p.name as part_name, p.manufacturer, p.available_stock,
+             u1.username as created_by_username, u2.username as completed_by_username
+      FROM reserved_bills r
+      JOIN parts p ON r.part_id = p.id
+      LEFT JOIN users u1 ON r.created_by = u1.id
+      LEFT JOIN users u2 ON r.completed_by = u2.id
+    `;
+    
+    const params = [];
+    if (search) {
+      query += ` WHERE r.customer_name ILIKE $1 OR r.customer_phone ILIKE $1 OR r.reservation_number ILIKE $1`;
+      params.push(`%${search}%`);
+    }
+    
+    query += ` ORDER BY r.reserved_date DESC`;
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching reservations:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create a new reservation
+app.post('/api/reservations', authenticateToken, async (req, res) => {
+  const { 
+    customer_name, 
+    customer_phone, 
+    part_id, 
+    quantity = 1,
+    price_agreed, 
+    deposit_amount = 0, 
+    notes 
+  } = req.body;
+  
+  if (!customer_name || !customer_phone || !part_id || !price_agreed) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  
+  try {
+    await pool.query('BEGIN');
+    
+    // Check if part has enough available stock
+    const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [part_id]);
+    if (partResult.rows.length === 0) {
+      throw new Error('Part not found');
+    }
+    
+    const part = partResult.rows[0];
+    if (part.available_stock < quantity) {
+      throw new Error('Insufficient stock available for reservation');
+    }
+    
+    // Generate reservation number
+    const reservationNumber = `RES-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    // Create reservation
+    const reservationResult = await pool.query(`
+      INSERT INTO reserved_bills (
+        reservation_number, customer_name, customer_phone, part_id, 
+        quantity, price_agreed, deposit_amount, notes, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+    `, [
+      reservationNumber, customer_name, customer_phone, part_id, 
+      quantity, price_agreed, deposit_amount, notes, req.user.id
+    ]);
+    
+    // Update part stock (move from available to reserved)
+    const newAvailable = part.available_stock - quantity;
+    const newReserved = part.reserved_stock + quantity;
+    
+    await pool.query(`
+      UPDATE parts 
+      SET available_stock = $1, reserved_stock = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `, [newAvailable, newReserved, part_id]);
+    
+    // Log stock movement
+    await logStockMovement(
+      part_id,
+      'reservation',
+      -quantity,
+      part.available_stock,
+      newAvailable,
+      'reservation',
+      reservationResult.rows[0].id,
+      `Reservation ${reservationNumber}`,
+      req.user.id
+    );
+    
+    await pool.query('COMMIT');
+    res.status(201).json(reservationResult.rows[0]);
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error creating reservation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update reservation status
+app.patch('/api/reservations/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { status, notes } = req.body;
+  
+  if (!['reserved', 'completed', 'cancelled'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  
+  try {
+    await pool.query('BEGIN');
+    
+    // Get current reservation
+    const reservationResult = await pool.query(`
+      SELECT r.*, p.reserved_stock, p.available_stock, p.sold_stock
+      FROM reserved_bills r
+      JOIN parts p ON r.part_id = p.id
+      WHERE r.id = $1
+    `, [id]);
+    
+    if (reservationResult.rows.length === 0) {
+      throw new Error('Reservation not found');
+    }
+    
+    const reservation = reservationResult.rows[0];
+    
+    // Update reservation
+    let updateFields = { status, notes };
+    if (status === 'completed' || status === 'cancelled') {
+      updateFields.completed_date = new Date().toISOString();
+      updateFields.completed_by = req.user.id;
+    }
+    
+    const setClause = Object.keys(updateFields).map((key, i) => `${key} = $${i + 2}`).join(', ');
+    const values = [id, ...Object.values(updateFields)];
+    
+    await pool.query(`UPDATE reserved_bills SET ${setClause} WHERE id = $1`, values);
+    
+    // Handle stock changes based on status
+    if (status === 'completed') {
+      // Move from reserved to sold
+      const newReserved = reservation.reserved_stock - reservation.quantity;
+      const newSold = reservation.sold_stock + reservation.quantity;
+      
+      await pool.query(`
+        UPDATE parts 
+        SET reserved_stock = $1, sold_stock = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `, [newReserved, newSold, reservation.part_id]);
+      
+      // Log stock movement
+      await logStockMovement(
+        reservation.part_id,
+        'sale',
+        -reservation.quantity,
+        reservation.reserved_stock,
+        newReserved,
+        'reservation_completion',
+        id,
+        `Reservation ${reservation.reservation_number} completed`,
+        req.user.id
+      );
+    } else if (status === 'cancelled') {
+      // Move from reserved back to available
+      const newReserved = reservation.reserved_stock - reservation.quantity;
+      const newAvailable = reservation.available_stock + reservation.quantity;
+      
+      await pool.query(`
+        UPDATE parts 
+        SET reserved_stock = $1, available_stock = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `, [newReserved, newAvailable, reservation.part_id]);
+      
+      // Log stock movement
+      await logStockMovement(
+        reservation.part_id,
+        'return',
+        reservation.quantity,
+        reservation.available_stock,
+        newAvailable,
+        'reservation_cancellation',
+        id,
+        `Reservation ${reservation.reservation_number} cancelled`,
+        req.user.id
+      );
+    }
+    
+    await pool.query('COMMIT');
+    res.json({ message: 'Reservation updated successfully' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error updating reservation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ====================== PARTS MANAGEMENT ROUTES ======================
 
 // Get all parts with quantity information
@@ -418,14 +747,30 @@ app.patch('/parts/:id', authenticateToken, requireAdmin, async (req, res) => {
         let newTotalStock = fields.total_stock !== undefined ? parseInt(fields.total_stock) : oldPart.total_stock;
         let newAvailableStock = fields.available_stock !== undefined ? parseInt(fields.available_stock) : oldPart.available_stock;
         
-        // Ensure stock consistency
-        if (newTotalStock < oldPart.sold_stock + oldPart.reserved_stock) {
-          throw new Error('Total stock cannot be less than sold + reserved stock');
+        // Validate minimum constraints
+        const minRequiredTotal = oldPart.sold_stock + oldPart.reserved_stock;
+        if (newTotalStock < minRequiredTotal) {
+          throw new Error(`Total stock cannot be less than ${minRequiredTotal} (sold: ${oldPart.sold_stock} + reserved: ${oldPart.reserved_stock})`);
         }
         
-        // Update available stock to maintain consistency
+        // When only total_stock is updated, calculate new available_stock
         if (fields.total_stock !== undefined && fields.available_stock === undefined) {
           newAvailableStock = newTotalStock - oldPart.sold_stock - oldPart.reserved_stock;
+        }
+        
+        // When only available_stock is updated, calculate new total_stock
+        if (fields.available_stock !== undefined && fields.total_stock === undefined) {
+          newTotalStock = newAvailableStock + oldPart.sold_stock + oldPart.reserved_stock;
+        }
+        
+        // Final validation of the constraint
+        if (newTotalStock !== (newAvailableStock + oldPart.sold_stock + oldPart.reserved_stock)) {
+          throw new Error('Stock values must satisfy: total_stock = available_stock + sold_stock + reserved_stock');
+        }
+        
+        // Validate non-negative values
+        if (newTotalStock < 0 || newAvailableStock < 0) {
+          throw new Error('Stock quantities cannot be negative');
         }
         
         // Log stock movement if available stock changed
@@ -444,7 +789,7 @@ app.patch('/parts/:id', authenticateToken, requireAdmin, async (req, res) => {
           );
         }
         
-        // Update the part
+        // Update the part with both values
         fields.total_stock = newTotalStock;
         fields.available_stock = newAvailableStock;
         

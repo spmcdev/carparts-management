@@ -8,6 +8,7 @@ function Sales({ token, userRole }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [partSearchTerm, setPartSearchTerm] = useState('');
   
   // Sale form state
   const [customerName, setCustomerName] = useState('');
@@ -23,6 +24,18 @@ function Sales({ token, userRole }) {
   const [refundingBill, setRefundingBill] = useState(null);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+
+  // Reservation state
+  const [showReservationModal, setShowReservationModal] = useState(false);
+  const [reservationData, setReservationData] = useState({
+    customer_name: '',
+    customer_phone: '',
+    part_id: '',
+    quantity: 1,
+    price_agreed: '',
+    deposit_amount: 0,
+    notes: ''
+  });
 
   // Fetch available parts for sale
   const fetchAvailableParts = async () => {
@@ -126,6 +139,57 @@ function Sales({ token, userRole }) {
   // Calculate total
   const calculateTotal = () => {
     return cartItems.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
+  };
+
+  // Create reservation
+  const createReservation = async (e) => {
+    e.preventDefault();
+    if (!reservationData.customer_name || !reservationData.customer_phone || !reservationData.part_id || !reservationData.price_agreed) {
+      setError('Please fill in all required fields for reservation');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(reservationData)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to create reservation');
+      }
+
+      const newReservation = await res.json();
+      setSuccess(`Reservation created! Reservation number: ${newReservation.reservation_number}`);
+      
+      // Reset form
+      setReservationData({
+        customer_name: '',
+        customer_phone: '',
+        part_id: '',
+        quantity: 1,
+        price_agreed: '',
+        deposit_amount: 0,
+        notes: ''
+      });
+      setShowReservationModal(false);
+      
+      // Refresh available parts
+      fetchAvailableParts();
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Process sale
@@ -301,15 +365,15 @@ function Sales({ token, userRole }) {
                   <td>${item.part_name}</td>
                   <td>${item.manufacturer || 'N/A'}</td>
                   <td>${item.quantity}</td>
-                  <td>₹${parseFloat(item.unit_price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td>₹${parseFloat(item.total_price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                  <td>Rs ${parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                  <td>Rs ${parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
           <div class="total">
             <p>Total Quantity: ${bill.total_quantity}</p>
-            <p>Total Amount: ₹${parseFloat(bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+            <p>Total Amount: Rs ${parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
           </div>
           <div class="footer">
             <p>Thank you for your business!</p>
@@ -324,7 +388,7 @@ function Sales({ token, userRole }) {
 
   return (
     <div className="container-fluid px-2 px-md-4">
-      <h2 className="mb-4">Sales Management with Quantity Support</h2>
+      <h2 className="mb-4">Sales Management</h2>
 
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
@@ -409,7 +473,7 @@ function Sales({ token, userRole }) {
                                 step="0.01"
                               />
                             </td>
-                            <td>₹{(item.quantity * item.unit_price).toFixed(2)}</td>
+                            <td>Rs {(item.quantity * item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                             <td>
                               <button
                                 type="button"
@@ -424,7 +488,7 @@ function Sales({ token, userRole }) {
                       </tbody>
                     </table>
                     <div className="text-end">
-                      <strong>Total: ₹{calculateTotal().toFixed(2)}</strong>
+                      <strong>Total: Rs {calculateTotal().toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
                     </div>
                   </div>
                 )}
@@ -439,31 +503,69 @@ function Sales({ token, userRole }) {
 
         <div className="col-md-6">
           <div className="card">
-            <div className="card-header">
-              <h5>Available Parts</h5>
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <h5 className="mb-0">Available Parts</h5>
+              <button 
+                className="btn btn-success btn-sm"
+                onClick={() => setShowReservationModal(true)}
+              >
+                Make Reservation
+              </button>
             </div>
             <div className="card-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+              {/* Search for parts */}
+              <div className="mb-3">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Search parts by name, manufacturer..."
+                  value={partSearchTerm}
+                  onChange={(e) => setPartSearchTerm(e.target.value)}
+                />
+              </div>
+              
               {loading ? (
                 <div className="text-center">Loading parts...</div>
-              ) : availableParts.length === 0 ? (
+              ) : availableParts.filter(part => 
+                part.name.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+                part.manufacturer.toLowerCase().includes(partSearchTerm.toLowerCase())
+              ).length === 0 ? (
                 <div className="text-muted">No parts available for sale</div>
               ) : (
                 <div className="row">
-                  {availableParts.map(part => (
+                  {availableParts.filter(part => 
+                    part.name.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+                    part.manufacturer.toLowerCase().includes(partSearchTerm.toLowerCase())
+                  ).map(part => (
                     <div key={part.id} className="col-12 mb-2">
                       <div className="card card-body p-2">
                         <div className="d-flex justify-content-between align-items-center">
                           <div>
                             <strong>{part.name}</strong><br />
                             <small className="text-muted">{part.manufacturer}</small><br />
-                            <small>Stock: {part.available_stock} | ₹{part.recommended_price || 0}</small>
+                            <small>Stock: {part.available_stock} | Rs {part.recommended_price || 0}</small>
                           </div>
-                          <button
-                            className="btn btn-primary btn-sm"
-                            onClick={() => addToCart(part)}
-                          >
-                            Add to Cart
-                          </button>
+                          <div className="btn-group-vertical">
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => addToCart(part)}
+                            >
+                              Add to Cart
+                            </button>
+                            <button
+                              className="btn btn-outline-secondary btn-sm"
+                              onClick={() => {
+                                setReservationData({
+                                  ...reservationData,
+                                  part_id: part.id,
+                                  price_agreed: part.recommended_price || 0
+                                });
+                                setShowReservationModal(true);
+                              }}
+                            >
+                              Reserve
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -517,7 +619,7 @@ function Sales({ token, userRole }) {
                       <td>{bill.customer_phone || '-'}</td>
                       <td>{bill.items ? bill.items.length : 0}</td>
                       <td>{bill.total_quantity}</td>
-                      <td>₹{parseFloat(bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                       <td>
                         <span className={`badge ${
                           bill.status === 'active' ? 'bg-success' :
@@ -629,7 +731,7 @@ function Sales({ token, userRole }) {
                     step="0.01"
                     required
                   />
-                  <small className="text-muted">Maximum: ₹{refundingBill.total_amount}</small>
+                  <small className="text-muted">Maximum: Rs {refundingBill.total_amount.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</small>
                 </div>
                 <div className="mb-3">
                   <label className="form-label">Refund Reason</label>
@@ -653,6 +755,120 @@ function Sales({ token, userRole }) {
                   Process Refund
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reservation Modal */}
+      {showReservationModal && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Create Reservation</h5>
+                <button type="button" className="btn-close" onClick={() => setShowReservationModal(false)}></button>
+              </div>
+              <form onSubmit={createReservation}>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">Customer Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={reservationData.customer_name}
+                      onChange={e => setReservationData({...reservationData, customer_name: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Customer Phone *</label>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      value={reservationData.customer_phone}
+                      onChange={e => setReservationData({...reservationData, customer_phone: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Select Part *</label>
+                    <select
+                      className="form-control"
+                      value={reservationData.part_id}
+                      onChange={e => {
+                        const partId = e.target.value;
+                        const selectedPart = availableParts.find(part => part.id == partId);
+                        setReservationData({
+                          ...reservationData, 
+                          part_id: partId,
+                          price_agreed: selectedPart ? selectedPart.recommended_price || 0 : ''
+                        });
+                      }}
+                      required
+                    >
+                      <option value="">Choose a part...</option>
+                      {availableParts.map(part => (
+                        <option key={part.id} value={part.id}>
+                          {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Quantity *</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={reservationData.quantity}
+                      onChange={e => setReservationData({...reservationData, quantity: parseInt(e.target.value) || 1})}
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Agreed Price (Rs) *</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={reservationData.price_agreed}
+                      onChange={e => setReservationData({...reservationData, price_agreed: e.target.value})}
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Deposit Amount (Rs)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={reservationData.deposit_amount}
+                      onChange={e => setReservationData({...reservationData, deposit_amount: parseFloat(e.target.value) || 0})}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Notes</label>
+                    <textarea
+                      className="form-control"
+                      value={reservationData.notes}
+                      onChange={e => setReservationData({...reservationData, notes: e.target.value})}
+                      rows="3"
+                      placeholder="Additional notes or special requirements..."
+                    ></textarea>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowReservationModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-success" disabled={loading}>
+                    {loading ? 'Creating...' : 'Create Reservation'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
