@@ -41,7 +41,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
       manufacturer, 
       part_number: partNumber || null,
       total_stock: parseInt(totalStock) || 1,
-      available_from: availableFrom, 
+      available_from: availableFrom || new Date().toISOString().split('T')[0], // Set current date if not provided
       parent_id: parentId, 
       recommended_price: recommendedPrice, 
       local_purchase: localPurchase,
