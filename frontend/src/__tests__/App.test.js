@@ -4,6 +4,13 @@ import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../App';
 
+// Mock API endpoints
+const API_ENDPOINTS = {
+  BASE: 'https://carparts-management-production.up.railway.app',
+  LOGIN: 'https://carparts-management-production.up.railway.app/login',
+  PARTS: 'https://carparts-management-production.up.railway.app/parts'
+};
+
 // Mock localStorage
 const mockLocalStorage = {
   getItem: jest.fn(),
@@ -44,7 +51,7 @@ describe('App Component', () => {
         render(<App />, { wrapper: RouterWrapper });
       });
 
-      expect(screen.getByText('Rasuki Group')).toBeInTheDocument();
+      expect(screen.getAllByText('Rasuki Group')).toHaveLength(2); // navbar + main heading
       expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Username')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
@@ -76,9 +83,9 @@ describe('App Component', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Login' }));
       });
 
-      // After successful login, app navigates to Stock Management
+      // After successful login, app navigates to Reports
       await waitFor(() => {
-        expect(screen.getByText('Stock Management')).toBeInTheDocument();
+        expect(screen.getAllByText('Reports')).toHaveLength(2); // nav + page title
       });
     });
 
@@ -142,8 +149,11 @@ describe('App Component', () => {
   });
 
   describe('Navigation', () => {
+    const mockJwtToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsInJvbGUiOiJhZG1pbiIsImlhdCI6MTYxNjIzOTAyMn0.lPGNKJq4AaQahw5V5-gw4hFOqzJqd_bCv9cD9F7x1v4';
+    
     beforeEach(() => {
-      localStorage.setItem('token', 'fake-jwt-token');
+      mockLocalStorage.getItem.mockReturnValue(mockJwtToken);
+      localStorage.setItem('token', mockJwtToken);
       fetch.mockResolvedValue({
         ok: true,
         json: async () => []
@@ -156,30 +166,34 @@ describe('App Component', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('Reports')).toBeInTheDocument();
-        expect(screen.getByText('Parts Management')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /Reports/i })).toBeInTheDocument();
+        expect(screen.getByText('Stock Management')).toBeInTheDocument();
         expect(screen.getByText('Sales')).toBeInTheDocument();
       });
     });
 
     it('should show admin link for admin users', async () => {
-      localStorage.setItem('userRole', 'admin');
+      // Create a superadmin JWT token
+      const superadminJwtToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsInJvbGUiOiJzdXBlcmFkbWluIiwiaWF0IjoxNjE2MjM5MDIyfQ.Xd8C8hFyUyR6xOqIhDg8dFaR9s8qP4xQgHw8fF_l3xI';
+      mockLocalStorage.getItem.mockReturnValue(superadminJwtToken);
       
       await act(async () => {
         render(<App />, { wrapper: RouterWrapper });
       });
       
       await waitFor(() => {
-        expect(screen.getByText('Reports')).toBeInTheDocument();
+        expect(screen.getByText('Admin')).toBeInTheDocument();
       });
     });
   });
 
   describe('Parts Management Integration', () => {
+    const mockJwtToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsInJvbGUiOiJhZG1pbiIsImlhdCI6MTYxNjIzOTAyMn0.lPGNKJq4AaQahw5V5-gw4hFOqzJqd_bCv9cD9F7x1v4';
+    
     it('should fetch and display parts', async () => {
       // Set up localStorage mock to return the token
       mockLocalStorage.getItem.mockImplementation((key) => {
-        if (key === 'token') return 'fake-jwt-token';
+        if (key === 'token') return mockJwtToken;
         return null;
       });
 
@@ -207,9 +221,9 @@ describe('App Component', () => {
       });
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('http://localhost:3000/parts', {
+        expect(fetch).toHaveBeenCalledWith(API_ENDPOINTS.PARTS, {
           headers: {
-            Authorization: 'Bearer fake-jwt-token'
+            Authorization: `Bearer ${mockJwtToken}`
           }
         });
       });
@@ -218,7 +232,7 @@ describe('App Component', () => {
     it('should handle parts fetch error', async () => {
       // Set up localStorage mock to return the token
       mockLocalStorage.getItem.mockImplementation((key) => {
-        if (key === 'token') return 'fake-jwt-token';
+        if (key === 'token') return mockJwtToken;
         return null;
       });
 

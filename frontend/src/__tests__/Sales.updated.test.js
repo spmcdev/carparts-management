@@ -6,10 +6,10 @@ import Sales from '../Sales';
 // Mock API endpoints
 jest.mock('../config/api', () => ({
   API_ENDPOINTS: {
-    BASE: 'https://carparts-management-production.up.railway.app',
-    PARTS: 'https://carparts-management-production.up.railway.app/parts',
-    BILLS: 'https://carparts-management-production.up.railway.app/bills',
-    SALES: 'https://carparts-management-production.up.railway.app/sales'
+    BASE: 'http://localhost:3000',
+    PARTS: 'http://localhost:3000/parts',
+    BILLS: 'http://localhost:3000/bills',
+    SALES: 'http://localhost:3000/sales'
   }
 }));
 

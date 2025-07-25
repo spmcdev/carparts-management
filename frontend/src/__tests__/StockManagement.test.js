@@ -6,7 +6,8 @@ import StockManagement from '../StockManagement';
 // Mock the API endpoints
 jest.mock('../config/api', () => ({
   API_ENDPOINTS: {
-    PARTS: 'https://carparts-management-production.up.railway.app/parts'
+    PARTS: 'https://carparts-management-production.up.railway.app/parts',
+    BILLS: 'https://carparts-management-production.up.railway.app/bills'
   }
 }));
 
@@ -41,7 +42,7 @@ describe('StockManagement Component', () => {
   describe('Component Rendering', () => {
     test('should render stock management interface', () => {
       render(<StockManagement {...mockProps} />);
-      expect(screen.getByText('Stock Management')).toBeInTheDocument();
+      expect(screen.getByText('Reports')).toBeInTheDocument();
       expect(screen.getByText('Available Stock')).toBeInTheDocument();
       expect(screen.getByText('Sold Stock Report')).toBeInTheDocument();
       expect(screen.getByText('Parent-Child Relationship Report')).toBeInTheDocument();
@@ -123,6 +124,69 @@ describe('StockManagement Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Found \d+ parts with \d+ units available in stock\./)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Sold Stock Management', () => {
+    test('should fetch and display sold stock', async () => {
+      const mockBillsData = [
+        {
+          id: 1,
+          customer_name: 'John Doe',
+          date: '2025-01-15',
+          total_quantity: 2,
+          total_amount: 1500.00,
+          items: [
+            {
+              part_id: 1,
+              part_name: 'Brake Pad',
+              manufacturer: 'Brand A',
+              quantity: 1,
+              unit_price: 500.00,
+              total_price: 500.00
+            },
+            {
+              part_id: 2,
+              part_name: 'Oil Filter',
+              manufacturer: 'Brand B',
+              quantity: 1,
+              unit_price: 1000.00,
+              total_price: 1000.00
+            }
+          ]
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockBillsData
+      });
+
+      render(<StockManagement {...mockProps} />);
+      
+      const getSoldStockButton = screen.getByText('Get Sold Stock');
+      fireEvent.click(getSoldStockButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Found \d+ sold items worth Rs\./)).toBeInTheDocument();
+      });
+
+      expect(fetch).toHaveBeenCalledWith('https://carparts-management-production.up.railway.app/bills', {
+        headers: { Authorization: 'Bearer fake-token' }
+      });
+    });
+
+    test('should handle sold stock fetch error', async () => {
+      fetch.mockRejectedValueOnce(new Error('API Error'));
+
+      render(<StockManagement {...mockProps} />);
+      
+      const getSoldStockButton = screen.getByText('Get Sold Stock');
+      fireEvent.click(getSoldStockButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to retrieve sold stock.')).toBeInTheDocument();
       });
     });
   });
@@ -320,6 +384,67 @@ describe('StockManagement Component', () => {
 
       await waitFor(() => {
         expect(screen.getAllByText('Print Report')).toHaveLength(1);
+      });
+    });
+  });
+
+  describe('Show/Hide Functionality', () => {
+    test('should toggle available stock visibility', () => {
+      render(<StockManagement {...mockProps} />);
+      
+      const hideButton = screen.getByText('Hide Available Stock');
+      fireEvent.click(hideButton);
+      
+      expect(screen.getByText('Show Available Stock')).toBeInTheDocument();
+    });
+
+    test('should toggle sold stock visibility', () => {
+      render(<StockManagement {...mockProps} />);
+      
+      const hideButton = screen.getByText('Hide Sold Stock');
+      fireEvent.click(hideButton);
+      
+      expect(screen.getByText('Show Sold Stock')).toBeInTheDocument();
+    });
+
+    test('should toggle parent-child relationships visibility', () => {
+      render(<StockManagement {...mockProps} />);
+      
+      const hideButton = screen.getByText('Hide Parent-Child Relationships');
+      fireEvent.click(hideButton);
+      
+      expect(screen.getByText('Show Parent-Child Relationships')).toBeInTheDocument();
+    });
+  });
+
+  describe('Enhanced Quantity Management', () => {
+    test('should display quantity-aware stock information', async () => {
+      const mockAvailableData = [
+        {
+          id: 1,
+          name: 'Brake Pad',
+          manufacturer: 'Brand A',
+          recommended_price: '500.00',
+          available_from: '2023-06-01',
+          total_stock: 20,
+          available_stock: 15,
+          reserved_stock: 3,
+          sold_stock: 2
+        }
+      ];
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAvailableData
+      });
+
+      render(<StockManagement {...mockProps} />);
+      
+      const getAvailableStockButton = screen.getByText('Get Available Stock');
+      fireEvent.click(getAvailableStockButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Found \d+ parts with \d+ units available in stock\./)).toBeInTheDocument();
       });
     });
   });
