@@ -156,6 +156,23 @@ app.post('/login', async (req, res) => {
     if (!validPassword) return res.status(400).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
+    
+    // Log successful login attempt
+    try {
+      await logAuditAction(
+        { id: user.id, username: user.username },
+        'LOGIN',
+        'users',
+        user.id,
+        null,
+        { username: user.username, role: user.role, login_time: new Date().toISOString() },
+        req
+      );
+    } catch (auditErr) {
+      // Don't fail login if audit logging fails
+      console.error('Failed to log login audit:', auditErr);
+    }
+    
     res.json({ token, role: user.role, username: user.username });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -189,6 +206,33 @@ app.post('/register', async (req, res) => {
       'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id, username, role',
       [username, hashedPassword, userRole]
     );
+    
+    // Log audit action for user registration
+    // For public registration, we won't have req.user, so we'll handle this case
+    const adminUser = authHeader ? {
+      id: null, // We'll need to get this from the token if needed
+      username: 'system' // Default for now
+    } : null;
+    
+    if (adminUser) {
+      // Admin-created user registration
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        await logAuditAction(
+          { id: decoded.id, username: decoded.username },
+          'CREATE',
+          'users',
+          result.rows[0].id,
+          null,
+          { username: result.rows[0].username, role: result.rows[0].role },
+          req
+        );
+      } catch (jwtErr) {
+        // Token verification failed, skip audit logging
+      }
+    }
+    // Note: Public registrations are not audited as there's no authenticated user
     
     res.status(201).json({ 
       message: 'User created successfully', 
@@ -506,6 +550,26 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
       `Reservation ${reservationNumber}`,
       req.user.id
     );
+
+    // Log audit action for reservation creation
+    await logAuditAction(
+      req.user,
+      'create',
+      'reserved_bills',
+      reservationResult.rows[0].id,
+      null,
+      {
+        reservation_number: reservationNumber,
+        customer_name,
+        customer_phone,
+        part_id,
+        quantity,
+        price_agreed,
+        deposit_amount,
+        notes
+      },
+      req
+    );
     
     await pool.query('COMMIT');
     res.status(201).json(reservationResult.rows[0]);
@@ -602,6 +666,17 @@ app.patch('/api/reservations/:id', authenticateToken, async (req, res) => {
         req.user.id
       );
     }
+    
+    // Log audit action for reservation status update
+    await logAuditAction(
+      req.user,
+      'update',
+      'reserved_bills',
+      id,
+      { status: reservation.status, notes: reservation.notes },
+      { status, notes },
+      req
+    );
     
     await pool.query('COMMIT');
     res.json({ message: 'Reservation updated successfully' });
