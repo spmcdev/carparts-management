@@ -290,15 +290,15 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
           </div>
         </div>
         <div className="col-12 col-md-6">
-          <div className="form-check">
+          <div className="form-check d-flex align-items-center">
             <input
-              className="form-check-input"
+              className="form-check-input me-2"
               type="checkbox"
               id="showAvailableOnly"
               checked={showAvailableOnly}
               onChange={e => setShowAvailableOnly(e.target.checked)}
             />
-            <label className="form-check-label" htmlFor="showAvailableOnly">
+            <label className="form-check-label mb-0" htmlFor="showAvailableOnly">
               Show only available stock (quantity &gt; 0)
             </label>
           </div>
