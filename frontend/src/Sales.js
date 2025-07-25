@@ -9,6 +9,7 @@ function Sales({ token, userRole }) {
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [searchParentIdOnly, setSearchParentIdOnly] = useState(false);
   
   // Sale form state
   const [customerName, setCustomerName] = useState('');
@@ -48,6 +49,12 @@ function Sales({ token, userRole }) {
     const term = searchTerm.toLowerCase().trim();
     
     return parts.filter(part => {
+      // If parent ID only search is enabled, only search by parent ID
+      if (searchParentIdOnly) {
+        return part.parent_id && (part.parent_id.toString() === term || part.parent_id.toString().startsWith(term));
+      }
+      
+      // Otherwise, search by all fields as before
       // Search by name
       if (part.name && part.name.toLowerCase().includes(term)) return true;
       
@@ -637,12 +644,29 @@ function Sales({ token, userRole }) {
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Search by name, manufacturer, part ID, part number, or parent ID..."
+                  placeholder={searchParentIdOnly ? "Search by parent ID only..." : "Search by name, manufacturer, part ID, part number, or parent ID..."}
                   value={partSearchTerm}
                   onChange={(e) => setPartSearchTerm(e.target.value)}
                 />
+                <div className="d-flex align-items-center mt-2">
+                  <div className="form-check me-3">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="searchParentIdOnly"
+                      checked={searchParentIdOnly}
+                      onChange={(e) => setSearchParentIdOnly(e.target.checked)}
+                    />
+                    <label className="form-check-label" htmlFor="searchParentIdOnly">
+                      Search by parent ID only
+                    </label>
+                  </div>
+                </div>
                 <small className="text-muted">
-                  💡 Try searching by: part name, manufacturer, ID (e.g., "1", "23"), part number, or parent ID
+                  {searchParentIdOnly 
+                    ? "💡 Searching only by parent ID (e.g., \"1\", \"23\")" 
+                    : "💡 Try searching by: part name, manufacturer, ID (e.g., \"1\", \"23\"), part number, or parent ID"
+                  }
                 </small>
               </div>
               
