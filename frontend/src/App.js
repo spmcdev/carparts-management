@@ -161,7 +161,7 @@ function App() {
                   <Link className="nav-link" to="/sales"><b>Sales</b></Link>
                 </li>
               )}
-              {(userRole === 'admin' || userRole === 'superadmin') && (
+              {userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/admin">Admin</Link>
                 </li>
@@ -256,10 +256,10 @@ function App() {
           )
         } />
         <Route path="/admin" element={
-          (userRole === 'admin' || userRole === 'superadmin') ? (
+          userRole === 'superadmin' ? (
             <Admin token={token} userRole={userRole} />
           ) : (
-            <p style={{ color: 'red' }}>Admin access required.</p>
+            <p style={{ color: 'red' }}>SuperAdmin access required.</p>
           )
         } />
         <Route path="/audit-log" element={
