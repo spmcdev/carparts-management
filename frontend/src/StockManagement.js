@@ -322,7 +322,7 @@ function StockManagement() {
   return (
     <div className="container-fluid px-2 px-md-4">
       <div className="card p-2 p-md-4 mt-4 shadow-sm">
-        <h2 className="mb-3 fs-4 fs-md-2">Stock Management</h2>
+        <h2 className="mb-3 fs-4 fs-md-2">Reports</h2>
         
         {loading && <div className="alert alert-info">Loading...</div>}
         {error && <div className="alert alert-danger">{error}</div>}
