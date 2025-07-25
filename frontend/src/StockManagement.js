@@ -11,6 +11,7 @@ function StockManagement() {
   const [token] = useState(localStorage.getItem('token') || '');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showSoldStock, setShowSoldStock] = useState(false);
 
   const printStockReport = (stockData, reportType, dateRange = null) => {
     const printContent = `
@@ -185,27 +186,51 @@ function StockManagement() {
     setError('');
     setSuccess('');
     try {
-      const res = await fetch(API_ENDPOINTS.PARTS, {
+      // Fetch bills within the date range
+      const res = await fetch(API_ENDPOINTS.BILLS, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` })
         }
       });
       if (!res.ok) {
-        throw new Error('Failed to fetch parts');
+        throw new Error('Failed to fetch bills');
       }
-      const data = await res.json();
-      // Filter parts that have sold stock > 0 and within date range
-      const sold = data.filter(part => {
-        const hasSoldStock = parseInt(part.sold_stock || 0) > 0;
-        if (!hasSoldStock || !part.sold_date) return false;
-        const soldDate = new Date(part.sold_date);
+      const bills = await res.json();
+      
+      // Filter bills by date range and extract sold items
+      const filteredBills = bills.filter(bill => {
+        const billDate = new Date(bill.date || bill.created_at);
         const start = new Date(startDate);
         const end = new Date(endDate);
-        return soldDate >= start && soldDate <= end;
+        return billDate >= start && billDate <= end && bill.status === 'active';
       });
-      setSoldStock(sold);
-      const totalQuantity = sold.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0);
-      setSuccess(`Found ${sold.length} parts with ${totalQuantity} units sold between ${startDate} and ${endDate}.`);
+      
+      // Convert bill items to sold stock format
+      const soldItems = [];
+      filteredBills.forEach(bill => {
+        if (bill.items && bill.items.length > 0) {
+          bill.items.forEach(item => {
+            soldItems.push({
+              id: item.part_id,
+              name: item.part_name,
+              manufacturer: item.manufacturer,
+              sold_stock: item.quantity,
+              sold_price: item.unit_price,
+              total_revenue: item.total_price,
+              sold_date: bill.date || bill.created_at,
+              bill_number: bill.bill_number || bill.id,
+              customer_name: bill.customer_name,
+              recommended_price: item.unit_price // We'll use the sold price as baseline
+            });
+          });
+        }
+      });
+      
+      setSoldStock(soldItems);
+      setShowSoldStock(true);
+      const totalQuantity = soldItems.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0);
+      const totalRevenue = soldItems.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0);
+      setSuccess(`Found ${soldItems.length} items with ${totalQuantity} units sold between ${startDate} and ${endDate}. Total revenue: Rs ${totalRevenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
     } catch (err) {
       console.error('Error fetching sold stock:', err);
       setError('Failed to retrieve sold stock.');
@@ -365,8 +390,16 @@ function StockManagement() {
 
         {/* Sold Stock Section */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header d-flex justify-content-between align-items-center">
             <h4>Sold Stock Report</h4>
+            {soldStock.length > 0 && (
+              <button 
+                className="btn btn-outline-secondary btn-sm" 
+                onClick={() => setShowSoldStock(!showSoldStock)}
+              >
+                {showSoldStock ? 'Hide Report' : 'Show Report'}
+              </button>
+            )}
           </div>
           <div className="card-body">
             <div className="row g-3 mb-3">
@@ -403,7 +436,7 @@ function StockManagement() {
               </div>
             </div>
 
-            {soldStock.length > 0 && (
+            {soldStock.length > 0 && showSoldStock && (
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
                   <thead className="table-dark">
@@ -411,49 +444,26 @@ function StockManagement() {
                       <th>ID</th>
                       <th>Name</th>
                       <th>Manufacturer</th>
-                      <th>Sold Qty</th>
-                      <th>Total Stock</th>
-                      <th>Sold Date</th>
+                      <th>Quantity Sold</th>
                       <th>Unit Price (Rs.)</th>
                       <th>Total Revenue (Rs.)</th>
-                      <th>Recommended Price (Rs.)</th>
-                      <th>Profit/Loss (Rs.)</th>
+                      <th>Date Sold</th>
+                      <th>Bill ID</th>
+                      <th>Customer</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {soldStock.map(part => (
-                      <tr key={part.id}>
-                        <td>{part.id}</td>
-                        <td>{part.name}</td>
-                        <td>{part.manufacturer}</td>
-                        <td><span className="badge bg-danger">{part.sold_stock || 0}</span></td>
-                        <td><span className="badge bg-info">{part.total_stock || 0}</span></td>
-                        <td>{part.sold_date ? part.sold_date.slice(0, 10) : 'N/A'}</td>
-                        <td>{
-                          part.sold_price !== null && part.sold_price !== undefined
-                            ? `Rs. ${parseFloat(part.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
-                            : 'N/A'
-                        }</td>
-                        <td><strong>{
-                          part.sold_price !== null && part.sold_price !== undefined
-                            ? `Rs. ${(parseInt(part.sold_stock || 0) * parseFloat(part.sold_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
-                            : 'N/A'
-                        }</strong></td>
-                        <td>{
-                          part.recommended_price !== null && part.recommended_price !== undefined
-                            ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
-                            : 'N/A'
-                        }</td>
-                        <td className={
-                          parseFloat(part.sold_price || 0) >= parseFloat(part.recommended_price || 0) 
-                            ? 'text-success' 
-                            : 'text-danger'
-                        }>
-                          <strong>{part.sold_price && part.recommended_price
-                            ? `Rs. ${(parseInt(part.sold_stock || 0) * (parseFloat(part.sold_price) - parseFloat(part.recommended_price))).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
-                            : 'N/A'
-                          }</strong>
-                        </td>
+                    {soldStock.map((item, index) => (
+                      <tr key={`${item.id}-${index}`}>
+                        <td>{item.id}</td>
+                        <td>{item.name}</td>
+                        <td>{item.manufacturer}</td>
+                        <td><span className="badge bg-danger">{item.quantity}</span></td>
+                        <td>Rs. {parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</td>
+                        <td><strong>Rs. {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></td>
+                        <td>{item.bill_date ? item.bill_date.slice(0, 10) : 'N/A'}</td>
+                        <td>#{item.bill_id}</td>
+                        <td>{item.customer_name}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -461,18 +471,10 @@ function StockManagement() {
                 <div className="mt-3">
                   <strong>Summary:</strong>
                   <ul>
-                    <li>Total Parts Sold: {soldStock.length}</li>
-                    <li>Total Quantity Sold: <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
-                    <li>Total Revenue: <strong>Rs. {soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Expected Revenue (Recommended Price): Rs. {soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
-                    <li>Total Profit/Loss: <span className={
-                      soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0))), 0) >= 0
-                        ? 'text-success'
-                        : 'text-danger'
-                    }>
-                      <strong>Rs. {soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0))), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
-                    </span></li>
-                    <li>Average Sale Price per Unit: Rs. {soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0) > 0 ? (soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)), 0) / soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
+                    <li>Total Items Sold: {soldStock.length}</li>
+                    <li>Total Quantity Sold: <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.quantity || 0), 0)} units</span></li>
+                    <li>Total Revenue: <strong>Rs. {soldStock.reduce((total, item) => total + parseFloat(item.total_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Average Sale Price per Unit: Rs. {soldStock.reduce((total, item) => total + parseInt(item.quantity || 0), 0) > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.total_price || 0), 0) / soldStock.reduce((total, item) => total + parseInt(item.quantity || 0), 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
                   </ul>
                 </div>
               </div>
