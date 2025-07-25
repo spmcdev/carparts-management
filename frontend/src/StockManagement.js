@@ -12,6 +12,8 @@ function StockManagement() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showSoldStock, setShowSoldStock] = useState(false);
+  const [showAvailableStock, setShowAvailableStock] = useState(false);
+  const [showParentChildRelations, setShowParentChildRelations] = useState(false);
 
   const printStockReport = (stockData, reportType, dateRange = null) => {
     const printContent = `
@@ -166,6 +168,7 @@ function StockManagement() {
       // Filter parts that have available stock > 0
       const available = data.filter(part => parseInt(part.available_stock || 0) > 0);
       setAvailableStock(available);
+      setShowAvailableStock(true);
       const totalQuantity = available.reduce((total, item) => total + parseInt(item.available_stock || 0), 0);
       setSuccess(`Found ${available.length} parts with ${totalQuantity} units available in stock.`);
     } catch (err) {
@@ -295,6 +298,7 @@ function StockManagement() {
       });
       
       setParentChildRelations(relations);
+      setShowParentChildRelations(true);
       setSuccess(`Found ${relations.length} parent-child relationships.`);
     } catch (err) {
       console.error('Error fetching parent-child relations:', err);
@@ -315,8 +319,16 @@ function StockManagement() {
 
         {/* Available Stock Section */}
         <div className="card mb-4">
-          <div className="card-header">
+          <div className="card-header d-flex justify-content-between align-items-center">
             <h4>Available Stock</h4>
+            {availableStock.length > 0 && (
+              <button 
+                className="btn btn-outline-secondary btn-sm" 
+                onClick={() => setShowAvailableStock(!showAvailableStock)}
+              >
+                {showAvailableStock ? 'Hide Report' : 'Show Report'}
+              </button>
+            )}
           </div>
           <div className="card-body">
             <div className="d-flex gap-2 mb-3">
@@ -333,7 +345,7 @@ function StockManagement() {
               )}
             </div>
 
-            {availableStock.length > 0 && (
+            {availableStock.length > 0 && showAvailableStock && (
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
                   <thead className="table-dark">
@@ -458,11 +470,11 @@ function StockManagement() {
                         <td>{item.id}</td>
                         <td>{item.name}</td>
                         <td>{item.manufacturer}</td>
-                        <td><span className="badge bg-danger">{item.quantity}</span></td>
-                        <td>Rs. {parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</td>
-                        <td><strong>Rs. {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></td>
-                        <td>{item.bill_date ? item.bill_date.slice(0, 10) : 'N/A'}</td>
-                        <td>#{item.bill_id}</td>
+                        <td><span className="badge bg-danger">{item.sold_stock}</span></td>
+                        <td>Rs. {parseFloat(item.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</td>
+                        <td><strong>Rs. {parseFloat(item.total_revenue).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></td>
+                        <td>{item.sold_date ? item.sold_date.slice(0, 10) : 'N/A'}</td>
+                        <td>#{item.bill_number}</td>
                         <td>{item.customer_name}</td>
                       </tr>
                     ))}
@@ -472,9 +484,9 @@ function StockManagement() {
                   <strong>Summary:</strong>
                   <ul>
                     <li>Total Items Sold: {soldStock.length}</li>
-                    <li>Total Quantity Sold: <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.quantity || 0), 0)} units</span></li>
-                    <li>Total Revenue: <strong>Rs. {soldStock.reduce((total, item) => total + parseFloat(item.total_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Average Sale Price per Unit: Rs. {soldStock.reduce((total, item) => total + parseInt(item.quantity || 0), 0) > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.total_price || 0), 0) / soldStock.reduce((total, item) => total + parseInt(item.quantity || 0), 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
+                    <li>Total Quantity Sold: <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
+                    <li>Total Revenue: <strong>Rs. {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Average Sale Price per Unit: Rs. {soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0) > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0) / soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
                   </ul>
                 </div>
               </div>
@@ -484,8 +496,16 @@ function StockManagement() {
 
         {/* Parent-Child Relationship Report Section */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header d-flex justify-content-between align-items-center">
             <h4>Parent-Child Relationship Report</h4>
+            {parentChildRelations.length > 0 && (
+              <button 
+                className="btn btn-outline-secondary btn-sm" 
+                onClick={() => setShowParentChildRelations(!showParentChildRelations)}
+              >
+                {showParentChildRelations ? 'Hide Report' : 'Show Report'}
+              </button>
+            )}
           </div>
           <div className="card-body">
             <div className="d-flex gap-2 mb-3">
@@ -506,7 +526,7 @@ function StockManagement() {
               )}
             </div>
             
-            {parentChildRelations.length > 0 && (
+            {parentChildRelations.length > 0 && showParentChildRelations && (
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
                   <thead className="table-dark">
