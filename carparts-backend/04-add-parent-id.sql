@@ -1,1 +1,0 @@
-ALTER TABLE parts ADD COLUMN parent_id INTEGER REFERENCES parts(id);
