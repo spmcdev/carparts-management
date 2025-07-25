@@ -156,7 +156,7 @@ describe('App Component', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('Stock Reports')).toBeInTheDocument();
+        expect(screen.getByText('Reports')).toBeInTheDocument();
         expect(screen.getByText('Parts Management')).toBeInTheDocument();
         expect(screen.getByText('Sales')).toBeInTheDocument();
       });
@@ -170,7 +170,7 @@ describe('App Component', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('Stock Reports')).toBeInTheDocument();
+        expect(screen.getByText('Reports')).toBeInTheDocument();
       });
     });
   });

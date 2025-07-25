@@ -94,7 +94,7 @@ function App() {
         if (data.role === 'general') {
           navigate('/sales');
         } else {
-          navigate('/stock-management');
+          navigate('/reports');
         }
       } else {
         setAuthMode('login');
@@ -148,7 +148,7 @@ function App() {
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
               {token && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/stock-management"><b>Stock Reports</b></Link>
+                  <Link className="nav-link" to="/reports"><b>Reports</b></Link>
                 </li>
               )}
               {token && (
@@ -226,7 +226,7 @@ function App() {
             )}
           </div>
         } />
-        <Route path="/stock-management" element={
+        <Route path="/reports" element={
           token ? (
             <StockManagement />
           ) : (
