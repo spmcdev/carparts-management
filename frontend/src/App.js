@@ -128,11 +128,34 @@ function App() {
     navigate('/');
   };
 
+  // Function to collapse navbar in mobile view
+  const collapseNavbar = () => {
+    const navbarCollapse = document.getElementById('navbarNav');
+    if (navbarCollapse && navbarCollapse.classList.contains('show')) {
+      // Check if Bootstrap is available
+      if (window.bootstrap && window.bootstrap.Collapse) {
+        const bsCollapse = new window.bootstrap.Collapse(navbarCollapse, {
+          toggle: false
+        });
+        bsCollapse.hide();
+      } else {
+        // Fallback: manually remove the show class
+        navbarCollapse.classList.remove('show');
+        // Also update the toggler button state
+        const togglerButton = document.querySelector('.navbar-toggler');
+        if (togglerButton) {
+          togglerButton.classList.add('collapsed');
+          togglerButton.setAttribute('aria-expanded', 'false');
+        }
+      }
+    }
+  };
+
   return (
     <div className="App">
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div className="container-fluid">
-          <Link className="navbar-brand" to="/">Rasuki Group</Link>
+          <Link className="navbar-brand" to="/" onClick={collapseNavbar}>Rasuki Group</Link>
           <button 
             className="navbar-toggler" 
             type="button" 
@@ -148,34 +171,37 @@ function App() {
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
               {token && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/reports"><b>Reports</b></Link>
+                  <Link className="nav-link" to="/reports" onClick={collapseNavbar}><b>Reports</b></Link>
                 </li>
               )}
               {token && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/parts-management"><b>Stock Management</b></Link>
+                  <Link className="nav-link" to="/parts-management" onClick={collapseNavbar}><b>Stock Management</b></Link>
                 </li>
               )}
               {token && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/sales"><b>Sales</b></Link>
+                  <Link className="nav-link" to="/sales" onClick={collapseNavbar}><b>Sales</b></Link>
                 </li>
               )}
               {userRole === 'superadmin' && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/admin">Admin</Link>
+                  <Link className="nav-link" to="/admin" onClick={collapseNavbar}>Admin</Link>
                 </li>
               )}
               {userRole === 'superadmin' && (
                 <li className="nav-item">
-                  <Link className="nav-link" to="/audit-log"><b>Audit Log</b></Link>
+                  <Link className="nav-link" to="/audit-log" onClick={collapseNavbar}><b>Audit Log</b></Link>
                 </li>
               )}
             </ul>
             {token && (
               <div className="d-flex">
                 <button
-                  onClick={handleLogout}
+                  onClick={() => {
+                    collapseNavbar();
+                    handleLogout();
+                  }}
                   className="btn btn-outline-light"
                 >
                   Logout
