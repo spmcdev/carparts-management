@@ -374,6 +374,9 @@ function Sales({ token, userRole }) {
 
   const saveEditBill = async () => {
     try {
+      setLoading(true);
+      setError('');
+      
       const res = await fetch(`${API_ENDPOINTS.BILLS}/${editingBill.id}`, {
         method: 'PUT',
         headers: {
@@ -390,9 +393,12 @@ function Sales({ token, userRole }) {
 
       setSuccess('Bill updated successfully');
       setEditingBill(null);
+      setEditBillData({});
       fetchBills();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1012,11 +1018,11 @@ function Sales({ token, userRole }) {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setEditingBill(null)}>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditingBill(null)} disabled={loading}>
                   Cancel
                 </button>
-                <button type="button" className="btn btn-primary" onClick={saveEditBill}>
-                  Save Changes
+                <button type="button" className="btn btn-primary" onClick={saveEditBill} disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </div>

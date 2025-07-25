@@ -1315,7 +1315,7 @@ app.put('/bills/:id', authenticateToken, requireAdmin, async (req, res) => {
     // Update bill
     const result = await pool.query(
       `UPDATE bills 
-       SET bill_number = $1, customer_name = $2, customer_phone = $3, updated_at = CURRENT_TIMESTAMP
+       SET bill_number = $1, customer_name = $2, customer_phone = $3
        WHERE id = $4 RETURNING *`,
       [bill_number || null, customer_name, customer_phone || null, id]
     );
