@@ -43,24 +43,34 @@ function StockManagement() {
           ${reportType === 'Available Stock' ? `
             <div class="stats">
               <div class="stat-box">
-                <h4>Total Available Items</h4>
-                <p>${stockData.length}</p>
+                <h4>Total Available Parts</h4>
+                <p>${stockData.length} parts</p>
               </div>
               <div class="stat-box">
-                <h4>Total Value (Recommended)</h4>
-                <p>Rs. ${stockData.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <h4>Total Available Quantity</h4>
+                <p>${stockData.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</p>
+              </div>
+              <div class="stat-box">
+                <h4>Total Inventory Value</h4>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
-          ` : `
-                          <div className="col-md-4">
-                <strong>Total Value Sold:</strong>
-                <p>Rs. ${stockData.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          ` : reportType === 'Sold Stock' ? `
+            <div class="stats">
+              <div class="stat-box">
+                <h4>Total Sold Parts</h4>
+                <p>${stockData.length} parts</p>
               </div>
-              <div className="col-md-4">
-                <strong>Average Sale Price:</strong>
-                <p>Rs. ${stockData.length > 0 ? (stockData.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0) / stockData.length).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</p>
+              <div class="stat-box">
+                <h4>Total Sold Quantity</h4>
+                <p>${stockData.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</p>
               </div>
-          `}
+              <div class="stat-box">
+                <h4>Total Revenue</h4>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+          ` : ''}
           <table class="stock-table">
             <thead>
               <tr>
@@ -68,17 +78,25 @@ function StockManagement() {
                 <th>Name</th>
                 <th>Manufacturer</th>
                 ${reportType === 'Available Stock' ? `
+                  <th>Available Qty</th>
+                  <th>Reserved Qty</th>
+                  <th>Total Stock</th>
                   <th>Available From</th>
-                  <th>Recommended Price (Rs.)</th>
+                  <th>Unit Price (Rs.)</th>
+                  <th>Total Value (Rs.)</th>
                 ` : reportType === 'Parent-Child Relationships' ? `
                   <th>Parent ID</th>
                   <th>Parent Name</th>
                   <th>Child ID</th>
                   <th>Child Name</th>
                   <th>Child Status</th>
+                  <th>Child Available Qty</th>
                 ` : `
+                  <th>Sold Qty</th>
+                  <th>Total Stock</th>
                   <th>Sold Date</th>
-                  <th>Sold Price (Rs.)</th>
+                  <th>Unit Price (Rs.)</th>
+                  <th>Total Revenue (Rs.)</th>
                   <th>Recommended Price (Rs.)</th>
                 `}
               </tr>
@@ -95,16 +113,24 @@ function StockManagement() {
                     <td>${item.childId}</td>
                     <td>${item.childName}</td>
                     <td>${item.childStatus}</td>
+                    <td>${item.childAvailableStock || 0}</td>
                   ` : `
                     <td>${item.id}</td>
                     <td>${item.name}</td>
                     <td>${item.manufacturer || 'N/A'}</td>
                     ${reportType === 'Available Stock' ? `
+                      <td>${item.available_stock || 0}</td>
+                      <td>${item.reserved_stock || 0}</td>
+                      <td>${item.total_stock || 0}</td>
                       <td>${item.available_from ? new Date(item.available_from).toLocaleDateString() : 'N/A'}</td>
                       <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     ` : `
+                      <td>${item.sold_stock || 0}</td>
+                      <td>${item.total_stock || 0}</td>
                       <td>${item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
                       <td>Rs. ${parseFloat(item.sold_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${(parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     `}
                   `}
@@ -136,9 +162,11 @@ function StockManagement() {
         throw new Error('Failed to fetch parts');
       }
       const data = await res.json();
-      const available = data.filter(part => part.stock_status === 'available');
+      // Filter parts that have available stock > 0
+      const available = data.filter(part => parseInt(part.available_stock || 0) > 0);
       setAvailableStock(available);
-      setSuccess(`Found ${available.length} available items in stock.`);
+      const totalQuantity = available.reduce((total, item) => total + parseInt(item.available_stock || 0), 0);
+      setSuccess(`Found ${available.length} parts with ${totalQuantity} units available in stock.`);
     } catch (err) {
       console.error('Error fetching available stock:', err);
       setError('Failed to retrieve available stock.');
@@ -166,15 +194,18 @@ function StockManagement() {
         throw new Error('Failed to fetch parts');
       }
       const data = await res.json();
+      // Filter parts that have sold stock > 0 and within date range
       const sold = data.filter(part => {
-        if (part.stock_status !== 'sold' || !part.sold_date) return false;
+        const hasSoldStock = parseInt(part.sold_stock || 0) > 0;
+        if (!hasSoldStock || !part.sold_date) return false;
         const soldDate = new Date(part.sold_date);
         const start = new Date(startDate);
         const end = new Date(endDate);
         return soldDate >= start && soldDate <= end;
       });
       setSoldStock(sold);
-      setSuccess(`Found ${sold.length} items sold between ${startDate} and ${endDate}.`);
+      const totalQuantity = sold.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0);
+      setSuccess(`Found ${sold.length} parts with ${totalQuantity} units sold between ${startDate} and ${endDate}.`);
     } catch (err) {
       console.error('Error fetching sold stock:', err);
       setError('Failed to retrieve sold stock.');
@@ -213,10 +244,16 @@ function StockManagement() {
             parentName: parentMap[part.parent_id].name,
             parentManufacturer: parentMap[part.parent_id].manufacturer,
             parentStatus: parentMap[part.parent_id].stock_status,
+            parentAvailableStock: parentMap[part.parent_id].available_stock,
+            parentTotalStock: parentMap[part.parent_id].total_stock,
             childId: part.id,
             childName: part.name,
             childManufacturer: part.manufacturer,
             childStatus: part.stock_status,
+            childAvailableStock: part.available_stock,
+            childReservedStock: part.reserved_stock,
+            childSoldStock: part.sold_stock,
+            childTotalStock: part.total_stock,
             childRecommendedPrice: part.recommended_price,
             childAvailableFrom: part.available_from,
             childSoldDate: part.sold_date
@@ -279,8 +316,12 @@ function StockManagement() {
                       <th>ID</th>
                       <th>Name</th>
                       <th>Manufacturer</th>
+                      <th>Available Qty</th>
+                      <th>Reserved Qty</th>
+                      <th>Total Stock</th>
                       <th>Available From</th>
-                      <th>Recommended Price (Rs.)</th>
+                      <th>Unit Price (Rs.)</th>
+                      <th>Total Value (Rs.)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -289,12 +330,20 @@ function StockManagement() {
                         <td>{part.id}</td>
                         <td>{part.name}</td>
                         <td>{part.manufacturer}</td>
+                        <td><span className="badge bg-success">{part.available_stock || 0}</span></td>
+                        <td><span className="badge bg-warning">{part.reserved_stock || 0}</span></td>
+                        <td><span className="badge bg-info">{part.total_stock || 0}</span></td>
                         <td>{part.available_from ? part.available_from.slice(0, 10) : 'N/A'}</td>
                         <td>{
                           part.recommended_price !== null && part.recommended_price !== undefined
                             ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</td>
+                        <td><strong>{
+                          part.recommended_price !== null && part.recommended_price !== undefined
+                            ? `Rs. ${(parseInt(part.available_stock || 0) * parseFloat(part.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</strong></td>
                       </tr>
                     ))}
                   </tbody>
@@ -302,8 +351,11 @@ function StockManagement() {
                 <div className="mt-3">
                   <strong>Summary:</strong>
                   <ul>
-                    <li>Total Available Items: {availableStock.length}</li>
-                    <li>Total Inventory Value: Rs. {availableStock.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                    <li>Total Available Parts: {availableStock.length}</li>
+                    <li>Total Available Quantity: <span className="badge bg-success">{availableStock.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</span></li>
+                    <li>Total Reserved Quantity: <span className="badge bg-warning">{availableStock.reduce((total, item) => total + parseInt(item.reserved_stock || 0), 0)} units</span></li>
+                    <li>Total Stock Quantity: <span className="badge bg-info">{availableStock.reduce((total, item) => total + parseInt(item.total_stock || 0), 0)} units</span></li>
+                    <li>Total Inventory Value: <strong>Rs. {availableStock.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
                   </ul>
                 </div>
               </div>
@@ -359,8 +411,11 @@ function StockManagement() {
                       <th>ID</th>
                       <th>Name</th>
                       <th>Manufacturer</th>
+                      <th>Sold Qty</th>
+                      <th>Total Stock</th>
                       <th>Sold Date</th>
-                      <th>Sold Price (Rs.)</th>
+                      <th>Unit Price (Rs.)</th>
+                      <th>Total Revenue (Rs.)</th>
                       <th>Recommended Price (Rs.)</th>
                       <th>Profit/Loss (Rs.)</th>
                     </tr>
@@ -371,12 +426,19 @@ function StockManagement() {
                         <td>{part.id}</td>
                         <td>{part.name}</td>
                         <td>{part.manufacturer}</td>
+                        <td><span className="badge bg-danger">{part.sold_stock || 0}</span></td>
+                        <td><span className="badge bg-info">{part.total_stock || 0}</span></td>
                         <td>{part.sold_date ? part.sold_date.slice(0, 10) : 'N/A'}</td>
                         <td>{
                           part.sold_price !== null && part.sold_price !== undefined
                             ? `Rs. ${parseFloat(part.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</td>
+                        <td><strong>{
+                          part.sold_price !== null && part.sold_price !== undefined
+                            ? `Rs. ${(parseInt(part.sold_stock || 0) * parseFloat(part.sold_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</strong></td>
                         <td>{
                           part.recommended_price !== null && part.recommended_price !== undefined
                             ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
@@ -387,10 +449,10 @@ function StockManagement() {
                             ? 'text-success' 
                             : 'text-danger'
                         }>
-                          {part.sold_price && part.recommended_price
-                            ? `Rs. ${(parseFloat(part.sold_price) - parseFloat(part.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                          <strong>{part.sold_price && part.recommended_price
+                            ? `Rs. ${(parseInt(part.sold_stock || 0) * (parseFloat(part.sold_price) - parseFloat(part.recommended_price))).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
-                          }
+                          }</strong>
                         </td>
                       </tr>
                     ))}
@@ -399,17 +461,18 @@ function StockManagement() {
                 <div className="mt-3">
                   <strong>Summary:</strong>
                   <ul>
-                    <li>Total Items Sold: {soldStock.length}</li>
-                    <li>Total Revenue: Rs. {soldStock.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
-                    <li>Expected Revenue (Recommended Price): Rs. {soldStock.reduce((total, item) => total + parseFloat(item.recommended_price || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                    <li>Total Parts Sold: {soldStock.length}</li>
+                    <li>Total Quantity Sold: <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
+                    <li>Total Revenue: <strong>Rs. {soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Expected Revenue (Recommended Price): Rs. {soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
                     <li>Total Profit/Loss: <span className={
-                      soldStock.reduce((total, item) => total + (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0)), 0) >= 0
+                      soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0))), 0) >= 0
                         ? 'text-success'
                         : 'text-danger'
                     }>
-                      Rs. {soldStock.reduce((total, item) => total + (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}
+                      <strong>Rs. {soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * (parseFloat(item.sold_price || 0) - parseFloat(item.recommended_price || 0))), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
                     </span></li>
-                    <li>Average Sale Price: Rs. {soldStock.length > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.sold_price || 0), 0) / soldStock.length).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
+                    <li>Average Sale Price per Unit: Rs. {soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0) > 0 ? (soldStock.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)), 0) / soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
                   </ul>
                 </div>
               </div>
@@ -450,10 +513,15 @@ function StockManagement() {
                       <th>Parent Name</th>
                       <th>Parent Manufacturer</th>
                       <th>Parent Status</th>
+                      <th>Parent Stock</th>
                       <th>Child ID</th>
                       <th>Child Name</th>
                       <th>Child Manufacturer</th>
                       <th>Child Status</th>
+                      <th>Child Available</th>
+                      <th>Child Reserved</th>
+                      <th>Child Sold</th>
+                      <th>Child Total</th>
                       <th>Child Price (Rs.)</th>
                       <th>Child Available From</th>
                       <th>Child Sold Date</th>
@@ -475,6 +543,12 @@ function StockManagement() {
                             {relation.parentStatus ? relation.parentStatus.charAt(0).toUpperCase() + relation.parentStatus.slice(1) : 'N/A'}
                           </span>
                         </td>
+                        <td>
+                          <small>
+                            A: <span className="badge bg-success">{relation.parentAvailableStock || 0}</span><br />
+                            T: <span className="badge bg-info">{relation.parentTotalStock || 0}</span>
+                          </small>
+                        </td>
                         <td>{relation.childId}</td>
                         <td>{relation.childName}</td>
                         <td>{relation.childManufacturer || 'N/A'}</td>
@@ -488,6 +562,10 @@ function StockManagement() {
                             {relation.childStatus ? relation.childStatus.charAt(0).toUpperCase() + relation.childStatus.slice(1) : 'N/A'}
                           </span>
                         </td>
+                        <td><span className="badge bg-success">{relation.childAvailableStock || 0}</span></td>
+                        <td><span className="badge bg-warning">{relation.childReservedStock || 0}</span></td>
+                        <td><span className="badge bg-danger">{relation.childSoldStock || 0}</span></td>
+                        <td><span className="badge bg-info">{relation.childTotalStock || 0}</span></td>
                         <td>{
                           relation.childRecommendedPrice !== null && relation.childRecommendedPrice !== undefined
                             ? `Rs. ${parseFloat(relation.childRecommendedPrice).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
@@ -504,9 +582,13 @@ function StockManagement() {
                   <ul>
                     <li>Total Parent-Child Relationships: {parentChildRelations.length}</li>
                     <li>Unique Parent Parts: {new Set(parentChildRelations.map(r => r.parentId)).size}</li>
-                    <li>Child Parts with Available Status: {parentChildRelations.filter(r => r.childStatus === 'available').length}</li>
-                    <li>Child Parts with Sold Status: {parentChildRelations.filter(r => r.childStatus === 'sold').length}</li>
-                    <li>Total Value of Child Parts: Rs. {parentChildRelations.reduce((total, relation) => total + parseFloat(relation.childRecommendedPrice || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                    <li>Child Parts - Available: <span className="badge bg-success">{parentChildRelations.filter(r => r.childStatus === 'available').length}</span></li>
+                    <li>Child Parts - Sold: <span className="badge bg-danger">{parentChildRelations.filter(r => r.childStatus === 'sold').length}</span></li>
+                    <li>Child Parts - Reserved: <span className="badge bg-warning">{parentChildRelations.filter(r => r.childStatus === 'reserved').length}</span></li>
+                    <li>Total Child Available Quantity: <span className="badge bg-success">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childAvailableStock || 0), 0)} units</span></li>
+                    <li>Total Child Reserved Quantity: <span className="badge bg-warning">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childReservedStock || 0), 0)} units</span></li>
+                    <li>Total Child Sold Quantity: <span className="badge bg-danger">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childSoldStock || 0), 0)} units</span></li>
+                    <li>Total Value of Child Parts: Rs. {parentChildRelations.reduce((total, relation) => total + (parseInt(relation.childAvailableStock || 0) * parseFloat(relation.childRecommendedPrice || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
                   </ul>
                 </div>
               </div>

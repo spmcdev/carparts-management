@@ -79,7 +79,7 @@ describe('StockManagement Component', () => {
       fireEvent.click(getAvailableStockButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/Found \d+ available items in stock\./)).toBeInTheDocument();
+        expect(screen.getByText(/Found \d+ parts with \d+ units available in stock\./)).toBeInTheDocument();
       });
 
       expect(fetch).toHaveBeenCalledWith('https://carparts-management-production.up.railway.app/parts', {
@@ -122,7 +122,7 @@ describe('StockManagement Component', () => {
       fireEvent.click(getAvailableStockButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/Found \d+ available items in stock\./)).toBeInTheDocument();
+        expect(screen.getByText(/Found \d+ parts with \d+ units available in stock\./)).toBeInTheDocument();
       });
     });
   });
@@ -237,7 +237,7 @@ describe('StockManagement Component', () => {
       await waitFor(() => {
         expect(screen.getByText(/Total Parent-Child Relationships:/)).toBeInTheDocument();
         expect(screen.getByText(/Unique Parent Parts:/)).toBeInTheDocument();
-        expect(screen.getByText(/Child Parts with Available Status:/)).toBeInTheDocument();
+        expect(screen.getByText(/Child Parts - Available:/)).toBeInTheDocument();
         expect(screen.getByText(/Total Value of Child Parts: Rs\./)).toBeInTheDocument();
       });
     });
