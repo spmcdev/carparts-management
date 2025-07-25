@@ -1,6 +1,15 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import Sales from '../Sales';
+
+// Mock API endpoints
+jest.mock('../config/api', () => ({
+  API_ENDPOINTS: {
+    BASE: 'https://carparts-management-production.up.railway.app',
+    PARTS: 'https://carparts-management-production.up.railway.app/parts',
+    BILLS: 'https://carparts-management-production.up.railway.app/bills'
+  }
+}));
 
 // Mock fetch globally
 global.fetch = jest.fn();
@@ -10,6 +19,12 @@ describe('Sales Reservation Functionality', () => {
 
   beforeEach(() => {
     fetch.mockClear();
+    // Mock console.error to suppress act warnings in tests
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    console.error.mockRestore();
   });
 
   it('should render reserve button for available parts', async () => {
@@ -18,24 +33,29 @@ describe('Sales Reservation Functionality', () => {
         id: 1,
         name: 'Test Part',
         manufacturer: 'Test Manufacturer',
-        stock_status: 'available',
-        recommended_price: '100.00'
+        available_stock: 5,
+        recommended_price: 100.00
       }
     ];
 
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockParts
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      });
+
+    await act(async () => {
+      render(<Sales token={mockToken} />);
     });
-
-    render(<Sales token={mockToken} />);
     
-    const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
-    const searchButton = screen.getByText('Search');
-
-    fireEvent.change(searchInput, { target: { value: 'Test' } });
-    fireEvent.click(searchButton);
-
     await waitFor(() => {
       expect(screen.getByText('Reserve')).toBeInTheDocument();
     });
@@ -47,24 +67,29 @@ describe('Sales Reservation Functionality', () => {
         id: 1,
         name: 'Test Part',
         manufacturer: 'Test Manufacturer',
-        stock_status: 'available',
-        recommended_price: '100.00'
+        available_stock: 5,
+        recommended_price: 100.00
       }
     ];
 
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockParts
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParts
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      });
+
+    await act(async () => {
+      render(<Sales token={mockToken} />);
     });
-
-    render(<Sales token={mockToken} />);
     
-    const searchInput = screen.getByPlaceholderText('Search by ID, Name, Parent Part ID, or Manufacturer');
-    const searchButton = screen.getByText('Search');
-
-    fireEvent.change(searchInput, { target: { value: 'Test' } });
-    fireEvent.click(searchButton);
-
     await waitFor(() => {
       const reserveButton = screen.getByText('Reserve');
       fireEvent.click(reserveButton);

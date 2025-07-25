@@ -54,7 +54,7 @@ describe('Admin Component', () => {
       render(<Admin {...mockProps} />);
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('http://localhost:3000/users', {
+        expect(fetch).toHaveBeenCalledWith('https://carparts-management-production.up.railway.app/users', {
           headers: {
             Authorization: 'Bearer fake-jwt-token'
           }
@@ -144,10 +144,11 @@ describe('Admin Component', () => {
       fireEvent.click(createButton);
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('http://localhost:3000/register', {
+        expect(fetch).toHaveBeenCalledWith('https://carparts-management-production.up.railway.app/register', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer fake-jwt-token'
           },
           body: JSON.stringify({
             username: 'newuser',
@@ -272,7 +273,7 @@ describe('Admin Component', () => {
       fireEvent.click(deleteButtons[0]);
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('http://localhost:3000/users/1', {
+        expect(fetch).toHaveBeenCalledWith('https://carparts-management-production.up.railway.app/users/1', {
           method: 'DELETE',
           headers: {
             Authorization: 'Bearer fake-jwt-token'

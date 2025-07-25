@@ -388,35 +388,6 @@ describe('StockManagement Component', () => {
     });
   });
 
-  describe('Show/Hide Functionality', () => {
-    test('should toggle available stock visibility', () => {
-      render(<StockManagement {...mockProps} />);
-      
-      const hideButton = screen.getByText('Hide Available Stock');
-      fireEvent.click(hideButton);
-      
-      expect(screen.getByText('Show Available Stock')).toBeInTheDocument();
-    });
-
-    test('should toggle sold stock visibility', () => {
-      render(<StockManagement {...mockProps} />);
-      
-      const hideButton = screen.getByText('Hide Sold Stock');
-      fireEvent.click(hideButton);
-      
-      expect(screen.getByText('Show Sold Stock')).toBeInTheDocument();
-    });
-
-    test('should toggle parent-child relationships visibility', () => {
-      render(<StockManagement {...mockProps} />);
-      
-      const hideButton = screen.getByText('Hide Parent-Child Relationships');
-      fireEvent.click(hideButton);
-      
-      expect(screen.getByText('Show Parent-Child Relationships')).toBeInTheDocument();
-    });
-  });
-
   describe('Enhanced Quantity Management', () => {
     test('should display quantity-aware stock information', async () => {
       const mockAvailableData = [

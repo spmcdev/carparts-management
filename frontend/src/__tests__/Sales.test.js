@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import Sales from '../Sales';
 
@@ -181,7 +181,9 @@ describe('Sales Component', () => {
       });
 
       const addToCartButton = screen.getByText('Add to Cart');
-      fireEvent.click(addToCartButton);
+      act(() => {
+        fireEvent.click(addToCartButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Cart Items (1)')).toBeInTheDocument();
@@ -228,7 +230,9 @@ describe('Sales Component', () => {
       });
 
       const addToCartButton = screen.getByText('Add to Cart');
-      fireEvent.click(addToCartButton);
+      act(() => {
+        fireEvent.click(addToCartButton);
+      });
 
       // Fill customer information
       const customerNameInput = screen.getByLabelText('Customer Name *');
@@ -236,7 +240,9 @@ describe('Sales Component', () => {
 
       // Complete sale
       const completeSaleButton = screen.getByText('Complete Sale');
-      fireEvent.click(completeSaleButton);
+      act(() => {
+        fireEvent.click(completeSaleButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Sale completed! Bill ID: 123')).toBeInTheDocument();

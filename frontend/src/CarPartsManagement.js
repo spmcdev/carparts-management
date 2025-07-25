@@ -299,7 +299,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
               onChange={e => setShowAvailableOnly(e.target.checked)}
             />
             <label className="form-check-label mb-0" htmlFor="showAvailableOnly">
-              Show only available stock (quantity &gt; 0)
+              Show only available stock
             </label>
           </div>
         </div>

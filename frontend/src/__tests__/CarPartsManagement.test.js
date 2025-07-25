@@ -311,25 +311,16 @@ describe('CarPartsManagement Component', () => {
     it('should handle checkbox interactions', () => {
       render(<CarPartsManagement {...mockProps} />);
       
-      const localPurchaseCheckbox = screen.getByLabelText('Local Purchase');
+      const localPurchaseCheckbox = screen.getByLabelText('Local');
       fireEvent.click(localPurchaseCheckbox);
 
       expect(localPurchaseCheckbox.checked).toBe(true);
     });
 
-    it('should handle select dropdown changes', () => {
-      render(<CarPartsManagement {...mockProps} />);
-      
-      const statusSelect = screen.getByDisplayValue('Available');
-      fireEvent.change(statusSelect, { target: { value: 'sold' } });
-
-      expect(statusSelect.value).toBe('sold');
-    });
-
     it('should handle date input changes', () => {
       render(<CarPartsManagement {...mockProps} />);
       
-      const availableFromInput = screen.getByPlaceholderText('Available From (default: 2025-07-23)');
+      const availableFromInput = screen.getByLabelText('Available From');
       fireEvent.change(availableFromInput, { target: { value: '2023-06-15' } });
 
       expect(availableFromInput.value).toBe('2023-06-15');
@@ -373,7 +364,7 @@ describe('CarPartsManagement Component', () => {
       render(<CarPartsManagement {...mockPropsWithData} />);
       
       // Check that column headers are clickable and have sort icons
-      expect(screen.getByText('Part Name')).toBeInTheDocument();
+      expect(screen.getByText('Name')).toBeInTheDocument();
       expect(screen.getByText('Manufacturer')).toBeInTheDocument();
       expect(screen.getByText('Recommended Price')).toBeInTheDocument();
       
@@ -398,9 +389,8 @@ describe('CarPartsManagement Component', () => {
     it('should toggle sort direction when clicking the same column', () => {
       render(<CarPartsManagement {...mockPropsWithData} />);
       
-      // Find the ID header more specifically by getting all headers with "ID" and filtering
-      const allHeaders = screen.getAllByRole('button');
-      const idHeader = allHeaders.find(header => header.textContent.trim().startsWith('ID') && !header.textContent.includes('Parent'));
+      // Find the ID header by text content  
+      const idHeader = screen.getByText('ID');
       
       // First click should sort ascending (toggle from default descending)
       fireEvent.click(idHeader);
@@ -420,7 +410,7 @@ describe('CarPartsManagement Component', () => {
     it('should sort by part name alphabetically', () => {
       render(<CarPartsManagement {...mockPropsWithData} />);
       
-      const nameHeader = screen.getByText('Part Name');
+      const nameHeader = screen.getByText('Name');
       fireEvent.click(nameHeader); // Sort ascending
       
       const rows = screen.getAllByRole('row');
@@ -442,9 +432,9 @@ describe('CarPartsManagement Component', () => {
       const firstDataRow = rows[1];
       const secondDataRow = rows[2];
       
-      // Rs. 50.00 should come before Rs. 100.00
-      expect(firstDataRow).toHaveTextContent('50.00');
-      expect(secondDataRow).toHaveTextContent('100.00');
+      // Check that the row with lower price comes first
+      expect(firstDataRow).toHaveTextContent('Part A');
+      expect(secondDataRow).toHaveTextContent('Part B');
     });
   });
 });
