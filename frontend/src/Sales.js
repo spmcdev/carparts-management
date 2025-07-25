@@ -817,8 +817,8 @@ function Sales({ token, userRole }) {
       {/* Reservation History Section */}
       <div className="card mt-4">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5>Reservation Management</h5>
-          <div className="btn-group">
+          <div className="d-flex align-items-center">
+            <h5 className="mb-0 me-3">Reservation Management</h5>
             <button 
               className="btn btn-outline-primary btn-sm"
               onClick={() => {
