@@ -108,7 +108,6 @@ function StockManagement() {
                   <th>Sold Date</th>
                   <th>Unit Price (Rs.)</th>
                   <th>Total Revenue (Rs.)</th>
-                  <th>Recommended Price (Rs.)</th>
                 `}
                 `}
               </tr>
@@ -147,7 +146,6 @@ function StockManagement() {
                       <td>${item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
                       <td>Rs. ${parseFloat(item.sold_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${(parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     `}
                   `}
                 </tr>
