@@ -10,6 +10,7 @@ function Sales({ token, userRole }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [partSearchTerm, setPartSearchTerm] = useState('');
   const [searchParentIdOnly, setSearchParentIdOnly] = useState(false);
+  const [showSalesHistory, setShowSalesHistory] = useState(true);
   
   // Sale form state
   const [customerName, setCustomerName] = useState('');
@@ -724,24 +725,35 @@ function Sales({ token, userRole }) {
       {/* Bills Section */}
       <div className="card">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5>Sales History</h5>
-          <div className="col-md-4">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Search bills by number, customer name, or phone"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
+          <div className="d-flex align-items-center">
+            <h5 className="mb-0 me-3">Sales History</h5>
+            <button 
+              className="btn btn-outline-primary btn-sm"
+              onClick={() => setShowSalesHistory(!showSalesHistory)}
+            >
+              {showSalesHistory ? 'Hide Sales History' : 'Show Sales History'}
+            </button>
           </div>
+          {showSalesHistory && (
+            <div className="col-md-4">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search bills by number, customer name, or phone"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+          )}
         </div>
-        <div className="card-body">
-          {bills.length === 0 ? (
-            <div className="text-muted text-center">No bills found</div>
-          ) : (
-            <div className="table-responsive">
-              <table className="table table-striped">
-                <thead>
+        {showSalesHistory && (
+          <div className="card-body">
+            {bills.length === 0 ? (
+              <div className="text-muted text-center">No bills found</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-striped">
+                  <thead>
                   <tr>
                     <th>Bill #</th>
                     <th>Date</th>
@@ -799,6 +811,7 @@ function Sales({ token, userRole }) {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Reservation History Section */}
