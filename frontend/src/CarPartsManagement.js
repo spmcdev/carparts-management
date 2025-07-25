@@ -16,17 +16,25 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const [containerNo, setContainerNo] = useState('');
   const [partNumber, setPartNumber] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAvailableOnly, setShowAvailableOnly] = useState(false);
 
-  // Filter parts based on search term
+  // Filter parts based on search term and availability filter
   const filteredParts = parts.filter(part => {
+    // Search filter
     const searchLower = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = !searchTerm || (
       part.name.toLowerCase().includes(searchLower) ||
       part.manufacturer.toLowerCase().includes(searchLower) ||
       part.stock_status.toLowerCase().includes(searchLower) ||
       (part.container_no && part.container_no.toLowerCase().includes(searchLower)) ||
+      (part.part_number && part.part_number.toLowerCase().includes(searchLower)) ||
       part.id.toString().includes(searchLower)
     );
+
+    // Availability filter
+    const matchesAvailability = !showAvailableOnly || (part.available_stock > 0);
+
+    return matchesSearch && matchesAvailability;
   });
 
   useEffect(() => {
@@ -146,6 +154,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
 
   const clearSearch = () => {
     setSearchTerm('');
+    setShowAvailableOnly(false);
   };
 
   return (
@@ -262,22 +271,36 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
         </div>
       </form>
 
-      {/* Search */}
+      {/* Search and Filters */}
       <div className="row mb-3">
         <div className="col-12 col-md-6">
           <div className="input-group">
             <input
               type="text"
               className="form-control"
-              placeholder="Search parts by name, manufacturer, status, container, or ID"
+              placeholder="Search by name, manufacturer, part number, status, container, or ID"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
-            {searchTerm && (
+            {(searchTerm || showAvailableOnly) && (
               <button className="btn btn-outline-secondary" onClick={clearSearch}>
                 Clear
               </button>
             )}
+          </div>
+        </div>
+        <div className="col-12 col-md-6">
+          <div className="form-check">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="showAvailableOnly"
+              checked={showAvailableOnly}
+              onChange={e => setShowAvailableOnly(e.target.checked)}
+            />
+            <label className="form-check-label" htmlFor="showAvailableOnly">
+              Show only available stock (quantity &gt; 0)
+            </label>
           </div>
         </div>
       </div>
@@ -424,8 +447,12 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
         </table>
       </div>
       
-      {filteredParts.length === 0 && searchTerm && (
-        <div className="alert alert-info">No parts found matching "{searchTerm}"</div>
+      {filteredParts.length === 0 && (searchTerm || showAvailableOnly) && (
+        <div className="alert alert-info">
+          No parts found {searchTerm && `matching "${searchTerm}"`} 
+          {searchTerm && showAvailableOnly && ' and '}
+          {showAvailableOnly && 'with available stock'}
+        </div>
       )}
     </div>
   );
