@@ -77,6 +77,21 @@ function StockManagement() {
           <table class="stock-table">
             <thead>
               <tr>
+                ${reportType === 'Parent-Child Relationships' ? `
+                  <th>Parent ID</th>
+                  <th>Parent Name</th>
+                  <th>Parent Manufacturer</th>
+                  <th>Parent Stock</th>
+                  <th>Child ID</th>
+                  <th>Child Name</th>
+                  <th>Child Manufacturer</th>
+                  <th>Child Status</th>
+                  <th>Child Available Qty</th>
+                  <th>Child Reserved Qty</th>
+                  <th>Child Sold Qty</th>
+                  <th>Child Total Stock</th>
+                  <th>Child Price (Rs.)</th>
+                ` : `
                 <th>ID</th>
                 <th>Name</th>
                 <th>Manufacturer</th>
@@ -87,13 +102,6 @@ function StockManagement() {
                   <th>Available From</th>
                   <th>Unit Price (Rs.)</th>
                   <th>Total Value (Rs.)</th>
-                ` : reportType === 'Parent-Child Relationships' ? `
-                  <th>Parent ID</th>
-                  <th>Parent Name</th>
-                  <th>Child ID</th>
-                  <th>Child Name</th>
-                  <th>Child Status</th>
-                  <th>Child Available Qty</th>
                 ` : `
                   <th>Sold Qty</th>
                   <th>Total Stock</th>
@@ -102,21 +110,26 @@ function StockManagement() {
                   <th>Total Revenue (Rs.)</th>
                   <th>Recommended Price (Rs.)</th>
                 `}
+                `}
               </tr>
             </thead>
             <tbody>
               ${stockData.map(item => `
                 <tr>
                   ${reportType === 'Parent-Child Relationships' ? `
-                    <td>-</td>
-                    <td>Relationship</td>
-                    <td>-</td>
                     <td>${item.parentId}</td>
                     <td>${item.parentName}</td>
+                    <td>${item.parentManufacturer || 'N/A'}</td>
+                    <td>${item.parentTotalStock || 0}</td>
                     <td>${item.childId}</td>
                     <td>${item.childName}</td>
-                    <td>${item.childStatus}</td>
+                    <td>${item.childManufacturer || 'N/A'}</td>
+                    <td>${item.childStatus || 'N/A'}</td>
                     <td>${item.childAvailableStock || 0}</td>
+                    <td>${item.childReservedStock || 0}</td>
+                    <td>${item.childSoldStock || 0}</td>
+                    <td>${item.childTotalStock || 0}</td>
+                    <td>Rs. ${parseFloat(item.childRecommendedPrice || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   ` : `
                     <td>${item.id}</td>
                     <td>${item.name}</td>
