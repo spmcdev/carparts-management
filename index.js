@@ -453,28 +453,42 @@ app.get('/stock-movements', authenticateToken, requireAdmin, async (req, res) =>
   }
 });
 
-// ====================== RESERVATION ROUTES ======================
+// ====================== ENHANCED RESERVATION ROUTES ======================
 
-// Get all reservations
+// Get all reservations (enhanced multi-item support)
 app.get('/api/reservations', authenticateToken, async (req, res) => {
   try {
     const { search } = req.query;
     let query = `
-      SELECT r.*, p.name as part_name, p.manufacturer, p.available_stock,
-             u1.username as created_by_username, u2.username as completed_by_username
-      FROM reserved_bills r
-      JOIN parts p ON r.part_id = p.id
+      SELECT r.*, 
+             json_agg(
+               json_build_object(
+                 'id', ri.id,
+                 'part_id', ri.part_id,
+                 'part_name', ri.part_name,
+                 'manufacturer', ri.manufacturer,
+                 'quantity', ri.quantity,
+                 'unit_price', ri.unit_price,
+                 'total_price', ri.total_price,
+                 'available_stock', p.available_stock
+               ) ORDER BY ri.id
+             ) as items,
+             u1.username as created_by_username, 
+             u2.username as completed_by_username
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+      LEFT JOIN parts p ON ri.part_id = p.id
       LEFT JOIN users u1 ON r.created_by = u1.id
       LEFT JOIN users u2 ON r.completed_by = u2.id
     `;
     
     const params = [];
     if (search) {
-      query += ` WHERE r.customer_name ILIKE $1 OR r.customer_phone ILIKE $1 OR r.reservation_number ILIKE $1`;
+      query += ` WHERE r.customer_name ILIKE $1 OR r.customer_phone ILIKE $1 OR r.reservation_number ILIKE $1 OR ri.part_name ILIKE $1 OR ri.manufacturer ILIKE $1`;
       params.push(`%${search}%`);
     }
     
-    query += ` ORDER BY r.reserved_date DESC`;
+    query += ` GROUP BY r.id, u1.username, u2.username ORDER BY r.reserved_date DESC`;
     
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -484,98 +498,499 @@ app.get('/api/reservations', authenticateToken, async (req, res) => {
   }
 });
 
-// Create a new reservation
+// Create a new reservation (enhanced multi-item support)
 app.post('/api/reservations', authenticateToken, async (req, res) => {
   const { 
     customer_name, 
     customer_phone, 
-    part_id, 
-    quantity = 1,
-    price_agreed, 
+    items, // Array of {part_id, quantity, unit_price}
     deposit_amount = 0, 
     notes 
   } = req.body;
   
-  if (!customer_name || !customer_phone || !part_id || !price_agreed) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!customer_name || !customer_phone || !items || items.length === 0) {
+    return res.status(400).json({ error: 'Missing required fields: customer_name, customer_phone, items' });
   }
   
   try {
     await pool.query('BEGIN');
     
-    // Check if part has enough available stock
-    const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [part_id]);
-    if (partResult.rows.length === 0) {
-      throw new Error('Part not found');
-    }
+    // Validate all items and check stock
+    let total_amount = 0;
+    const validatedItems = [];
     
-    const part = partResult.rows[0];
-    if (part.available_stock < quantity) {
-      throw new Error('Insufficient stock available for reservation');
+    for (const item of items) {
+      if (!item.part_id || !item.quantity || !item.unit_price) {
+        throw new Error('Each item must have part_id, quantity, and unit_price');
+      }
+      
+      // Check if part exists and has enough stock
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+      if (partResult.rows.length === 0) {
+        throw new Error(`Part with ID ${item.part_id} not found`);
+      }
+      
+      const part = partResult.rows[0];
+      if (part.available_stock < item.quantity) {
+        throw new Error(`Insufficient stock for ${part.name}. Available: ${part.available_stock}, Requested: ${item.quantity}`);
+      }
+      
+      const item_total = item.quantity * item.unit_price;
+      total_amount += item_total;
+      
+      validatedItems.push({
+        ...item,
+        part_name: part.name,
+        manufacturer: part.manufacturer,
+        total_price: item_total,
+        part: part
+      });
     }
     
     // Generate reservation number
-    const reservationNumber = `RES-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const reservationResult = await pool.query('SELECT generate_reservation_number() as number');
+    const reservationNumber = reservationResult.rows[0].number;
     
-    // Create reservation
-    const reservationResult = await pool.query(`
-      INSERT INTO reserved_bills (
-        reservation_number, customer_name, customer_phone, part_id, 
-        quantity, price_agreed, deposit_amount, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+    // Create main reservation
+    const newReservationResult = await pool.query(`
+      INSERT INTO reservations (
+        reservation_number, customer_name, customer_phone, 
+        total_amount, deposit_amount, notes, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
     `, [
-      reservationNumber, customer_name, customer_phone, part_id, 
-      quantity, price_agreed, deposit_amount, notes, req.user.id
+      reservationNumber, customer_name, customer_phone, 
+      total_amount, deposit_amount, notes, req.user.id
     ]);
     
-    // Update part stock (move from available to reserved)
-    const newAvailable = part.available_stock - quantity;
-    const newReserved = part.reserved_stock + quantity;
+    const reservation = newReservationResult.rows[0];
     
-    await pool.query(`
-      UPDATE parts 
-      SET available_stock = $1, reserved_stock = $2, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-    `, [newAvailable, newReserved, part_id]);
+    // Create reservation items and update stock
+    for (const item of validatedItems) {
+      // Create reservation item
+      await pool.query(`
+        INSERT INTO reservation_items (
+          reservation_id, part_id, part_name, manufacturer, 
+          quantity, unit_price, total_price
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        reservation.id, item.part_id, item.part_name, item.manufacturer,
+        item.quantity, item.unit_price, item.total_price
+      ]);
+      
+      // Update part stock (move from available to reserved)
+      const newAvailable = item.part.available_stock - item.quantity;
+      const newReserved = item.part.reserved_stock + item.quantity;
+      
+      await pool.query(`
+        UPDATE parts 
+        SET available_stock = $1, reserved_stock = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `, [newAvailable, newReserved, item.part_id]);
+      
+      // Log stock movement
+      await logStockMovement(
+        item.part_id,
+        'reservation',
+        -item.quantity,
+        item.part.available_stock,
+        newAvailable,
+        'reservation',
+        reservation.id,
+        `Reservation ${reservationNumber} - ${item.part_name}`,
+        req.user.id
+      );
+    }
     
-    // Log stock movement
-    await logStockMovement(
-      part_id,
-      'reservation',
-      -quantity,
-      part.available_stock,
-      newAvailable,
-      'reservation',
-      reservationResult.rows[0].id,
-      `Reservation ${reservationNumber}`,
-      req.user.id
-    );
-
     // Log audit action for reservation creation
     await logAuditAction(
       req.user,
-      'create',
-      'reserved_bills',
-      reservationResult.rows[0].id,
+      'CREATE_RESERVATION',
+      'reservations',
+      reservation.id,
       null,
       {
-        reservation_number: reservationNumber,
-        customer_name,
-        customer_phone,
-        part_id,
-        quantity,
-        price_agreed,
-        deposit_amount,
-        notes
+        ...reservation,
+        items: validatedItems.map(item => ({
+          part_id: item.part_id,
+          part_name: item.part_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price
+        }))
       },
       req
     );
     
     await pool.query('COMMIT');
-    res.status(201).json(reservationResult.rows[0]);
+    res.status(201).json({
+      ...reservation,
+      items: validatedItems
+    });
   } catch (err) {
     await pool.query('ROLLBACK');
     console.error('Error creating reservation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update reservation (edit functionality)
+app.put('/api/reservations/:id', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { customer_name, customer_phone, deposit_amount, notes } = req.body;
+  
+  try {
+    // Get old reservation data for audit
+    const oldReservationResult = await pool.query(`
+      SELECT r.*, 
+             json_agg(
+               json_build_object(
+                 'id', ri.id,
+                 'part_id', ri.part_id,
+                 'part_name', ri.part_name,
+                 'manufacturer', ri.manufacturer,
+                 'quantity', ri.quantity,
+                 'unit_price', ri.unit_price,
+                 'total_price', ri.total_price
+               )
+             ) as items
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+      WHERE r.id = $1
+      GROUP BY r.id
+    `, [id]);
+    
+    if (oldReservationResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+    
+    const oldReservation = oldReservationResult.rows[0];
+    
+    if (oldReservation.status !== 'reserved') {
+      return res.status(400).json({ error: 'Cannot edit completed or cancelled reservations' });
+    }
+    
+    // Update reservation
+    const result = await pool.query(`
+      UPDATE reservations 
+      SET customer_name = $1, customer_phone = $2, deposit_amount = $3, notes = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5 RETURNING *
+    `, [customer_name, customer_phone, deposit_amount, notes, id]);
+    
+    const updatedReservation = result.rows[0];
+    
+    // Log audit action
+    await logAuditAction(
+      req.user,
+      'UPDATE_RESERVATION',
+      'reservations',
+      parseInt(id),
+      oldReservation,
+      updatedReservation,
+      req
+    );
+    
+    res.json(updatedReservation);
+  } catch (err) {
+    console.error('Error updating reservation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add item to reservation (Admin/SuperAdmin only)
+app.post('/api/reservations/:reservationId/items', authenticateToken, requireAdmin, async (req, res) => {
+  const { reservationId } = req.params;
+  const { part_id, quantity, unit_price } = req.body;
+  
+  try {
+    if (!part_id || !quantity || !unit_price) {
+      return res.status(400).json({ error: 'Part ID, quantity, and unit price are required' });
+    }
+
+    await pool.query('BEGIN');
+
+    try {
+      // Check reservation status
+      const reservationResult = await pool.query('SELECT * FROM reservations WHERE id = $1', [reservationId]);
+      if (reservationResult.rows.length === 0) {
+        throw new Error('Reservation not found');
+      }
+      
+      const reservation = reservationResult.rows[0];
+      if (reservation.status !== 'reserved') {
+        throw new Error('Cannot add items to completed or cancelled reservations');
+      }
+
+      // Get part details and check stock
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [part_id]);
+      if (partResult.rows.length === 0) {
+        throw new Error('Part not found');
+      }
+      const part = partResult.rows[0];
+
+      if (part.available_stock < quantity) {
+        throw new Error(`Insufficient stock. Available: ${part.available_stock}, Requested: ${quantity}`);
+      }
+
+      // Check if item already exists in reservation
+      const existingItemResult = await pool.query(
+        'SELECT * FROM reservation_items WHERE reservation_id = $1 AND part_id = $2',
+        [reservationId, part_id]
+      );
+      
+      if (existingItemResult.rows.length > 0) {
+        throw new Error('This part is already in the reservation. Use update instead.');
+      }
+
+      // Add item to reservation
+      const total_price = quantity * unit_price;
+      const itemResult = await pool.query(`
+        INSERT INTO reservation_items (reservation_id, part_id, part_name, manufacturer, quantity, unit_price, total_price)
+        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+      `, [reservationId, part_id, part.name, part.manufacturer, quantity, unit_price, total_price]);
+
+      // Update part stock
+      await pool.query(`
+        UPDATE parts 
+        SET available_stock = available_stock - $1, reserved_stock = reserved_stock + $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `, [quantity, part_id]);
+
+      // Log stock movement
+      await logStockMovement(
+        part_id,
+        'reservation',
+        -quantity,
+        part.available_stock,
+        part.available_stock - quantity,
+        'reservation_edit',
+        reservationId,
+        `Item added to reservation ${reservation.reservation_number}`,
+        req.user.id
+      );
+
+      await pool.query('COMMIT');
+
+      // Log audit action
+      await logAuditAction(
+        req.user,
+        'ADD_RESERVATION_ITEM',
+        'reservation_items',
+        itemResult.rows[0].id,
+        null,
+        itemResult.rows[0],
+        req
+      );
+
+      res.json(itemResult.rows[0]);
+
+    } catch (itemErr) {
+      await pool.query('ROLLBACK');
+      throw itemErr;
+    }
+
+  } catch (err) {
+    console.error('Error adding reservation item:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update reservation item (Admin/SuperAdmin only)
+app.put('/api/reservations/:reservationId/items/:itemId', authenticateToken, requireAdmin, async (req, res) => {
+  const { reservationId, itemId } = req.params;
+  const { quantity, unit_price } = req.body;
+  
+  try {
+    if (!quantity || !unit_price) {
+      return res.status(400).json({ error: 'Quantity and unit price are required' });
+    }
+
+    await pool.query('BEGIN');
+
+    try {
+      // Check reservation status
+      const reservationResult = await pool.query('SELECT * FROM reservations WHERE id = $1', [reservationId]);
+      if (reservationResult.rows.length === 0) {
+        throw new Error('Reservation not found');
+      }
+      
+      const reservation = reservationResult.rows[0];
+      if (reservation.status !== 'reserved') {
+        throw new Error('Cannot edit items in completed or cancelled reservations');
+      }
+
+      // Get current item details
+      const itemResult = await pool.query(
+        'SELECT * FROM reservation_items WHERE id = $1 AND reservation_id = $2',
+        [itemId, reservationId]
+      );
+      
+      if (itemResult.rows.length === 0) {
+        throw new Error('Reservation item not found');
+      }
+      
+      const currentItem = itemResult.rows[0];
+      const quantityDiff = quantity - currentItem.quantity;
+      
+      // Get part details for stock check
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [currentItem.part_id]);
+      if (partResult.rows.length === 0) {
+        throw new Error('Part not found');
+      }
+      const part = partResult.rows[0];
+
+      // Check stock availability for quantity increase
+      if (quantityDiff > 0 && part.available_stock < quantityDiff) {
+        throw new Error(`Insufficient stock for increase. Available: ${part.available_stock}, Needed: ${quantityDiff}`);
+      }
+
+      // Update reservation item
+      const total_price = quantity * unit_price;
+      const updatedItemResult = await pool.query(`
+        UPDATE reservation_items 
+        SET quantity = $1, unit_price = $2, total_price = $3
+        WHERE id = $4 AND reservation_id = $5 RETURNING *
+      `, [quantity, unit_price, total_price, itemId, reservationId]);
+
+      // Update part stock
+      await pool.query(`
+        UPDATE parts 
+        SET available_stock = available_stock + $1, reserved_stock = reserved_stock - $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `, [quantityDiff * -1, currentItem.part_id]); // Negative because we're adjusting in opposite direction
+
+      // Log stock movement
+      if (quantityDiff !== 0) {
+        await logStockMovement(
+          currentItem.part_id,
+          quantityDiff > 0 ? 'reservation' : 'return',
+          Math.abs(quantityDiff),
+          part.available_stock,
+          part.available_stock - quantityDiff,
+          'reservation_edit',
+          reservationId,
+          `Item quantity updated in reservation ${reservation.reservation_number} (${currentItem.quantity} → ${quantity})`,
+          req.user.id
+        );
+      }
+
+      await pool.query('COMMIT');
+
+      // Log audit action
+      await logAuditAction(
+        req.user,
+        'UPDATE_RESERVATION_ITEM',
+        'reservation_items',
+        parseInt(itemId),
+        currentItem,
+        updatedItemResult.rows[0],
+        req
+      );
+
+      res.json(updatedItemResult.rows[0]);
+
+    } catch (itemErr) {
+      await pool.query('ROLLBACK');
+      throw itemErr;
+    }
+
+  } catch (err) {
+    console.error('Error updating reservation item:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete reservation item (Admin/SuperAdmin only)
+app.delete('/api/reservations/:reservationId/items/:itemId', authenticateToken, requireAdmin, async (req, res) => {
+  const { reservationId, itemId } = req.params;
+  
+  try {
+    await pool.query('BEGIN');
+
+    try {
+      // Check reservation status
+      const reservationResult = await pool.query('SELECT * FROM reservations WHERE id = $1', [reservationId]);
+      if (reservationResult.rows.length === 0) {
+        throw new Error('Reservation not found');
+      }
+      
+      const reservation = reservationResult.rows[0];
+      if (reservation.status !== 'reserved') {
+        throw new Error('Cannot remove items from completed or cancelled reservations');
+      }
+
+      // Get item details before deletion
+      const itemResult = await pool.query(
+        'SELECT * FROM reservation_items WHERE id = $1 AND reservation_id = $2',
+        [itemId, reservationId]
+      );
+      
+      if (itemResult.rows.length === 0) {
+        throw new Error('Reservation item not found');
+      }
+      
+      const item = itemResult.rows[0];
+      
+      // Check if this is the last item in reservation
+      const itemCountResult = await pool.query(
+        'SELECT COUNT(*) as count FROM reservation_items WHERE reservation_id = $1',
+        [reservationId]
+      );
+      
+      if (parseInt(itemCountResult.rows[0].count) <= 1) {
+        throw new Error('Cannot remove the last item from a reservation. Cancel the reservation instead.');
+      }
+      
+      // Get part details
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+      if (partResult.rows.length === 0) {
+        throw new Error('Part not found');
+      }
+      const part = partResult.rows[0];
+
+      // Delete the item
+      await pool.query('DELETE FROM reservation_items WHERE id = $1 AND reservation_id = $2', [itemId, reservationId]);
+
+      // Restore stock
+      await pool.query(`
+        UPDATE parts 
+        SET available_stock = available_stock + $1, reserved_stock = reserved_stock - $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `, [item.quantity, item.part_id]);
+
+      // Log stock movement
+      await logStockMovement(
+        item.part_id,
+        'return',
+        item.quantity,
+        part.available_stock,
+        part.available_stock + item.quantity,
+        'reservation_edit',
+        reservationId,
+        `Item removed from reservation ${reservation.reservation_number}`,
+        req.user.id
+      );
+
+      await pool.query('COMMIT');
+
+      // Log audit action
+      await logAuditAction(
+        req.user,
+        'DELETE_RESERVATION_ITEM',
+        'reservation_items',
+        parseInt(itemId),
+        item,
+        null,
+        req
+      );
+
+      res.json({ message: 'Reservation item deleted successfully' });
+
+    } catch (itemErr) {
+      await pool.query('ROLLBACK');
+      throw itemErr;
+    }
+
+  } catch (err) {
+    console.error('Error deleting reservation item:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -885,6 +1300,270 @@ app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => 
     }
   } catch (err) {
     console.error('Error cancelling reservation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete a reservation (convert to bill) - Enhanced multi-item version
+app.post('/api/reservations/:id/complete-enhanced', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { additional_amount = 0 } = req.body;
+  
+  try {
+    await pool.query('BEGIN');
+    
+    // Get reservation with items
+    const reservationResult = await pool.query(`
+      SELECT r.*, 
+             json_agg(
+               json_build_object(
+                 'id', ri.id,
+                 'part_id', ri.part_id,
+                 'part_name', ri.part_name,
+                 'manufacturer', ri.manufacturer,
+                 'quantity', ri.quantity,
+                 'unit_price', ri.unit_price,
+                 'total_price', ri.total_price
+               )
+             ) as items
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+      WHERE r.id = $1 AND r.status = 'reserved'
+      GROUP BY r.id
+    `, [id]);
+    
+    if (reservationResult.rows.length === 0) {
+      throw new Error('Reservation not found or already completed');
+    }
+    
+    const reservation = reservationResult.rows[0];
+    const items = reservation.items.filter(item => item.id !== null); // Remove null entries from json_agg
+    
+    if (items.length === 0) {
+      throw new Error('No items found in reservation');
+    }
+    
+    // Generate bill number
+    const billNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    // Calculate amounts
+    const bill_amount = reservation.total_amount + additional_amount;
+    const payment_received = reservation.deposit_amount + additional_amount;
+    const balance_amount = Math.max(0, bill_amount - payment_received);
+    
+    // Create bill
+    const billResult = await pool.query(`
+      INSERT INTO bills (
+        bill_number, customer_name, customer_phone, 
+        bill_amount, payment_received, balance_amount,
+        created_by, from_reservation_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+    `, [
+      billNumber, reservation.customer_name, reservation.customer_phone,
+      bill_amount, payment_received, balance_amount,
+      req.user.id, reservation.id
+    ]);
+    
+    const bill = billResult.rows[0];
+    
+    // Create bill items and move stock from reserved to sold
+    for (const item of items) {
+      // Create bill item
+      await pool.query(`
+        INSERT INTO bill_items (
+          bill_id, part_id, part_name, manufacturer,
+          quantity, unit_price, total_price
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        bill.id, item.part_id, item.part_name, item.manufacturer,
+        item.quantity, item.unit_price, item.total_price
+      ]);
+      
+      // Get current part stock
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+      const part = partResult.rows[0];
+      
+      // Update part stock (move from reserved to sold)
+      const newReserved = part.reserved_stock - item.quantity;
+      const newSold = part.sold_stock + item.quantity;
+      
+      await pool.query(`
+        UPDATE parts 
+        SET reserved_stock = $1, sold_stock = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `, [newReserved, newSold, item.part_id]);
+      
+      // Log stock movement
+      await logStockMovement(
+        item.part_id,
+        'sale',
+        -item.quantity,
+        part.reserved_stock,
+        newReserved,
+        'reservation_completion',
+        bill.id,
+        `Reservation ${reservation.reservation_number} completed as bill ${billNumber}`,
+        req.user.id
+      );
+    }
+    
+    // Update reservation status
+    await pool.query(`
+      UPDATE reservations 
+      SET status = 'completed', completed_date = CURRENT_TIMESTAMP, completed_by = $1, bill_id = $2
+      WHERE id = $3
+    `, [req.user.id, bill.id, id]);
+    
+    // Log audit action for reservation completion
+    await logAuditAction(
+      req.user,
+      'COMPLETE_RESERVATION',
+      'reservations',
+      parseInt(id),
+      { status: 'reserved' },
+      { status: 'completed', bill_id: bill.id, bill_number: billNumber },
+      req
+    );
+    
+    await pool.query('COMMIT');
+    res.json({
+      message: 'Reservation completed successfully',
+      bill: bill,
+      reservation: reservation
+    });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error completing reservation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cancel a reservation - Enhanced multi-item version
+app.post('/api/reservations/:id/cancel-enhanced', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  
+  try {
+    await pool.query('BEGIN');
+    
+    // Get reservation with items
+    const reservationResult = await pool.query(`
+      SELECT r.*, 
+             json_agg(
+               json_build_object(
+                 'id', ri.id,
+                 'part_id', ri.part_id,
+                 'part_name', ri.part_name,
+                 'quantity', ri.quantity
+               )
+             ) as items
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+      WHERE r.id = $1 AND r.status = 'reserved'
+      GROUP BY r.id
+    `, [id]);
+    
+    if (reservationResult.rows.length === 0) {
+      throw new Error('Reservation not found or already processed');
+    }
+    
+    const reservation = reservationResult.rows[0];
+    const items = reservation.items.filter(item => item.id !== null);
+    
+    // Restore stock for all items
+    for (const item of items) {
+      // Get current part stock
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+      const part = partResult.rows[0];
+      
+      // Move stock from reserved back to available
+      const newAvailable = part.available_stock + item.quantity;
+      const newReserved = part.reserved_stock - item.quantity;
+      
+      await pool.query(`
+        UPDATE parts 
+        SET available_stock = $1, reserved_stock = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `, [newAvailable, newReserved, item.part_id]);
+      
+      // Log stock movement
+      await logStockMovement(
+        item.part_id,
+        'return',
+        item.quantity,
+        part.available_stock,
+        newAvailable,
+        'reservation_cancellation',
+        reservation.id,
+        `Reservation ${reservation.reservation_number} cancelled: ${reason || 'No reason provided'}`,
+        req.user.id
+      );
+    }
+    
+    // Update reservation status
+    await pool.query(`
+      UPDATE reservations 
+      SET status = 'cancelled', completed_date = CURRENT_TIMESTAMP, completed_by = $1, notes = COALESCE(notes, '') || ' [CANCELLED: ' || $2 || ']'
+      WHERE id = $3
+    `, [req.user.id, reason || 'No reason provided', id]);
+    
+    // Log audit action for reservation cancellation
+    await logAuditAction(
+      req.user,
+      'CANCEL_RESERVATION',
+      'reservations',
+      parseInt(id),
+      { status: 'reserved' },
+      { status: 'cancelled', cancellation_reason: reason },
+      req
+    );
+    
+    await pool.query('COMMIT');
+    res.json({ message: 'Reservation cancelled successfully' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error cancelling reservation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get reservation details by ID - Enhanced version
+app.get('/api/reservations/:id/enhanced', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT r.*, 
+             json_agg(
+               json_build_object(
+                 'id', ri.id,
+                 'part_id', ri.part_id,
+                 'part_name', ri.part_name,
+                 'manufacturer', ri.manufacturer,
+                 'quantity', ri.quantity,
+                 'unit_price', ri.unit_price,
+                 'total_price', ri.total_price,
+                 'available_stock', p.available_stock
+               ) ORDER BY ri.id
+             ) as items,
+             u1.username as created_by_username, 
+             u2.username as completed_by_username
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+      LEFT JOIN parts p ON ri.part_id = p.id
+      LEFT JOIN users u1 ON r.created_by = u1.id
+      LEFT JOIN users u2 ON r.completed_by = u2.id
+      WHERE r.id = $1
+      GROUP BY r.id, u1.username, u2.username
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching reservation details:', err);
     res.status(500).json({ error: err.message });
   }
 });

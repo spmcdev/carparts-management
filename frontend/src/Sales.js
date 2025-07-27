@@ -38,7 +38,7 @@ function Sales({ token, userRole }) {
   // Bill details expansion state
   const [expandedBills, setExpandedBills] = useState(new Set());
 
-  // Reservation state
+  // Reservation state (enhanced for multi-item support)
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [reservations, setReservations] = useState([]);
   const [showReservationHistory, setShowReservationHistory] = useState(false);
@@ -47,12 +47,25 @@ function Sales({ token, userRole }) {
   const [reservationData, setReservationData] = useState({
     customer_name: '',
     customer_phone: '',
-    part_id: '',
-    quantity: 1,
-    price_agreed: '',
     deposit_amount: 0,
     notes: ''
   });
+  
+  // Multi-item reservation cart
+  const [reservationCartItems, setReservationCartItems] = useState([]);
+  
+  // Edit reservation modal state
+  const [editingReservation, setEditingReservation] = useState(null);
+  const [editReservationData, setEditReservationData] = useState({});
+  const [editingReservationItems, setEditingReservationItems] = useState([]);
+  const [newReservationItemData, setNewReservationItemData] = useState({
+    part_id: '',
+    quantity: 1,
+    unit_price: ''
+  });
+  
+  // Reservation details expansion state
+  const [expandedReservations, setExpandedReservations] = useState(new Set());
 
   // Filter bills based on search term
   const filterBills = (bills, searchTerm) => {
@@ -226,25 +239,101 @@ function Sales({ token, userRole }) {
     return cartItems.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
   };
 
-  // Create reservation
+  // Enhanced reservation cart functions
+  const addToReservationCart = (part) => {
+    const existingIndex = reservationCartItems.findIndex(item => item.part_id === part.id);
+    if (existingIndex >= 0) {
+      setError('Part already in reservation cart');
+      return;
+    }
+    
+    const newItem = {
+      part_id: part.id,
+      part_name: part.name,
+      manufacturer: part.manufacturer,
+      quantity: 1,
+      unit_price: part.recommended_price || 0,
+      available_stock: part.available_stock
+    };
+    
+    setReservationCartItems([...reservationCartItems, newItem]);
+  };
+
+  // Update reservation cart item quantity
+  const updateReservationCartQuantity = (partId, quantity) => {
+    if (quantity < 1) return;
+    
+    setReservationCartItems(reservationCartItems.map(item => 
+      item.part_id === partId 
+        ? { ...item, quantity: parseInt(quantity) }
+        : item
+    ));
+  };
+
+  // Update reservation cart item price
+  const updateReservationCartPrice = (partId, price) => {
+    setReservationCartItems(reservationCartItems.map(item => 
+      item.part_id === partId 
+        ? { ...item, unit_price: parseFloat(price) || 0 }
+        : item
+    ));
+  };
+
+  // Remove item from reservation cart
+  const removeFromReservationCart = (partId) => {
+    setReservationCartItems(reservationCartItems.filter(item => item.part_id !== partId));
+  };
+
+  // Calculate reservation total
+  const calculateReservationTotal = () => {
+    return reservationCartItems.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
+  };
+
+  // Create enhanced multi-item reservation
   const createReservation = async (e) => {
     e.preventDefault();
-    if (!reservationData.customer_name || !reservationData.customer_phone || !reservationData.part_id || !reservationData.price_agreed) {
-      setError('Please fill in all required fields for reservation');
+    if (!reservationData.customer_name || !reservationData.customer_phone) {
+      setError('Please fill in customer name and phone number');
       return;
+    }
+
+    if (reservationCartItems.length === 0) {
+      setError('Please add at least one item to the reservation');
+      return;
+    }
+
+    // Validate cart items
+    for (const item of reservationCartItems) {
+      if (!item.unit_price || item.unit_price <= 0) {
+        setError(`Please set a valid price for ${item.part_name}`);
+        return;
+      }
+      if (item.quantity > item.available_stock) {
+        setError(`Insufficient stock for ${item.part_name}. Available: ${item.available_stock}`);
+        return;
+      }
     }
 
     try {
       setLoading(true);
       setError('');
       
+      const items = reservationCartItems.map(item => ({
+        part_id: item.part_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price
+      }));
+
       const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(reservationData)
+        body: JSON.stringify({
+          ...reservationData,
+          items
+        })
       });
 
       if (!res.ok) {
@@ -259,12 +348,10 @@ function Sales({ token, userRole }) {
       setReservationData({
         customer_name: '',
         customer_phone: '',
-        part_id: '',
-        quantity: 1,
-        price_agreed: '',
         deposit_amount: 0,
         notes: ''
       });
+      setReservationCartItems([]);
       setShowReservationModal(false);
       
       // Refresh data
@@ -338,6 +425,183 @@ function Sales({ token, userRole }) {
       fetchReservations();
       fetchAvailableParts();
       
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enhanced reservation management functions
+  
+  // Toggle reservation details expansion
+  const toggleReservationDetails = (reservationId) => {
+    const newExpanded = new Set(expandedReservations);
+    if (newExpanded.has(reservationId)) {
+      newExpanded.delete(reservationId);
+    } else {
+      newExpanded.add(reservationId);
+    }
+    setExpandedReservations(newExpanded);
+  };
+
+  // Edit reservation (Admin/SuperAdmin only)
+  const editReservation = async (reservation) => {
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      setError('Only admins can edit reservations');
+      return;
+    }
+
+    setEditingReservation(reservation);
+    setEditReservationData({
+      customer_name: reservation.customer_name,
+      customer_phone: reservation.customer_phone,
+      deposit_amount: reservation.deposit_amount || 0,
+      notes: reservation.notes || ''
+    });
+    
+    // Set reservation items for editing
+    const items = reservation.items || [];
+    setEditingReservationItems(items.map(item => ({
+      ...item,
+      id: item.id,
+      part_id: item.part_id,
+      part_name: item.part_name,
+      manufacturer: item.manufacturer,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total_price: item.total_price
+    })));
+  };
+
+  // Update reservation basic info
+  const updateReservation = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${editingReservation.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(editReservationData)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update reservation');
+      }
+
+      setSuccess('Reservation updated successfully');
+      setEditingReservation(null);
+      fetchReservations();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add item to existing reservation
+  const addReservationItem = async () => {
+    if (!newReservationItemData.part_id || !newReservationItemData.quantity || !newReservationItemData.unit_price) {
+      setError('Please fill in all fields for the new item');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${editingReservation.id}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(newReservationItemData)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to add item to reservation');
+      }
+
+      const newItem = await res.json();
+      setEditingReservationItems([...editingReservationItems, newItem]);
+      setNewReservationItemData({ part_id: '', quantity: 1, unit_price: '' });
+      setSuccess('Item added to reservation successfully');
+      fetchReservations();
+      fetchAvailableParts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update reservation item
+  const updateReservationItem = async (itemId, quantity, unit_price) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${editingReservation.id}/items/${itemId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ quantity: parseInt(quantity), unit_price: parseFloat(unit_price) })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update reservation item');
+      }
+
+      const updatedItem = await res.json();
+      setEditingReservationItems(editingReservationItems.map(item => 
+        item.id === itemId ? updatedItem : item
+      ));
+      setSuccess('Reservation item updated successfully');
+      fetchReservations();
+      fetchAvailableParts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete reservation item
+  const deleteReservationItem = async (itemId) => {
+    if (!window.confirm('Are you sure you want to remove this item from the reservation?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${editingReservation.id}/items/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to delete reservation item');
+      }
+
+      setEditingReservationItems(editingReservationItems.filter(item => item.id !== itemId));
+      setSuccess('Reservation item removed successfully');
+      fetchReservations();
+      fetchAvailableParts();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -941,10 +1205,15 @@ function Sales({ token, userRole }) {
             <div className="card-header d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Available Parts</h5>
               <button 
-                className="btn btn-success btn-sm"
+                className="btn btn-success btn-sm position-relative"
                 onClick={() => setShowReservationModal(true)}
               >
-                Make Reservation
+                <i className="fas fa-bookmark me-1"></i>Make Reservation
+                {reservationCartItems.length > 0 && (
+                  <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    {reservationCartItems.length}
+                  </span>
+                )}
               </button>
             </div>
             <div className="card-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
@@ -1006,17 +1275,11 @@ function Sales({ token, userRole }) {
                               Add to Cart
                             </button>
                             <button
-                              className="btn btn-outline-secondary btn-sm"
-                              onClick={() => {
-                                setReservationData({
-                                  ...reservationData,
-                                  part_id: part.id,
-                                  price_agreed: part.recommended_price || 0
-                                });
-                                setShowReservationModal(true);
-                              }}
+                              className="btn btn-warning btn-sm"
+                              onClick={() => addToReservationCart(part)}
+                              title="Add to reservation cart"
                             >
-                              Reserve
+                              <i className="fas fa-bookmark me-1"></i>Reserve
                             </button>
                           </div>
                         </div>
@@ -1210,11 +1473,11 @@ function Sales({ token, userRole }) {
         )}
       </div>
 
-      {/* Reservation History Section */}
+      {/* Enhanced Reservation History Section */}
       <div className="card mt-4">
         <div className="card-header d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center">
-            <h5 className="mb-0 me-3">Reservation Management</h5>
+            <h5 className="mb-0 me-3">Enhanced Reservation Management</h5>
             <button 
               className="btn btn-outline-primary btn-sm"
               onClick={() => {
@@ -1268,11 +1531,10 @@ function Sales({ token, userRole }) {
                       <th>Date</th>
                       <th>Customer</th>
                       <th>Phone</th>
-                      <th>Part</th>
-                      <th>Qty</th>
-                      <th>Agreed Price</th>
+                      <th>Items</th>
+                      <th>Total Amount</th>
                       <th>Deposit</th>
-                      <th>Remaining</th>
+                      <th>Balance</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -1281,76 +1543,179 @@ function Sales({ token, userRole }) {
                     {reservations
                       .filter(r => showActiveOnly ? r.status === 'reserved' : true)
                       .map(reservation => (
-                      <tr key={reservation.id}>
-                        <td>
-                          <strong>{reservation.reservation_number}</strong>
-                          {reservation.notes && <br />}
-                          {reservation.notes && <small className="text-muted">📝 Has notes</small>}
-                        </td>
-                        <td>{new Date(reservation.reserved_date).toLocaleDateString()}</td>
-                        <td>{reservation.customer_name}</td>
-                        <td>{reservation.customer_phone}</td>
-                        <td>
-                          <small>
-                            <strong>{reservation.part_name || `Part ID: ${reservation.part_id}`}</strong>
-                            {reservation.manufacturer && <><br /><span className="text-muted">{reservation.manufacturer}</span></>}
-                          </small>
-                        </td>
-                        <td>{reservation.quantity}</td>
-                        <td>Rs {parseFloat(reservation.price_agreed).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
-                        <td>Rs {parseFloat(reservation.deposit_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
-                        <td>Rs {parseFloat(reservation.remaining_amount || reservation.price_agreed - reservation.deposit_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
-                        <td>
-                          <span className={`badge ${
-                            reservation.status === 'reserved' ? 'bg-warning' :
-                            reservation.status === 'completed' ? 'bg-success' :
-                            reservation.status === 'cancelled' ? 'bg-danger' :
-                            'bg-secondary'
-                          }`}>
-                            {reservation.status}
-                          </span>
-                          {reservation.completed_date && (
-                            <><br /><small className="text-muted">
-                              {new Date(reservation.completed_date).toLocaleDateString()}
-                            </small></>
-                          )}
-                        </td>
-                        <td>
-                          <div className="btn-group-vertical">
-                            {reservation.status === 'reserved' && (
+                      <React.Fragment key={reservation.id}>
+                        <tr>
+                          <td>
+                            <div className="d-flex align-items-center">
+                              <button
+                                className="btn btn-sm btn-outline-secondary me-2"
+                                onClick={() => toggleReservationDetails(reservation.id)}
+                                title="Toggle details"
+                              >
+                                <i className={`fas fa-chevron-${expandedReservations.has(reservation.id) ? 'up' : 'down'}`}></i>
+                              </button>
+                              <div>
+                                <strong>{reservation.reservation_number}</strong>
+                                {reservation.notes && (
+                                  <>
+                                    <br/>
+                                    <small className="text-muted">📝 Has notes</small>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td>{new Date(reservation.reserved_date || reservation.created_at).toLocaleDateString()}</td>
+                          <td>{reservation.customer_name}</td>
+                          <td>{reservation.customer_phone}</td>
+                          <td>
+                            {reservation.items && reservation.items.length > 0 ? (
+                              <div>
+                                <span className="badge bg-info">{reservation.items.filter(item => item.id).length} items</span>
+                                {reservation.items.filter(item => item.id).slice(0, 2).map((item, idx) => (
+                                  <div key={idx} className="small text-muted">
+                                    {item.part_name} ({item.quantity})
+                                  </div>
+                                ))}
+                                {reservation.items.filter(item => item.id).length > 2 && (
+                                  <div className="small text-muted">+ {reservation.items.filter(item => item.id).length - 2} more...</div>
+                                )}
+                              </div>
+                            ) : (
+                              <small className="text-muted">No items</small>
+                            )}
+                          </td>
+                          <td>Rs. {parseFloat(reservation.total_amount || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                          <td>Rs. {parseFloat(reservation.deposit_amount || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                          <td>Rs. {parseFloat((reservation.total_amount || 0) - (reservation.deposit_amount || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                          <td>
+                            <span className={`badge ${
+                              reservation.status === 'reserved' ? 'bg-warning' :
+                              reservation.status === 'completed' ? 'bg-success' :
+                              reservation.status === 'cancelled' ? 'bg-danger' :
+                              'bg-secondary'
+                            }`}>
+                              {reservation.status}
+                            </span>
+                            {reservation.completed_date && (
                               <>
-                                <button 
-                                  className="btn btn-success btn-sm" 
-                                  onClick={() => setProcessingReservation(reservation)}
-                                  title="Complete reservation and create sale"
-                                >
-                                  Complete Sale
-                                </button>
-                                <button 
-                                  className="btn btn-danger btn-sm" 
-                                  onClick={() => {
-                                    if (window.confirm('Are you sure you want to cancel this reservation? This will release the reserved stock.')) {
-                                      cancelReservation(reservation.id);
-                                    }
-                                  }}
-                                  title="Cancel reservation and release stock"
-                                >
-                                  Cancel
-                                </button>
+                                <br />
+                                <small className="text-muted">
+                                  {new Date(reservation.completed_date).toLocaleDateString()}
+                                </small>
                               </>
                             )}
-                            {reservation.notes && (
-                              <button 
-                                className="btn btn-info btn-sm" 
-                                onClick={() => alert(`Notes: ${reservation.notes}`)}
-                                title="View reservation notes"
-                              >
-                                View Notes
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                          <td>
+                            <div className="btn-group-vertical" style={{ minWidth: '120px' }}>
+                              {reservation.status === 'reserved' && (
+                                <>
+                                  <button 
+                                    className="btn btn-success btn-sm" 
+                                    onClick={() => setProcessingReservation(reservation)}
+                                    title="Complete reservation"
+                                  >
+                                    <i className="fas fa-check me-1"></i>Complete
+                                  </button>
+                                  {(userRole === 'admin' || userRole === 'superadmin') && (
+                                    <button 
+                                      className="btn btn-warning btn-sm" 
+                                      onClick={() => editReservation(reservation)}
+                                      title="Edit reservation"
+                                    >
+                                      <i className="fas fa-edit me-1"></i>Edit
+                                    </button>
+                                  )}
+                                  {(userRole === 'admin' || userRole === 'superadmin') && (
+                                    <button 
+                                      className="btn btn-danger btn-sm" 
+                                      onClick={() => {
+                                        if (window.confirm('Are you sure you want to cancel this reservation? This will release the reserved stock.')) {
+                                          cancelReservation(reservation.id);
+                                        }
+                                      }}
+                                      title="Cancel reservation"
+                                    >
+                                      <i className="fas fa-times me-1"></i>Cancel
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                              {reservation.notes && (
+                                <button 
+                                  className="btn btn-info btn-sm" 
+                                  onClick={() => alert(`Notes: ${reservation.notes}`)}
+                                  title="View notes"
+                                >
+                                  <i className="fas fa-sticky-note me-1"></i>Notes
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        
+                        {/* Expanded Details Row */}
+                        {expandedReservations.has(reservation.id) && (
+                          <tr>
+                            <td colSpan="10" className="bg-light">
+                              <div className="p-3">
+                                <h6>Reservation Items</h6>
+                                {reservation.items && reservation.items.length > 0 ? (
+                                  <div className="table-responsive">
+                                    <table className="table table-sm table-borderless">
+                                      <thead>
+                                        <tr>
+                                          <th>Part</th>
+                                          <th>Manufacturer</th>
+                                          <th>Quantity</th>
+                                          <th>Unit Price</th>
+                                          <th>Total Price</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {reservation.items.filter(item => item.id).map((item, idx) => (
+                                          <tr key={idx}>
+                                            <td><strong>{item.part_name}</strong></td>
+                                            <td>{item.manufacturer}</td>
+                                            <td>{item.quantity}</td>
+                                            <td>Rs. {parseFloat(item.unit_price || 0).toFixed(2)}</td>
+                                            <td>Rs. {parseFloat(item.total_price || 0).toFixed(2)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr>
+                                          <th colSpan="4">Total:</th>
+                                          <th>Rs. {parseFloat(reservation.total_amount || 0).toFixed(2)}</th>
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <p className="text-muted">No items in this reservation</p>
+                                )}
+                                
+                                {reservation.notes && (
+                                  <div className="mt-3">
+                                    <h6>Notes</h6>
+                                    <p className="text-muted">{reservation.notes}</p>
+                                  </div>
+                                )}
+                                
+                                <div className="mt-3">
+                                  <small className="text-muted">
+                                    Created by: {reservation.created_by_username} | 
+                                    Created: {new Date(reservation.created_at || reservation.reserved_date).toLocaleString()}
+                                    {reservation.completed_by_username && (
+                                      <> | Completed by: {reservation.completed_by_username}</>
+                                    )}
+                                  </small>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -1834,115 +2199,173 @@ function Sales({ token, userRole }) {
         </div>
       )}
 
-      {/* Reservation Modal */}
+      {/* Enhanced Multi-Item Reservation Modal */}
       {showReservationModal && (
         <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
+          <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Create Reservation</h5>
+                <h5 className="modal-title">Create Multi-Item Reservation</h5>
                 <button type="button" className="btn-close" onClick={() => setShowReservationModal(false)}></button>
               </div>
               <form onSubmit={createReservation}>
                 <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label">Customer Name *</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={reservationData.customer_name}
-                      onChange={e => setReservationData({...reservationData, customer_name: e.target.value})}
-                      required
-                    />
+                  {/* Customer Information */}
+                  <div className="row mb-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Customer Name *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={reservationData.customer_name}
+                        onChange={e => setReservationData({...reservationData, customer_name: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Customer Phone *</label>
+                      <input
+                        type="tel"
+                        className="form-control"
+                        value={reservationData.customer_phone}
+                        onChange={e => setReservationData({...reservationData, customer_phone: e.target.value})}
+                        required
+                      />
+                    </div>
                   </div>
+
+                  {/* Part Selection */}
                   <div className="mb-3">
-                    <label className="form-label">Customer Phone *</label>
-                    <input
-                      type="tel"
-                      className="form-control"
-                      value={reservationData.customer_phone}
-                      onChange={e => setReservationData({...reservationData, customer_phone: e.target.value})}
-                      required
-                    />
+                    <label className="form-label">Add Parts to Reservation</label>
+                    <div className="input-group">
+                      <select
+                        className="form-control"
+                        onChange={e => {
+                          const selectedPart = availableParts.find(part => part.id == e.target.value);
+                          if (selectedPart) addToReservationCart(selectedPart);
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="">Choose a part to add...</option>
+                        {availableParts
+                          .filter(part => !reservationCartItems.some(item => item.part_id === part.id))
+                          .map(part => (
+                            <option key={part.id} value={part.id}>
+                              ID:{part.id} - {part.name} - {part.manufacturer} 
+                              {part.part_number && ` (#${part.part_number})`}
+                              {part.parent_id && ` (Parent: ${part.parent_id})`} 
+                              (Stock: {part.available_stock})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Select Part *</label>
-                    <select
-                      className="form-control"
-                      value={reservationData.part_id}
-                      onChange={e => {
-                        const partId = e.target.value;
-                        const selectedPart = availableParts.find(part => part.id == partId);
-                        setReservationData({
-                          ...reservationData, 
-                          part_id: partId,
-                          price_agreed: selectedPart ? selectedPart.recommended_price || 0 : ''
-                        });
-                      }}
-                      required
-                    >
-                      <option value="">Choose a part...</option>
-                      {availableParts.map(part => (
-                        <option key={part.id} value={part.id}>
-                          ID:{part.id} - {part.name} - {part.manufacturer} 
-                          {part.part_number && ` (#${part.part_number})`}
-                          {part.parent_id && ` (Parent: ${part.parent_id})`} 
-                          (Stock: {part.available_stock})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Quantity *</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={reservationData.quantity}
-                      onChange={e => setReservationData({...reservationData, quantity: parseInt(e.target.value) || 1})}
-                      min="1"
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Agreed Price (Rs) *</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={reservationData.price_agreed}
-                      onChange={e => setReservationData({...reservationData, price_agreed: e.target.value})}
-                      min="0"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Deposit Amount (Rs)</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={reservationData.deposit_amount}
-                      onChange={e => setReservationData({...reservationData, deposit_amount: parseFloat(e.target.value) || 0})}
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Notes</label>
-                    <textarea
-                      className="form-control"
-                      value={reservationData.notes}
-                      onChange={e => setReservationData({...reservationData, notes: e.target.value})}
-                      rows="3"
-                      placeholder="Additional notes or special requirements..."
-                    ></textarea>
+
+                  {/* Reservation Cart */}
+                  {reservationCartItems.length > 0 && (
+                    <div className="mb-3">
+                      <label className="form-label">Items in Reservation Cart</label>
+                      <div className="table-responsive">
+                        <table className="table table-sm table-striped">
+                          <thead>
+                            <tr>
+                              <th>Part</th>
+                              <th>Quantity</th>
+                              <th>Unit Price (Rs)</th>
+                              <th>Total (Rs)</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reservationCartItems.map((item, index) => (
+                              <tr key={`${item.part_id}-${index}`}>
+                                <td>
+                                  <small>
+                                    <strong>{item.part_name}</strong><br/>
+                                    {item.manufacturer}<br/>
+                                    <span className="text-muted">Available: {item.available_stock}</span>
+                                  </small>
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    value={item.quantity}
+                                    onChange={e => updateReservationCartQuantity(item.part_id, e.target.value)}
+                                    min="1"
+                                    max={item.available_stock}
+                                    style={{ width: '80px' }}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    value={item.unit_price}
+                                    onChange={e => updateReservationCartPrice(item.part_id, e.target.value)}
+                                    min="0"
+                                    step="0.01"
+                                    style={{ width: '100px' }}
+                                  />
+                                </td>
+                                <td>
+                                  <small>Rs. {(item.quantity * item.unit_price).toFixed(2)}</small>
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => removeFromReservationCart(item.part_id)}
+                                  >
+                                    <i className="fas fa-trash"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr>
+                              <th colSpan="3">Total Reservation Amount:</th>
+                              <th>Rs. {calculateReservationTotal().toFixed(2)}</th>
+                              <th></th>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Information */}
+                  <div className="row">
+                    <div className="col-md-6">
+                      <label className="form-label">Deposit Amount (Rs)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={reservationData.deposit_amount}
+                        onChange={e => setReservationData({...reservationData, deposit_amount: parseFloat(e.target.value) || 0})}
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Notes</label>
+                      <textarea
+                        className="form-control"
+                        value={reservationData.notes}
+                        onChange={e => setReservationData({...reservationData, notes: e.target.value})}
+                        rows="2"
+                        placeholder="Additional notes..."
+                      ></textarea>
+                    </div>
                   </div>
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-secondary" onClick={() => setShowReservationModal(false)}>
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-success" disabled={loading}>
-                    {loading ? 'Creating...' : 'Create Reservation'}
+                  <button type="submit" className="btn btn-success" disabled={loading || reservationCartItems.length === 0}>
+                    {loading ? 'Creating...' : `Create Reservation (${reservationCartItems.length} items)`}
                   </button>
                 </div>
               </form>
@@ -1950,6 +2373,236 @@ function Sales({ token, userRole }) {
           </div>
         </div>
       )}
+
+      {/* Enhanced Edit Reservation Modal */}
+      {editingReservation && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  Edit Reservation #{editingReservation.reservation_number}
+                  {userRole === 'superadmin' && <span className="badge bg-warning ms-2">SuperAdmin</span>}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setEditingReservation(null)}></button>
+              </div>
+              <div className="modal-body">
+                {/* Basic Reservation Info */}
+                <div className="row mb-4">
+                  <div className="col-md-3">
+                    <label className="form-label">Customer Name</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editReservationData.customer_name || ''}
+                      onChange={e => setEditReservationData({...editReservationData, customer_name: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">Customer Phone</label>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      value={editReservationData.customer_phone || ''}
+                      onChange={e => setEditReservationData({...editReservationData, customer_phone: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-md-2">
+                    <label className="form-label">Deposit (Rs)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={editReservationData.deposit_amount || 0}
+                      onChange={e => setEditReservationData({...editReservationData, deposit_amount: parseFloat(e.target.value) || 0})}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label">Notes</label>
+                    <textarea
+                      className="form-control"
+                      value={editReservationData.notes || ''}
+                      onChange={e => setEditReservationData({...editReservationData, notes: e.target.value})}
+                      rows="1"
+                    />
+                  </div>
+                </div>
+
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h6>Reservation Items</h6>
+                  <button
+                    type="button"
+                    className="btn btn-success btn-sm"
+                    onClick={updateReservation}
+                    disabled={loading}
+                  >
+                    {loading ? 'Updating...' : 'Update Basic Info'}
+                  </button>
+                </div>
+
+                {/* Reservation Items */}
+                <div className="table-responsive mb-4">
+                  <table className="table table-sm table-striped">
+                    <thead>
+                      <tr>
+                        <th>Part Details</th>
+                        <th style={{width: '100px'}}>Quantity</th>
+                        <th style={{width: '120px'}}>Unit Price (Rs)</th>
+                        <th style={{width: '120px'}}>Total (Rs)</th>
+                        <th style={{width: '100px'}}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {editingReservationItems.map((item, index) => (
+                        <tr key={item.id || index}>
+                          <td>
+                            <strong>{item.part_name}</strong><br/>
+                            <small className="text-muted">{item.manufacturer}</small>
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={item.quantity}
+                              onChange={e => {
+                                const newItems = [...editingReservationItems];
+                                newItems[index].quantity = parseInt(e.target.value) || 1;
+                                newItems[index].total_price = newItems[index].quantity * newItems[index].unit_price;
+                                setEditingReservationItems(newItems);
+                              }}
+                              min="1"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={item.unit_price}
+                              onChange={e => {
+                                const newItems = [...editingReservationItems];
+                                newItems[index].unit_price = parseFloat(e.target.value) || 0;
+                                newItems[index].total_price = newItems[index].quantity * newItems[index].unit_price;
+                                setEditingReservationItems(newItems);
+                              }}
+                              min="0"
+                              step="0.01"
+                            />
+                          </td>
+                          <td>
+                            <span>Rs. {(item.quantity * item.unit_price).toFixed(2)}</span>
+                          </td>
+                          <td>
+                            <div className="btn-group" role="group">
+                              <button
+                                type="button"
+                                className="btn btn-warning btn-sm"
+                                onClick={() => updateReservationItem(item.id, item.quantity, item.unit_price)}
+                                disabled={loading}
+                                title="Update Item"
+                              >
+                                <i className="fas fa-save"></i>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-danger btn-sm"
+                                onClick={() => deleteReservationItem(item.id)}
+                                disabled={loading}
+                                title="Delete Item"
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th colSpan="3">Total Reservation Amount:</th>
+                        <th>Rs. {editingReservationItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0).toFixed(2)}</th>
+                        <th></th>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Add New Item */}
+                <div className="border rounded p-3 bg-light">
+                  <h6>Add New Item to Reservation</h6>
+                  <div className="row">
+                    <div className="col-md-5">
+                      <label className="form-label">Select Part</label>
+                      <select
+                        className="form-control form-control-sm"
+                        value={newReservationItemData.part_id}
+                        onChange={e => {
+                          const partId = e.target.value;
+                          const selectedPart = availableParts.find(part => part.id == partId);
+                          setNewReservationItemData({
+                            ...newReservationItemData,
+                            part_id: partId,
+                            unit_price: selectedPart ? selectedPart.recommended_price || 0 : ''
+                          });
+                        }}
+                      >
+                        <option value="">Choose a part...</option>
+                        {availableParts
+                          .filter(part => !editingReservationItems.some(item => item.part_id === part.id))
+                          .map(part => (
+                            <option key={part.id} value={part.id}>
+                              ID:{part.id} - {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="col-md-2">
+                      <label className="form-label">Quantity</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        value={newReservationItemData.quantity}
+                        onChange={e => setNewReservationItemData({...newReservationItemData, quantity: parseInt(e.target.value) || 1})}
+                        min="1"
+                      />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Unit Price (Rs)</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        value={newReservationItemData.unit_price}
+                        onChange={e => setNewReservationItemData({...newReservationItemData, unit_price: e.target.value})}
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="col-md-2">
+                      <label className="form-label">&nbsp;</label>
+                      <div>
+                        <button
+                          type="button"
+                          className="btn btn-success btn-sm"
+                          onClick={addReservationItem}
+                          disabled={loading || !newReservationItemData.part_id}
+                        >
+                          Add Item
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setEditingReservation(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
