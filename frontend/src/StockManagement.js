@@ -100,10 +100,12 @@ function StockManagement() {
                 ${reportType === 'Parent-Child Relationships' ? `
                   <th>Parent ID</th>
                   <th>Parent Name</th>
+                  <th>Parent Part No.</th>
                   <th>Parent Manufacturer</th>
                   <th>Parent Stock</th>
                   <th>Child ID</th>
                   <th>Child Name</th>
+                  <th>Child Part No.</th>
                   <th>Child Manufacturer</th>
                   <th>Child Status</th>
                   <th>Child Available Qty</th>
@@ -119,7 +121,7 @@ function StockManagement() {
                   <th>Available Qty</th>
                   <th>Reserved Qty</th>
                   <th>Total Stock</th>
-                  <th>Available From</th>
+                  <th>Container No.</th>
                   <th>Unit Price (Rs.)</th>
                   <th>Total Value (Rs.)</th>
                 ` : `
@@ -138,10 +140,12 @@ function StockManagement() {
                   ${reportType === 'Parent-Child Relationships' ? `
                     <td>${item.parentId}</td>
                     <td>${item.parentName}</td>
+                    <td>${item.parentPartNumber || 'N/A'}</td>
                     <td>${item.parentManufacturer || 'N/A'}</td>
                     <td>${item.parentTotalStock || 0}</td>
                     <td>${item.childId}</td>
                     <td>${item.childName}</td>
+                    <td>${item.childPartNumber || 'N/A'}</td>
                     <td>${item.childManufacturer || 'N/A'}</td>
                     <td>${item.childStatus || 'N/A'}</td>
                     <td>${item.childAvailableStock || 0}</td>
@@ -157,7 +161,7 @@ function StockManagement() {
                       <td>${item.available_stock || 0}</td>
                       <td>${item.reserved_stock || 0}</td>
                       <td>${item.total_stock || 0}</td>
-                      <td>${item.available_from ? new Date(item.available_from).toLocaleDateString() : 'N/A'}</td>
+                      <td>${item.container_no || 'N/A'}</td>
                       <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     ` : `
@@ -294,33 +298,33 @@ function StockManagement() {
         parentMap[part.id] = part;
       });
       
-      // Find all parts that have parent_id (child parts) and match with their parents
-      const relations = [];
-      data.forEach(part => {
-        if (part.parent_id && parentMap[part.parent_id]) {
-          relations.push({
-            parentId: part.parent_id,
-            parentName: parentMap[part.parent_id].name,
-            parentManufacturer: parentMap[part.parent_id].manufacturer,
-            parentStatus: parentMap[part.parent_id].stock_status,
-            parentAvailableStock: parentMap[part.parent_id].available_stock,
-            parentTotalStock: parentMap[part.parent_id].total_stock,
-            childId: part.id,
-            childName: part.name,
-            childManufacturer: part.manufacturer,
-            childStatus: part.stock_status,
-            childAvailableStock: part.available_stock,
-            childReservedStock: part.reserved_stock,
-            childSoldStock: part.sold_stock,
-            childTotalStock: part.total_stock,
-            childRecommendedPrice: part.recommended_price,
-            childAvailableFrom: part.available_from,
-            childSoldDate: part.sold_date
-          });
-        }
-      });
-      
-      // Sort by parent ID, then by child ID
+        // Find all parts that have parent_id (child parts) and match with their parents
+        const relations = [];
+        data.forEach(part => {
+          if (part.parent_id && parentMap[part.parent_id]) {
+            relations.push({
+              parentId: part.parent_id,
+              parentName: parentMap[part.parent_id].name,
+              parentManufacturer: parentMap[part.parent_id].manufacturer,
+              parentPartNumber: parentMap[part.parent_id].part_number,
+              parentStatus: parentMap[part.parent_id].stock_status,
+              parentAvailableStock: parentMap[part.parent_id].available_stock,
+              parentTotalStock: parentMap[part.parent_id].total_stock,
+              childId: part.id,
+              childName: part.name,
+              childManufacturer: part.manufacturer,
+              childPartNumber: part.part_number,
+              childStatus: part.stock_status,
+              childAvailableStock: part.available_stock,
+              childReservedStock: part.reserved_stock,
+              childSoldStock: part.sold_stock,
+              childTotalStock: part.total_stock,
+              childRecommendedPrice: part.recommended_price,
+              childAvailableFrom: part.available_from,
+              childSoldDate: part.sold_date
+            });
+          }
+        });      // Sort by parent ID, then by child ID
       relations.sort((a, b) => {
         if (a.parentId !== b.parentId) {
           return a.parentId - b.parentId;
@@ -387,7 +391,7 @@ function StockManagement() {
                       <th>Available Qty</th>
                       <th>Reserved Qty</th>
                       <th>Total Stock</th>
-                      <th>Available From</th>
+                      <th>Container No.</th>
                       <th>Unit Price (Rs.)</th>
                       <th>Total Value (Rs.)</th>
                     </tr>
@@ -401,7 +405,7 @@ function StockManagement() {
                         <td><span className="badge bg-success">{part.available_stock || 0}</span></td>
                         <td><span className="badge bg-warning">{part.reserved_stock || 0}</span></td>
                         <td><span className="badge bg-info">{part.total_stock || 0}</span></td>
-                        <td>{part.available_from ? part.available_from.slice(0, 10) : 'N/A'}</td>
+                        <td>{part.container_no || 'N/A'}</td>
                         <td>{
                           part.recommended_price !== null && part.recommended_price !== undefined
                             ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
@@ -564,11 +568,13 @@ function StockManagement() {
                     <tr>
                       <th>Parent ID</th>
                       <th>Parent Name</th>
+                      <th>Parent Part No.</th>
                       <th>Parent Manufacturer</th>
                       <th>Parent Status</th>
                       <th>Parent Stock</th>
                       <th>Child ID</th>
                       <th>Child Name</th>
+                      <th>Child Part No.</th>
                       <th>Child Manufacturer</th>
                       <th>Child Status</th>
                       <th>Child Available</th>
@@ -585,6 +591,7 @@ function StockManagement() {
                       <tr key={index}>
                         <td>{relation.parentId}</td>
                         <td>{relation.parentName}</td>
+                        <td>{relation.parentPartNumber || 'N/A'}</td>
                         <td>{relation.parentManufacturer || 'N/A'}</td>
                         <td>
                           <span className={
@@ -604,6 +611,7 @@ function StockManagement() {
                         </td>
                         <td>{relation.childId}</td>
                         <td>{relation.childName}</td>
+                        <td>{relation.childPartNumber || 'N/A'}</td>
                         <td>{relation.childManufacturer || 'N/A'}</td>
                         <td>
                           <span className={
