@@ -7,10 +7,21 @@ function Sales({ token, userRole }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [partSearchTerm, setPartSearchTerm] = useState('');
   const [searchParentIdOnly, setSearchParentIdOnly] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(true);
+  
+  // Pagination state for bills
+  const [billsSearchTerm, setBillsSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    pages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false
+  });
   
   // Sale form state
   const [customerName, setCustomerName] = useState('');
@@ -67,39 +78,6 @@ function Sales({ token, userRole }) {
   // Reservation details expansion state
   const [expandedReservations, setExpandedReservations] = useState(new Set());
 
-  // Filter bills based on search term
-  const filterBills = (bills, searchTerm) => {
-    if (!searchTerm.trim()) return bills;
-    
-    const term = searchTerm.toLowerCase().trim();
-    
-    return bills.filter(bill => {
-      // Search by bill number
-      if (bill.bill_number && bill.bill_number.toString().toLowerCase().includes(term)) return true;
-      
-      // Search by bill ID
-      if (bill.id && bill.id.toString().toLowerCase().includes(term)) return true;
-      
-      // Search by customer name
-      if (bill.customer_name && bill.customer_name.toLowerCase().includes(term)) return true;
-      
-      // Search by customer phone
-      if (bill.customer_phone && bill.customer_phone.toLowerCase().includes(term)) return true;
-      
-      // Search by part names in bill items
-      if (bill.items && bill.items.length > 0) {
-        const hasPartMatch = bill.items.some(item => 
-          (item.part_name && item.part_name.toLowerCase().includes(term)) ||
-          (item.manufacturer && item.manufacturer.toLowerCase().includes(term)) ||
-          (item.part_id && item.part_id.toString().toLowerCase().includes(term))
-        );
-        if (hasPartMatch) return true;
-      }
-      
-      return false;
-    });
-  };
-
   // Filter parts based on search term
   const filterParts = (parts, searchTerm) => {
     if (!searchTerm.trim()) return parts;
@@ -149,20 +127,45 @@ function Sales({ token, userRole }) {
     }
   };
 
-  // Fetch bills
-  const fetchBills = async () => {
+  // Fetch bills with pagination
+  const fetchBills = async (page = 1, search = '') => {
     try {
       setLoading(true);
-      const res = await fetch(API_ENDPOINTS.BILLS, {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '20'
+      });
+      
+      if (search.trim()) {
+        params.append('search', search.trim());
+      }
+      
+      const res = await fetch(`${API_ENDPOINTS.BILLS}?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch bills');
       const data = await res.json();
-      setBills(data);
+      setBills(data.bills || []);
+      setPagination(data.pagination || {});
+      setCurrentPage(page);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle bills search
+  const handleBillsSearch = (searchTerm) => {
+    setBillsSearchTerm(searchTerm);
+    setCurrentPage(1);
+    fetchBills(1, searchTerm);
+  };
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.pages) {
+      fetchBills(newPage, billsSearchTerm);
     }
   };
 
@@ -1368,35 +1371,36 @@ function Sales({ token, userRole }) {
                 type="text"
                 className="form-control"
                 placeholder="Search bills by number, customer name, phone, or part name"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
+                value={billsSearchTerm}
+                onChange={e => handleBillsSearch(e.target.value)}
               />
             </div>
           )}
         </div>
         {showSalesHistory && (
           <div className="card-body">
-            {filterBills(bills, searchTerm).length === 0 ? (
+            {bills.length === 0 && !loading ? (
               <div className="text-muted text-center">
-                {bills.length === 0 ? 'No bills found' : 'No bills match your search'}
+                {billsSearchTerm ? 'No bills match your search' : 'No bills found'}
               </div>
             ) : (
-              <div className="table-responsive">
-                <table className="table table-striped">
-                  <thead>
-                  <tr>
-                    <th>Bill #</th>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th>Phone</th>
-                    <th>Items</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filterBills(bills, searchTerm).map(bill => (
+              <>
+                <div className="table-responsive">
+                  <table className="table table-striped">
+                    <thead>
+                    <tr>
+                      <th>Bill #</th>
+                      <th>Date</th>
+                      <th>Customer</th>
+                      <th>Phone</th>
+                      <th>Items</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bills.map(bill => (
                     <React.Fragment key={bill.id}>
                       <tr>
                         <td>{bill.bill_number || bill.id}</td>
@@ -1539,8 +1543,60 @@ function Sales({ token, userRole }) {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+            
+            {/* Pagination Controls */}
+            {pagination.pages > 1 && (
+              <div className="d-flex justify-content-between align-items-center mt-3">
+                <div className="text-muted">
+                  Showing page {pagination.page} of {pagination.pages} ({pagination.total} total bills)
+                </div>
+                <nav aria-label="Bills pagination">
+                  <ul className="pagination pagination-sm mb-0">
+                    <li className={`page-item ${!pagination.hasPreviousPage ? 'disabled' : ''}`}>
+                      <button 
+                        className="page-link" 
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={!pagination.hasPreviousPage}
+                      >
+                        Previous
+                      </button>
+                    </li>
+                    
+                    {/* Page numbers */}
+                    {Array.from({ length: Math.min(pagination.pages, 5) }, (_, i) => {
+                      const startPage = Math.max(1, currentPage - 2);
+                      const pageNum = startPage + i;
+                      if (pageNum <= pagination.pages) {
+                        return (
+                          <li key={pageNum} className={`page-item ${currentPage === pageNum ? 'active' : ''}`}>
+                            <button 
+                              className="page-link" 
+                              onClick={() => handlePageChange(pageNum)}
+                            >
+                              {pageNum}
+                            </button>
+                          </li>
+                        );
+                      }
+                      return null;
+                    })}
+                    
+                    <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
+                      <button 
+                        className="page-link" 
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={!pagination.hasNextPage}
+                      >
+                        Next
+                      </button>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
+            )}
+          </>
+            )}
+          </div>
         )}
       </div>
 
