@@ -27,8 +27,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     CONSTRAINT fk_reservations_created_by FOREIGN KEY (created_by) REFERENCES users(id),
     CONSTRAINT fk_reservations_completed_by FOREIGN KEY (completed_by) REFERENCES users(id),
     
-    -- Constraints
-    CONSTRAINT chk_deposit_not_exceed_total CHECK (deposit_amount <= total_amount),
+    -- Constraints (removed the problematic constraint)
     CONSTRAINT chk_amounts_positive CHECK (total_amount >= 0 AND deposit_amount >= 0)
 );
 
@@ -114,6 +113,25 @@ BEGIN
     RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
+
+-- Function to validate deposit amount doesn't exceed total (called after total is updated)
+CREATE OR REPLACE FUNCTION validate_reservation_deposit()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Only validate if the reservation has items (total_amount > 0)
+    IF NEW.total_amount > 0 AND NEW.deposit_amount > NEW.total_amount THEN
+        RAISE EXCEPTION 'Deposit amount (%) cannot exceed total reservation amount (%)', 
+            NEW.deposit_amount, NEW.total_amount;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to validate deposit after total is updated
+CREATE TRIGGER trigger_validate_reservation_deposit
+    BEFORE UPDATE OF total_amount, deposit_amount ON reservations
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_reservation_deposit();
 
 -- Create triggers to update reservation total when items are added/updated/deleted
 CREATE TRIGGER trigger_update_reservation_total_on_insert

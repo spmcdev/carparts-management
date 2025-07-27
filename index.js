@@ -547,11 +547,14 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
       });
     }
     
+    // Ensure deposit_amount is not greater than total_amount
+    const finalDepositAmount = Math.min(deposit_amount || 0, total_amount);
+    
     // Generate reservation number
     const reservationResult = await pool.query('SELECT generate_reservation_number() as number');
     const reservationNumber = reservationResult.rows[0].number;
     
-    // Create main reservation
+    // Create main reservation with calculated total
     const newReservationResult = await pool.query(`
       INSERT INTO reservations (
         reservation_number, customer_name, customer_phone, 
@@ -559,7 +562,7 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
     `, [
       reservationNumber, customer_name, customer_phone, 
-      total_amount, deposit_amount, notes, req.user.id
+      total_amount, finalDepositAmount, notes, req.user.id
     ]);
     
     const reservation = newReservationResult.rows[0];
