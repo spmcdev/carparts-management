@@ -1415,6 +1415,293 @@ app.put('/bills/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Add bill item (SuperAdmin only)
+app.post('/bills/:billId/items', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { billId } = req.params;
+  const { part_id, quantity, unit_price } = req.body;
+  
+  try {
+    if (!part_id || !quantity || !unit_price) {
+      return res.status(400).json({ error: 'Part ID, quantity, and unit price are required' });
+    }
+
+    await pool.query('BEGIN');
+
+    try {
+      // Get part details
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [part_id]);
+      if (partResult.rows.length === 0) {
+        throw new Error('Part not found');
+      }
+      const part = partResult.rows[0];
+
+      // Check if part has sufficient stock
+      if (part.available_stock < quantity) {
+        throw new Error(`Insufficient stock. Available: ${part.available_stock}, Requested: ${quantity}`);
+      }
+
+      // Add item to bill
+      const total_price = quantity * unit_price;
+      const itemResult = await pool.query(
+        `INSERT INTO bill_items (bill_id, part_id, part_name, manufacturer, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [billId, part_id, part.name, part.manufacturer, quantity, unit_price, total_price]
+      );
+
+      // Update part stock
+      await pool.query(
+        `UPDATE parts 
+         SET available_stock = available_stock - $1, sold_stock = sold_stock + $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [quantity, part_id]
+      );
+
+      // Update bill total
+      await pool.query(
+        `UPDATE bills 
+         SET total_amount = (
+           SELECT COALESCE(SUM(total_price), 0) 
+           FROM bill_items 
+           WHERE bill_id = $1
+         )
+         WHERE id = $1`,
+        [billId]
+      );
+
+      // Log stock movement
+      await logStockMovement(
+        part_id,
+        'sale',
+        quantity,
+        part.available_stock,
+        part.available_stock - quantity,
+        'bill_edit',
+        billId,
+        `Item added to bill ${billId} by SuperAdmin`,
+        req.user.id
+      );
+
+      await pool.query('COMMIT');
+
+      // Log audit action
+      await logAuditAction(
+        req.user,
+        'ADD_BILL_ITEM',
+        'bill_items',
+        itemResult.rows[0].id,
+        null,
+        itemResult.rows[0],
+        req
+      );
+
+      res.json(itemResult.rows[0]);
+
+    } catch (itemErr) {
+      await pool.query('ROLLBACK');
+      throw itemErr;
+    }
+
+  } catch (err) {
+    console.error('Error adding bill item:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update bill item (SuperAdmin only)
+app.put('/bills/:billId/items/:itemId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { billId, itemId } = req.params;
+  const { quantity, unit_price } = req.body;
+  
+  try {
+    if (!quantity || !unit_price) {
+      return res.status(400).json({ error: 'Quantity and unit price are required' });
+    }
+
+    await pool.query('BEGIN');
+
+    try {
+      // Get current item details
+      const itemResult = await pool.query(
+        'SELECT * FROM bill_items WHERE id = $1 AND bill_id = $2',
+        [itemId, billId]
+      );
+      
+      if (itemResult.rows.length === 0) {
+        throw new Error('Bill item not found');
+      }
+      
+      const currentItem = itemResult.rows[0];
+      const quantityDiff = quantity - currentItem.quantity;
+      
+      // Get part details for stock check
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [currentItem.part_id]);
+      if (partResult.rows.length === 0) {
+        throw new Error('Part not found');
+      }
+      const part = partResult.rows[0];
+
+      // Check stock availability for quantity increase
+      if (quantityDiff > 0 && part.available_stock < quantityDiff) {
+        throw new Error(`Insufficient stock for increase. Available: ${part.available_stock}, Needed: ${quantityDiff}`);
+      }
+
+      // Update bill item
+      const total_price = quantity * unit_price;
+      const updatedItemResult = await pool.query(
+        `UPDATE bill_items 
+         SET quantity = $1, unit_price = $2, total_price = $3
+         WHERE id = $4 AND bill_id = $5 RETURNING *`,
+        [quantity, unit_price, total_price, itemId, billId]
+      );
+
+      // Update part stock
+      await pool.query(
+        `UPDATE parts 
+         SET available_stock = available_stock + $1, sold_stock = sold_stock - $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [quantityDiff * -1, currentItem.part_id] // Negative because we're adjusting in opposite direction
+      );
+
+      // Update bill total
+      await pool.query(
+        `UPDATE bills 
+         SET total_amount = (
+           SELECT COALESCE(SUM(total_price), 0) 
+           FROM bill_items 
+           WHERE bill_id = $1
+         )
+         WHERE id = $1`,
+        [billId]
+      );
+
+      // Log stock movement
+      await logStockMovement(
+        currentItem.part_id,
+        quantityDiff > 0 ? 'sale' : 'return',
+        Math.abs(quantityDiff),
+        part.available_stock,
+        part.available_stock - quantityDiff,
+        'bill_edit',
+        billId,
+        `Item quantity updated in bill ${billId} by SuperAdmin (${currentItem.quantity} → ${quantity})`,
+        req.user.id
+      );
+
+      await pool.query('COMMIT');
+
+      // Log audit action
+      await logAuditAction(
+        req.user,
+        'UPDATE_BILL_ITEM',
+        'bill_items',
+        parseInt(itemId),
+        currentItem,
+        updatedItemResult.rows[0],
+        req
+      );
+
+      res.json(updatedItemResult.rows[0]);
+
+    } catch (itemErr) {
+      await pool.query('ROLLBACK');
+      throw itemErr;
+    }
+
+  } catch (err) {
+    console.error('Error updating bill item:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete bill item (SuperAdmin only)
+app.delete('/bills/:billId/items/:itemId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { billId, itemId } = req.params;
+  
+  try {
+    await pool.query('BEGIN');
+
+    try {
+      // Get item details before deletion
+      const itemResult = await pool.query(
+        'SELECT * FROM bill_items WHERE id = $1 AND bill_id = $2',
+        [itemId, billId]
+      );
+      
+      if (itemResult.rows.length === 0) {
+        throw new Error('Bill item not found');
+      }
+      
+      const item = itemResult.rows[0];
+      
+      // Get part details
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+      if (partResult.rows.length === 0) {
+        throw new Error('Part not found');
+      }
+      const part = partResult.rows[0];
+
+      // Delete the item
+      await pool.query('DELETE FROM bill_items WHERE id = $1 AND bill_id = $2', [itemId, billId]);
+
+      // Restore stock
+      await pool.query(
+        `UPDATE parts 
+         SET available_stock = available_stock + $1, sold_stock = sold_stock - $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [item.quantity, item.part_id]
+      );
+
+      // Update bill total
+      await pool.query(
+        `UPDATE bills 
+         SET total_amount = (
+           SELECT COALESCE(SUM(total_price), 0) 
+           FROM bill_items 
+           WHERE bill_id = $1
+         )
+         WHERE id = $1`,
+        [billId]
+      );
+
+      // Log stock movement
+      await logStockMovement(
+        item.part_id,
+        'return',
+        item.quantity,
+        part.available_stock,
+        part.available_stock + item.quantity,
+        'bill_edit',
+        billId,
+        `Item removed from bill ${billId} by SuperAdmin`,
+        req.user.id
+      );
+
+      await pool.query('COMMIT');
+
+      // Log audit action
+      await logAuditAction(
+        req.user,
+        'DELETE_BILL_ITEM',
+        'bill_items',
+        parseInt(itemId),
+        item,
+        null,
+        req
+      );
+
+      res.json({ message: 'Bill item deleted successfully' });
+
+    } catch (itemErr) {
+      await pool.query('ROLLBACK');
+      throw itemErr;
+    }
+
+  } catch (err) {
+    console.error('Error deleting bill item:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Process refund
 app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;

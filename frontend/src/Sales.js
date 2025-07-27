@@ -21,6 +21,12 @@ function Sales({ token, userRole }) {
   // Edit bill modal state
   const [editingBill, setEditingBill] = useState(null);
   const [editBillData, setEditBillData] = useState({});
+  const [editingBillItems, setEditingBillItems] = useState([]);
+  const [newItemData, setNewItemData] = useState({
+    part_id: '',
+    quantity: 1,
+    unit_price: ''
+  });
   
   // Refund modal state
   const [refundingBill, setRefundingBill] = useState(null);
@@ -404,6 +410,15 @@ function Sales({ token, userRole }) {
       customer_name: bill.customer_name,
       customer_phone: bill.customer_phone || ''
     });
+    // Initialize bill items for editing (SuperAdmin only)
+    if (userRole === 'superadmin') {
+      setEditingBillItems(bill.items || []);
+      setNewItemData({
+        part_id: '',
+        quantity: 1,
+        unit_price: ''
+      });
+    }
   };
 
   const saveEditBill = async () => {
@@ -428,12 +443,132 @@ function Sales({ token, userRole }) {
       setSuccess('Bill updated successfully');
       setEditingBill(null);
       setEditBillData({});
+      setEditingBillItems([]);
+      setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
       fetchBills();
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Add bill item (SuperAdmin only)
+  const addBillItem = async () => {
+    if (!newItemData.part_id || !newItemData.quantity || !newItemData.unit_price) {
+      setError('Please fill all item details');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+
+      const res = await fetch(`${API_ENDPOINTS.BILLS}/${editingBill.id}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(newItemData)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to add item');
+      }
+
+      const newItem = await res.json();
+      setEditingBillItems([...editingBillItems, newItem]);
+      setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
+      setSuccess('Item added successfully');
+      
+      // Refresh the bill to update total
+      fetchBills();
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update bill item (SuperAdmin only)
+  const updateBillItem = async (itemId, updatedData) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+
+      const res = await fetch(`${API_ENDPOINTS.BILLS}/${editingBill.id}/items/${itemId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedData)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update item');
+      }
+
+      const updatedItem = await res.json();
+      setEditingBillItems(editingBillItems.map(item => 
+        item.id === itemId ? updatedItem : item
+      ));
+      setSuccess('Item updated successfully');
+      
+      // Refresh the bill to update total
+      fetchBills();
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete bill item (SuperAdmin only)
+  const deleteBillItem = async (itemId) => {
+    if (!window.confirm('Are you sure you want to remove this item from the bill?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+
+      const res = await fetch(`${API_ENDPOINTS.BILLS}/${editingBill.id}/items/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to delete item');
+      }
+
+      setEditingBillItems(editingBillItems.filter(item => item.id !== itemId));
+      setSuccess('Item removed successfully');
+      
+      // Refresh the bill to update total
+      fetchBills();
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update item quantity/price inline
+  const handleItemChange = (itemId, field, value) => {
+    setEditingBillItems(editingBillItems.map(item => 
+      item.id === itemId ? { ...item, [field]: value } : item
+    ));
   };
 
   // Process refund
@@ -1279,44 +1414,227 @@ function Sales({ token, userRole }) {
       {/* Edit Bill Modal */}
       {editingBill && (
         <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
+          <div className={`modal-dialog ${userRole === 'superadmin' ? 'modal-xl' : ''}`}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Edit Bill #{editingBill.bill_number || editingBill.id}</h5>
-                <button type="button" className="btn-close" onClick={() => setEditingBill(null)}></button>
+                <button type="button" className="btn-close" onClick={() => {
+                  setEditingBill(null);
+                  setEditBillData({});
+                  setEditingBillItems([]);
+                  setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
+                }}></button>
               </div>
               <div className="modal-body">
-                <div className="mb-3">
-                  <label className="form-label">Bill Number</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={editBillData.bill_number}
-                    onChange={e => setEditBillData({...editBillData, bill_number: e.target.value})}
-                  />
+                {/* Basic Bill Information */}
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">Bill Number</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={editBillData.bill_number}
+                        onChange={e => setEditBillData({...editBillData, bill_number: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">Customer Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={editBillData.customer_name}
+                        onChange={e => setEditBillData({...editBillData, customer_name: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">Customer Phone</label>
+                      <input
+                        type="tel"
+                        className="form-control"
+                        value={editBillData.customer_phone}
+                        onChange={e => setEditBillData({...editBillData, customer_phone: e.target.value})}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="mb-3">
-                  <label className="form-label">Customer Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={editBillData.customer_name}
-                    onChange={e => setEditBillData({...editBillData, customer_name: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Customer Phone</label>
-                  <input
-                    type="tel"
-                    className="form-control"
-                    value={editBillData.customer_phone}
-                    onChange={e => setEditBillData({...editBillData, customer_phone: e.target.value})}
-                  />
-                </div>
+
+                {/* SuperAdmin Bill Items Editing */}
+                {userRole === 'superadmin' && (
+                  <>
+                    <hr />
+                    <h6 className="mb-3">
+                      <i className="fas fa-cog me-2"></i>
+                      Bill Items Management (SuperAdmin)
+                    </h6>
+                    
+                    {/* Add New Item */}
+                    <div className="card mb-3">
+                      <div className="card-header">
+                        <h6 className="mb-0">
+                          <i className="fas fa-plus me-2"></i>
+                          Add New Item
+                        </h6>
+                      </div>
+                      <div className="card-body">
+                        <div className="row">
+                          <div className="col-md-4">
+                            <select 
+                              className="form-select"
+                              value={newItemData.part_id}
+                              onChange={e => setNewItemData({...newItemData, part_id: e.target.value})}
+                            >
+                              <option value="">Select Part</option>
+                              {availableParts.map(part => (
+                                <option key={part.id} value={part.id}>
+                                  {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="col-md-3">
+                            <input
+                              type="number"
+                              className="form-control"
+                              placeholder="Quantity"
+                              value={newItemData.quantity}
+                              onChange={e => setNewItemData({...newItemData, quantity: parseInt(e.target.value) || 1})}
+                              min="1"
+                            />
+                          </div>
+                          <div className="col-md-3">
+                            <input
+                              type="number"
+                              className="form-control"
+                              placeholder="Unit Price"
+                              value={newItemData.unit_price}
+                              onChange={e => setNewItemData({...newItemData, unit_price: e.target.value})}
+                              step="0.01"
+                              min="0"
+                            />
+                          </div>
+                          <div className="col-md-2">
+                            <button 
+                              className="btn btn-success w-100" 
+                              onClick={addBillItem}
+                              disabled={loading || !newItemData.part_id || !newItemData.quantity || !newItemData.unit_price}
+                            >
+                              <i className="fas fa-plus"></i> Add
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Current Items */}
+                    <div className="card">
+                      <div className="card-header">
+                        <h6 className="mb-0">
+                          <i className="fas fa-list me-2"></i>
+                          Current Items
+                        </h6>
+                      </div>
+                      <div className="card-body">
+                        {editingBillItems.length === 0 ? (
+                          <p className="text-muted">No items in this bill</p>
+                        ) : (
+                          <div className="table-responsive">
+                            <table className="table table-sm">
+                              <thead>
+                                <tr>
+                                  <th>Part</th>
+                                  <th>Quantity</th>
+                                  <th>Unit Price</th>
+                                  <th>Total</th>
+                                  <th>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {editingBillItems.map(item => (
+                                  <tr key={item.id}>
+                                    <td>
+                                      <strong>{item.part_name}</strong><br />
+                                      <small className="text-muted">{item.manufacturer}</small>
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        className="form-control form-control-sm"
+                                        value={item.quantity}
+                                        onChange={e => handleItemChange(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                        min="1"
+                                        style={{ width: '80px' }}
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        className="form-control form-control-sm"
+                                        value={item.unit_price}
+                                        onChange={e => handleItemChange(item.id, 'unit_price', e.target.value)}
+                                        step="0.01"
+                                        min="0"
+                                        style={{ width: '100px' }}
+                                      />
+                                    </td>
+                                    <td>
+                                      <strong>${(item.quantity * item.unit_price).toFixed(2)}</strong>
+                                    </td>
+                                    <td>
+                                      <div className="btn-group btn-group-sm">
+                                        <button 
+                                          className="btn btn-primary"
+                                          onClick={() => updateBillItem(item.id, {
+                                            quantity: item.quantity,
+                                            unit_price: item.unit_price
+                                          })}
+                                          disabled={loading}
+                                          title="Save changes"
+                                        >
+                                          <i className="fas fa-save"></i>
+                                        </button>
+                                        <button 
+                                          className="btn btn-danger"
+                                          onClick={() => deleteBillItem(item.id)}
+                                          disabled={loading}
+                                          title="Remove item"
+                                        >
+                                          <i className="fas fa-trash"></i>
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="table-info">
+                                  <th colSpan="3">Total:</th>
+                                  <th>
+                                    ${editingBillItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0).toFixed(2)}
+                                  </th>
+                                  <th></th>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setEditingBill(null)} disabled={loading}>
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  setEditingBill(null);
+                  setEditBillData({});
+                  setEditingBillItems([]);
+                  setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
+                }} disabled={loading}>
                   Cancel
                 </button>
                 <button type="button" className="btn btn-primary" onClick={saveEditBill} disabled={loading}>
