@@ -2014,11 +2014,13 @@ app.post('/sales/sell', authenticateToken, async (req, res) => {
 
 // ====================== BILLS MANAGEMENT ROUTES ======================
 
-// Get all bills with search support
+// Get all bills with search support and pagination
 app.get('/bills', authenticateToken, async (req, res) => {
-  const { search } = req.query;
+  const { search, page = 1, limit = 20 } = req.query;
   
   try {
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
     let query = `
       SELECT 
         b.*,
@@ -2038,20 +2040,65 @@ app.get('/bills', authenticateToken, async (req, res) => {
     `;
     
     const queryParams = [];
+    let paramIndex = 1;
     
     if (search) {
       query += ` WHERE (
-        b.bill_number ILIKE $1 OR 
-        b.customer_name ILIKE $1 OR 
-        b.customer_phone ILIKE $1
+        b.bill_number ILIKE $${paramIndex} OR 
+        b.customer_name ILIKE $${paramIndex} OR 
+        b.customer_phone ILIKE $${paramIndex} OR
+        EXISTS (
+          SELECT 1 FROM bill_items bi2 
+          WHERE bi2.bill_id = b.id 
+          AND (bi2.part_name ILIKE $${paramIndex} OR bi2.manufacturer ILIKE $${paramIndex})
+        )
       )`;
       queryParams.push(`%${search}%`);
+      paramIndex++;
     }
     
-    query += ` GROUP BY b.id ORDER BY b.created_at DESC`;
+    query += ` GROUP BY b.id ORDER BY b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(parseInt(limit), offset);
     
     const result = await pool.query(query, queryParams);
-    res.json(result.rows);
+    
+    // Get total count for pagination
+    let countQuery = `
+      SELECT COUNT(DISTINCT b.id) as total
+      FROM bills b
+      LEFT JOIN bill_items bi ON b.id = bi.bill_id
+    `;
+    
+    const countParams = [];
+    
+    if (search) {
+      countQuery += ` WHERE (
+        b.bill_number ILIKE $1 OR 
+        b.customer_name ILIKE $1 OR 
+        b.customer_phone ILIKE $1 OR
+        EXISTS (
+          SELECT 1 FROM bill_items bi2 
+          WHERE bi2.bill_id = b.id 
+          AND (bi2.part_name ILIKE $1 OR bi2.manufacturer ILIKE $1)
+        )
+      )`;
+      countParams.push(`%${search}%`);
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
+    
+    res.json({
+      bills: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+        hasNextPage: parseInt(page) < Math.ceil(total / parseInt(limit)),
+        hasPreviousPage: parseInt(page) > 1
+      }
+    });
   } catch (err) {
     console.error('Error fetching bills:', err);
     res.status(500).json({ error: err.message });
