@@ -261,20 +261,24 @@ function Sales({ token, userRole }) {
 
   // Update reservation cart item quantity
   const updateReservationCartQuantity = (partId, quantity) => {
-    if (quantity < 1) return;
+    const numQuantity = parseInt(quantity);
+    if (numQuantity < 1 || isNaN(numQuantity)) return;
     
     setReservationCartItems(reservationCartItems.map(item => 
       item.part_id === partId 
-        ? { ...item, quantity: parseInt(quantity) }
+        ? { ...item, quantity: numQuantity }
         : item
     ));
   };
 
   // Update reservation cart item price
   const updateReservationCartPrice = (partId, price) => {
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice) || numPrice < 0) return;
+    
     setReservationCartItems(reservationCartItems.map(item => 
       item.part_id === partId 
-        ? { ...item, unit_price: parseFloat(price) || 0 }
+        ? { ...item, unit_price: numPrice }
         : item
     ));
   };
@@ -292,6 +296,27 @@ function Sales({ token, userRole }) {
   // Create enhanced multi-item reservation
   const createReservation = async (e) => {
     e.preventDefault();
+    console.log('Starting reservation creation...');
+    console.log('Reservation data:', reservationData);
+    console.log('API Base URL:', API_ENDPOINTS.BASE);
+    
+    // Test connectivity first
+    try {
+      console.log('Testing connectivity to backend...');
+      const connectivityTest = await fetch(`${API_ENDPOINTS.BASE}/`, {
+        method: 'GET'
+      });
+      console.log('Connectivity test status:', connectivityTest.status);
+      if (connectivityTest.ok) {
+        const response = await connectivityTest.text();
+        console.log('Backend response:', response);
+      }
+    } catch (connectError) {
+      console.error('Connectivity test failed:', connectError);
+      setError('Cannot connect to backend server. Please check your connection.');
+      return;
+    }
+    
     if (!reservationData.customer_name || !reservationData.customer_phone) {
       setError('Please fill in customer name and phone number');
       return;
@@ -303,12 +328,23 @@ function Sales({ token, userRole }) {
     }
 
     // Validate cart items
+    console.log('Reservation cart items before validation:', reservationCartItems);
     for (const item of reservationCartItems) {
-      if (!item.unit_price || item.unit_price <= 0) {
+      console.log('Validating item:', item);
+      
+      // Ensure quantity and unit_price are numbers
+      const quantity = Number(item.quantity);
+      const unit_price = Number(item.unit_price);
+      
+      if (!quantity || quantity <= 0 || isNaN(quantity)) {
+        setError(`Please set a valid quantity for ${item.part_name}`);
+        return;
+      }
+      if (!unit_price || unit_price <= 0 || isNaN(unit_price)) {
         setError(`Please set a valid price for ${item.part_name}`);
         return;
       }
-      if (item.quantity > item.available_stock) {
+      if (quantity > item.available_stock) {
         setError(`Insufficient stock for ${item.part_name}. Available: ${item.available_stock}`);
         return;
       }
@@ -319,10 +355,19 @@ function Sales({ token, userRole }) {
       setError('');
       
       const items = reservationCartItems.map(item => ({
-        part_id: item.part_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price
+        part_id: Number(item.part_id),
+        quantity: Number(item.quantity),
+        unit_price: Number(item.unit_price)
       }));
+
+      const requestData = {
+        ...reservationData,
+        deposit_amount: Number(reservationData.deposit_amount) || 0,
+        items
+      };
+
+      console.log('Creating reservation with data:', requestData);
+      console.log('API Endpoint:', `${API_ENDPOINTS.BASE}/api/reservations`);
 
       const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations`, {
         method: 'POST',
@@ -330,14 +375,15 @@ function Sales({ token, userRole }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          ...reservationData,
-          items
-        })
+        body: JSON.stringify(requestData)
       });
+
+      console.log('Response status:', res.status);
+      console.log('Response headers:', res.headers);
 
       if (!res.ok) {
         const errorData = await res.json();
+        console.error('Error response:', errorData);
         throw new Error(errorData.error || 'Failed to create reservation');
       }
 
