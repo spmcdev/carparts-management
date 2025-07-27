@@ -26,6 +26,8 @@ function Sales({ token, userRole }) {
   const [refundingBill, setRefundingBill] = useState(null);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [refundItems, setRefundItems] = useState([]);
+  const [refundType, setRefundType] = useState('full'); // 'full' or 'partial'
 
   // Bill details expansion state
   const [expandedBills, setExpandedBills] = useState(new Set());
@@ -439,20 +441,133 @@ function Sales({ token, userRole }) {
     setRefundingBill(bill);
     setRefundAmount(bill.total_amount);
     setRefundReason('');
+    setRefundType('full');
+    // Initialize refund items with all bill items
+    setRefundItems(bill.items.map(item => ({
+      ...item,
+      refund_quantity: 0,
+      refund_unit_price: item.unit_price,
+      refund_total: 0,
+      selected: false
+    })));
+  };
+
+  // Update refund item selection
+  const updateRefundItemSelection = (itemIndex, selected) => {
+    const updatedItems = refundItems.map((item, index) => {
+      if (index === itemIndex) {
+        const refund_quantity = selected ? item.quantity : 0;
+        return {
+          ...item,
+          selected,
+          refund_quantity,
+          refund_total: refund_quantity * item.refund_unit_price
+        };
+      }
+      return item;
+    });
+    setRefundItems(updatedItems);
+    updateRefundAmount(updatedItems);
+  };
+
+  // Update refund item quantity
+  const updateRefundItemQuantity = (itemIndex, quantity) => {
+    const updatedItems = refundItems.map((item, index) => {
+      if (index === itemIndex) {
+        const refund_quantity = Math.min(Math.max(0, quantity), item.quantity);
+        return {
+          ...item,
+          refund_quantity,
+          refund_total: refund_quantity * item.refund_unit_price,
+          selected: refund_quantity > 0
+        };
+      }
+      return item;
+    });
+    setRefundItems(updatedItems);
+    updateRefundAmount(updatedItems);
+  };
+
+  // Update refund item unit price
+  const updateRefundItemPrice = (itemIndex, price) => {
+    const updatedItems = refundItems.map((item, index) => {
+      if (index === itemIndex) {
+        const refund_unit_price = Math.max(0, parseFloat(price) || 0);
+        return {
+          ...item,
+          refund_unit_price,
+          refund_total: item.refund_quantity * refund_unit_price
+        };
+      }
+      return item;
+    });
+    setRefundItems(updatedItems);
+    updateRefundAmount(updatedItems);
+  };
+
+  // Calculate total refund amount from selected items
+  const updateRefundAmount = (items) => {
+    const total = items.reduce((sum, item) => sum + (item.selected ? item.refund_total : 0), 0);
+    setRefundAmount(total.toFixed(2));
+  };
+
+  // Select all items for refund
+  const selectAllRefundItems = () => {
+    const updatedItems = refundItems.map(item => ({
+      ...item,
+      selected: true,
+      refund_quantity: item.quantity,
+      refund_total: item.quantity * item.refund_unit_price
+    }));
+    setRefundItems(updatedItems);
+    updateRefundAmount(updatedItems);
+  };
+
+  // Clear all refund item selections
+  const clearAllRefundItems = () => {
+    const updatedItems = refundItems.map(item => ({
+      ...item,
+      selected: false,
+      refund_quantity: 0,
+      refund_total: 0
+    }));
+    setRefundItems(updatedItems);
+    updateRefundAmount(updatedItems);
   };
 
   const processRefund = async () => {
     try {
+      const refundData = {
+        refund_reason: refundReason
+      };
+
+      if (refundType === 'full') {
+        refundData.refund_amount = parseFloat(refundAmount);
+      } else {
+        // Partial refund - send selected items
+        const selectedItems = refundItems.filter(item => item.selected && item.refund_quantity > 0);
+        if (selectedItems.length === 0) {
+          setError('Please select at least one item to refund');
+          return;
+        }
+        
+        refundData.refund_type = 'partial';
+        refundData.refund_items = selectedItems.map(item => ({
+          part_id: item.part_id,
+          quantity: item.refund_quantity,
+          unit_price: item.refund_unit_price,
+          total_price: item.refund_total
+        }));
+        refundData.refund_amount = parseFloat(refundAmount);
+      }
+
       const res = await fetch(`${API_ENDPOINTS.BILLS}/${refundingBill.id}/refund`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          refund_amount: parseFloat(refundAmount),
-          refund_reason: refundReason
-        })
+        body: JSON.stringify(refundData)
       });
 
       if (!res.ok) {
@@ -464,6 +579,8 @@ function Sales({ token, userRole }) {
       setRefundingBill(null);
       setRefundAmount('');
       setRefundReason('');
+      setRefundItems([]);
+      setRefundType('full');
       fetchBills();
       fetchAvailableParts(); // Refresh in case stock was restored
     } catch (err) {
@@ -799,9 +916,6 @@ function Sales({ token, userRole }) {
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
-              <small className="text-muted">
-                💡 Search by: bill number, customer info, or any part name/manufacturer in the bill
-              </small>
             </div>
           )}
         </div>
@@ -1217,15 +1331,130 @@ function Sales({ token, userRole }) {
       {/* Refund Modal */}
       {refundingBill && (
         <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
+          <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Process Refund - Bill #{refundingBill.bill_number || refundingBill.id}</h5>
                 <button type="button" className="btn-close" onClick={() => setRefundingBill(null)}></button>
               </div>
               <div className="modal-body">
+                {/* Refund Type Selection */}
+                <div className="mb-4">
+                  <label className="form-label">Refund Type</label>
+                  <div className="btn-group w-100" role="group">
+                    <input 
+                      type="radio" 
+                      className="btn-check" 
+                      name="refundType" 
+                      id="fullRefund" 
+                      checked={refundType === 'full'}
+                      onChange={() => {
+                        setRefundType('full');
+                        setRefundAmount(refundingBill.total_amount);
+                      }}
+                    />
+                    <label className="btn btn-outline-danger" htmlFor="fullRefund">Full Refund</label>
+                    
+                    <input 
+                      type="radio" 
+                      className="btn-check" 
+                      name="refundType" 
+                      id="partialRefund" 
+                      checked={refundType === 'partial'}
+                      onChange={() => {
+                        setRefundType('partial');
+                        clearAllRefundItems();
+                      }}
+                    />
+                    <label className="btn btn-outline-warning" htmlFor="partialRefund">Partial Refund</label>
+                  </div>
+                </div>
+
+                {/* Partial Refund Item Selection */}
+                {refundType === 'partial' && (
+                  <div className="mb-4">
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <h6 className="mb-0">Select Items to Refund</h6>
+                      <div className="btn-group btn-group-sm">
+                        <button type="button" className="btn btn-outline-primary" onClick={selectAllRefundItems}>
+                          Select All
+                        </button>
+                        <button type="button" className="btn btn-outline-secondary" onClick={clearAllRefundItems}>
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="table-responsive" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-dark sticky-top">
+                          <tr>
+                            <th width="50">Select</th>
+                            <th>Part Name</th>
+                            <th width="80">Sold Qty</th>
+                            <th width="100">Refund Qty</th>
+                            <th width="120">Unit Price</th>
+                            <th width="120">Refund Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {refundItems.map((item, index) => (
+                            <tr key={index} className={item.selected ? 'table-warning' : ''}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  className="form-check-input"
+                                  checked={item.selected}
+                                  onChange={e => updateRefundItemSelection(index, e.target.checked)}
+                                />
+                              </td>
+                              <td>
+                                <div>
+                                  <strong>{item.part_name}</strong>
+                                  {item.manufacturer && <><br /><small className="text-muted">{item.manufacturer}</small></>}
+                                </div>
+                              </td>
+                              <td>
+                                <span className="badge bg-info">{item.quantity}</span>
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  value={item.refund_quantity}
+                                  onChange={e => updateRefundItemQuantity(index, parseInt(e.target.value) || 0)}
+                                  min="0"
+                                  max={item.quantity}
+                                  disabled={!item.selected}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  value={item.refund_unit_price}
+                                  onChange={e => updateRefundItemPrice(index, e.target.value)}
+                                  min="0"
+                                  step="0.01"
+                                  disabled={!item.selected}
+                                />
+                              </td>
+                              <td>
+                                <strong>Rs {item.refund_total.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Refund Amount */}
                 <div className="mb-3">
-                  <label className="form-label">Refund Amount</label>
+                  <label className="form-label">
+                    {refundType === 'full' ? 'Full Refund Amount' : 'Total Refund Amount'}
+                  </label>
                   <input
                     type="number"
                     className="form-control"
@@ -1235,9 +1464,15 @@ function Sales({ token, userRole }) {
                     max={refundingBill.total_amount}
                     step="0.01"
                     required
+                    readOnly={refundType === 'partial'}
                   />
-                  <small className="text-muted">Maximum: Rs {refundingBill.total_amount.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</small>
+                  <small className="text-muted">
+                    Maximum: Rs {refundingBill.total_amount.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    {refundType === 'partial' && ' (Amount calculated from selected items)'}
+                  </small>
                 </div>
+
+                {/* Refund Reason */}
                 <div className="mb-3">
                   <label className="form-label">Refund Reason</label>
                   <textarea
@@ -1246,18 +1481,32 @@ function Sales({ token, userRole }) {
                     onChange={e => setRefundReason(e.target.value)}
                     required
                     rows="3"
+                    placeholder="Please provide a reason for the refund..."
                   ></textarea>
                 </div>
-                <div className="alert alert-warning">
-                  <strong>Note:</strong> Full refunds will restore stock quantities automatically.
+
+                {/* Information Alert */}
+                <div className="alert alert-info">
+                  <h6><i className="fas fa-info-circle me-2"></i>Refund Information</h6>
+                  <ul className="mb-0">
+                    <li><strong>Full Refund:</strong> All items will be returned to stock and full amount refunded</li>
+                    <li><strong>Partial Refund:</strong> Only selected quantities will be returned to stock</li>
+                    <li><strong>Stock Adjustment:</strong> Returned items will automatically increase available stock</li>
+                  </ul>
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setRefundingBill(null)}>
                   Cancel
                 </button>
-                <button type="button" className="btn btn-danger" onClick={processRefund}>
-                  Process Refund
+                <button 
+                  type="button" 
+                  className="btn btn-danger" 
+                  onClick={processRefund}
+                  disabled={refundType === 'partial' && refundItems.filter(item => item.selected).length === 0}
+                >
+                  <i className="fas fa-undo me-2"></i>
+                  Process {refundType === 'full' ? 'Full' : 'Partial'} Refund
                 </button>
               </div>
             </div>

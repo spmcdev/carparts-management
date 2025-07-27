@@ -1418,7 +1418,7 @@ app.put('/bills/:id', authenticateToken, requireAdmin, async (req, res) => {
 // Process refund
 app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { refund_amount, refund_reason } = req.body;
+  const { refund_amount, refund_reason, refund_type, refund_items } = req.body;
   
   try {
     if (!refund_amount || !refund_reason) {
@@ -1434,6 +1434,8 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
                json_agg(
                  json_build_object(
                    'part_id', bi.part_id,
+                   'part_name', p.name,
+                   'manufacturer', p.manufacturer,
                    'quantity', bi.quantity,
                    'unit_price', bi.unit_price,
                    'total_price', bi.total_price
@@ -1441,6 +1443,7 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
                ) as items
         FROM bills b
         LEFT JOIN bill_items bi ON b.id = bi.bill_id
+        LEFT JOIN parts p ON bi.part_id = p.id
         WHERE b.id = $1
         GROUP BY b.id
       `, [id]);
@@ -1455,50 +1458,110 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
         throw new Error('Bill is already fully refunded');
       }
       
-      // Determine refund status
+      // Determine refund status and items to refund
       let newStatus = 'refunded';
-      if (parseFloat(refund_amount) < parseFloat(bill.total_amount)) {
+      let itemsToRefund = bill.items;
+      
+      if (refund_type === 'partial') {
         newStatus = 'partially_refunded';
+        
+        if (!refund_items || refund_items.length === 0) {
+          throw new Error('Partial refund requires selected items');
+        }
+        
+        // Validate refund items
+        for (const refundItem of refund_items) {
+          const originalItem = bill.items.find(item => item.part_id === refundItem.part_id);
+          if (!originalItem) {
+            throw new Error(`Part ID ${refundItem.part_id} not found in bill`);
+          }
+          if (refundItem.quantity > originalItem.quantity) {
+            throw new Error(`Cannot refund ${refundItem.quantity} units of part ${refundItem.part_id}, only ${originalItem.quantity} were sold`);
+          }
+        }
+        
+        itemsToRefund = refund_items;
+        
+        // Check if this is actually a full refund (all items with full quantities)
+        const isFullRefund = refund_items.length === bill.items.length && 
+          refund_items.every(refundItem => {
+            const originalItem = bill.items.find(item => item.part_id === refundItem.part_id);
+            return originalItem && refundItem.quantity === originalItem.quantity;
+          });
+        
+        if (isFullRefund) {
+          newStatus = 'refunded';
+        }
+      } else {
+        // Full refund - set refund_amount to original bill amount if not specified
+        if (parseFloat(refund_amount) < parseFloat(bill.total_amount)) {
+          newStatus = 'partially_refunded';
+        }
       }
       
       // Update bill with refund information
       const updatedBillResult = await pool.query(
         `UPDATE bills 
          SET status = $1, refund_date = CURRENT_DATE, refund_reason = $2, 
-             refund_amount = $3, refunded_by = $4
+             refund_amount = COALESCE(refund_amount, 0) + $3, refunded_by = $4
          WHERE id = $5 RETURNING *`,
         [newStatus, refund_reason, refund_amount, req.user.id, id]
       );
       
-      // If full refund, restore stock for all items
-      if (newStatus === 'refunded') {
-        for (const item of bill.items) {
-          if (item.part_id) {
-            // Get current part stock
-            const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
-            if (partResult.rows.length > 0) {
-              const part = partResult.rows[0];
-              const newAvailableStock = part.available_stock + item.quantity;
-              const newSoldStock = part.sold_stock - item.quantity;
-              
+      // Create refund record for tracking
+      await pool.query(
+        `INSERT INTO bill_refunds (bill_id, refund_amount, refund_reason, refund_type, refunded_by, refund_date)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)`,
+        [id, refund_amount, refund_reason, refund_type || 'full', req.user.id]
+      );
+      
+      // Get the refund ID for item tracking
+      const refundResult = await pool.query(
+        'SELECT id FROM bill_refunds WHERE bill_id = $1 ORDER BY refund_date DESC LIMIT 1',
+        [id]
+      );
+      const refundId = refundResult.rows[0]?.id;
+      
+      // Restore stock for refunded items
+      for (const item of itemsToRefund) {
+        const refundQuantity = refund_type === 'partial' ? item.quantity : 
+          bill.items.find(bi => bi.part_id === item.part_id)?.quantity || item.quantity;
+        
+        if (item.part_id && refundQuantity > 0) {
+          // Get current part stock
+          const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+          if (partResult.rows.length > 0) {
+            const part = partResult.rows[0];
+            const newAvailableStock = part.available_stock + refundQuantity;
+            const newSoldStock = part.sold_stock - refundQuantity;
+            
+            await pool.query(
+              `UPDATE parts 
+               SET available_stock = $1, sold_stock = $2, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $3`,
+              [newAvailableStock, newSoldStock, item.part_id]
+            );
+            
+            // Log stock movement
+            await logStockMovement(
+              item.part_id,
+              'return',
+              refundQuantity,
+              part.available_stock,
+              newAvailableStock,
+              'refund',
+              bill.id,
+              `${refund_type === 'partial' ? 'Partial refund' : 'Full refund'} for bill ${bill.bill_number || bill.id}`,
+              req.user.id
+            );
+            
+            // Record refund item detail if we have a refund ID
+            if (refundId) {
               await pool.query(
-                `UPDATE parts 
-                 SET available_stock = $1, sold_stock = $2, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $3`,
-                [newAvailableStock, newSoldStock, item.part_id]
-              );
-              
-              // Log stock movement
-              await logStockMovement(
-                item.part_id,
-                'return',
-                item.quantity,
-                part.available_stock,
-                newAvailableStock,
-                'bill',
-                bill.id,
-                `Refund for bill ${bill.bill_number || bill.id}`,
-                req.user.id
+                `INSERT INTO bill_refund_items (refund_id, part_id, quantity, unit_price, total_price)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [refundId, item.part_id, refundQuantity, item.unit_price || item.refund_unit_price, 
+                 refundQuantity * (item.unit_price || item.refund_unit_price)]
               );
             }
           }
@@ -1510,11 +1573,15 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
       // Log audit action
       await logAuditAction(
         req.user,
-        'REFUND',
+        refund_type === 'partial' ? 'PARTIAL_REFUND' : 'FULL_REFUND',
         'bills',
         parseInt(id),
         bill,
-        updatedBillResult.rows[0],
+        {
+          ...updatedBillResult.rows[0],
+          refunded_items: itemsToRefund,
+          refund_type: refund_type || 'full'
+        },
         req
       );
       
