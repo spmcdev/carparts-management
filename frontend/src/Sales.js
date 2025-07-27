@@ -2076,7 +2076,7 @@ function Sales({ token, userRole }) {
                   Cancel
                 </button>
                 <button type="button" className="btn btn-primary" onClick={saveEditBill} disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Changes'}
+                  {loading ? 'Updating...' : 'Update Basic Info'}
                 </button>
               </div>
             </div>
@@ -2572,7 +2572,8 @@ function Sales({ token, userRole }) {
                                 disabled={loading}
                                 title="Update Item"
                               >
-                                <i className="fas fa-save"></i>
+                                <i className="fas fa-save me-1"></i>
+                                Update
                               </button>
                               <button
                                 type="button"
@@ -2581,7 +2582,8 @@ function Sales({ token, userRole }) {
                                 disabled={loading}
                                 title="Delete Item"
                               >
-                                <i className="fas fa-trash"></i>
+                                <i className="fas fa-trash me-1"></i>
+                                Delete
                               </button>
                             </div>
                           </td>
