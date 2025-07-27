@@ -13,6 +13,7 @@ function Sales({ token, userRole }) {
   
   // Pagination state for bills
   const [billsSearchTerm, setBillsSearchTerm] = useState('');
+  const [billsSearchInput, setBillsSearchInput] = useState(''); // For the input field
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -155,12 +156,26 @@ function Sales({ token, userRole }) {
     }
   };
 
-  // Handle bills search
-  const handleBillsSearch = (searchTerm) => {
-    setBillsSearchTerm(searchTerm);
-    setCurrentPage(1);
-    fetchBills(1, searchTerm);
+  // Handle search input change (immediate UI update, debounced API call)
+  const handleBillsSearchInput = (inputValue) => {
+    setBillsSearchInput(inputValue);
+    // Don't trigger search immediately - let useEffect handle debouncing
   };
+
+  // Debounced search effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      // Only trigger search if the input value has changed
+      if (billsSearchInput !== billsSearchTerm) {
+        setBillsSearchTerm(billsSearchInput);
+        setCurrentPage(1);
+        fetchBills(1, billsSearchInput);
+      }
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timeoutId);
+  }, [billsSearchInput]); // Only depend on input to avoid infinite loops
 
   // Handle page change
   const handlePageChange = (newPage) => {
@@ -183,6 +198,7 @@ function Sales({ token, userRole }) {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchAvailableParts();
     fetchBills();
@@ -1366,14 +1382,19 @@ function Sales({ token, userRole }) {
             </button>
           </div>
           {showSalesHistory && (
-            <div className="col-md-4">
+            <div className="col-md-4 position-relative">
               <input
                 type="text"
                 className="form-control"
                 placeholder="Search bills by number, customer name, phone, or part name"
-                value={billsSearchTerm}
-                onChange={e => handleBillsSearch(e.target.value)}
+                value={billsSearchInput}
+                onChange={e => handleBillsSearchInput(e.target.value)}
               />
+              {billsSearchInput !== billsSearchTerm && (
+                <small className="text-muted position-absolute" style={{right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px'}}>
+                  Searching...
+                </small>
+              )}
             </div>
           )}
         </div>
