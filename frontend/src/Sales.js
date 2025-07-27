@@ -27,6 +27,9 @@ function Sales({ token, userRole }) {
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
 
+  // Bill details expansion state
+  const [expandedBills, setExpandedBills] = useState(new Set());
+
   // Reservation state
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [reservations, setReservations] = useState([]);
@@ -534,6 +537,17 @@ function Sales({ token, userRole }) {
     printWindow.print();
   };
 
+  // Toggle bill details expansion
+  const toggleBillDetails = (billId) => {
+    const newExpandedBills = new Set(expandedBills);
+    if (newExpandedBills.has(billId)) {
+      newExpandedBills.delete(billId);
+    } else {
+      newExpandedBills.add(billId);
+    }
+    setExpandedBills(newExpandedBills);
+  };
+
   return (
     <div className="container-fluid px-2 px-md-4">
       <h2 className="mb-4">Sales Management</h2>
@@ -789,43 +803,128 @@ function Sales({ token, userRole }) {
                 </thead>
                 <tbody>
                   {bills.map(bill => (
-                    <tr key={bill.id}>
-                      <td>{bill.bill_number || bill.id}</td>
-                      <td>{new Date(bill.date).toLocaleDateString()}</td>
-                      <td>{bill.customer_name}</td>
-                      <td>{bill.customer_phone || '-'}</td>
-                      <td>{bill.items ? bill.items.length : 0}</td>
-                      <td>{bill.total_quantity}</td>
-                      <td>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
-                      <td>
-                        <span className={`badge ${
-                          bill.status === 'active' ? 'bg-success' :
-                          bill.status === 'refunded' ? 'bg-danger' :
-                          'bg-warning'
-                        }`}>
-                          {bill.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="btn-group">
-                          <button className="btn btn-info btn-sm" onClick={() => printBill(bill)}>
-                            Print
-                          </button>
-                          {(userRole === 'admin' || userRole === 'superadmin') && (
-                            <>
-                              <button className="btn btn-warning btn-sm" onClick={() => handleEditBill(bill)}>
-                                Edit
-                              </button>
-                              {bill.status === 'active' && (
-                                <button className="btn btn-danger btn-sm" onClick={() => handleRefund(bill)}>
-                                  Refund
+                    <React.Fragment key={bill.id}>
+                      <tr>
+                        <td>{bill.bill_number || bill.id}</td>
+                        <td>{new Date(bill.date).toLocaleDateString()}</td>
+                        <td>{bill.customer_name}</td>
+                        <td>{bill.customer_phone || '-'}</td>
+                        <td>{bill.items ? bill.items.length : 0}</td>
+                        <td>{bill.total_quantity}</td>
+                        <td>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                        <td>
+                          <span className={`badge ${
+                            bill.status === 'active' ? 'bg-success' :
+                            bill.status === 'refunded' ? 'bg-danger' :
+                            'bg-warning'
+                          }`}>
+                            {bill.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="btn-group">
+                            <button 
+                              className="btn btn-outline-secondary btn-sm" 
+                              onClick={() => toggleBillDetails(bill.id)}
+                              title="View Details"
+                            >
+                              <i className={`fas ${expandedBills.has(bill.id) ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
+                            </button>
+                            <button className="btn btn-info btn-sm" onClick={() => printBill(bill)}>
+                              Print
+                            </button>
+                            {(userRole === 'admin' || userRole === 'superadmin') && (
+                              <>
+                                <button className="btn btn-warning btn-sm" onClick={() => handleEditBill(bill)}>
+                                  Edit
                                 </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                                {bill.status === 'active' && (
+                                  <button className="btn btn-danger btn-sm" onClick={() => handleRefund(bill)}>
+                                    Refund
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedBills.has(bill.id) && (
+                        <tr>
+                          <td colSpan="9" className="p-0">
+                            <div className="bg-light border-top">
+                              <div className="p-3">
+                                <h6 className="mb-3">
+                                  <i className="fas fa-list me-2"></i>
+                                  Bill Items Details
+                                </h6>
+                                {bill.items && bill.items.length > 0 ? (
+                                  <div className="table-responsive">
+                                    <table className="table table-sm table-striped mb-0">
+                                      <thead className="table-dark">
+                                        <tr>
+                                          <th>Part Name</th>
+                                          <th>Manufacturer</th>
+                                          <th>Quantity</th>
+                                          <th>Unit Price</th>
+                                          <th>Total Price</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {bill.items.map((item, index) => (
+                                          <tr key={index}>
+                                            <td>
+                                              <strong>{item.part_name}</strong>
+                                              {item.part_id && (
+                                                <small className="text-muted d-block">
+                                                  ID: {item.part_id}
+                                                </small>
+                                              )}
+                                            </td>
+                                            <td>{item.manufacturer || 'N/A'}</td>
+                                            <td>
+                                              <span className="badge bg-primary">{item.quantity}</span>
+                                            </td>
+                                            <td>Rs {parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                                            <td>
+                                              <strong>Rs {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                      <tfoot className="table-warning">
+                                        <tr>
+                                          <td colSpan="2"><strong>Total</strong></td>
+                                          <td><strong>{bill.total_quantity}</strong></td>
+                                          <td></td>
+                                          <td><strong>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div className="text-muted text-center py-3">
+                                    <i className="fas fa-exclamation-triangle me-2"></i>
+                                    No items found for this bill
+                                  </div>
+                                )}
+                                <div className="mt-3 row">
+                                  <div className="col-md-6">
+                                    <small className="text-muted">
+                                      <strong>Bill Number:</strong> {bill.bill_number || bill.id}
+                                    </small>
+                                  </div>
+                                  <div className="col-md-6 text-end">
+                                    <small className="text-muted">
+                                      <strong>Created:</strong> {new Date(bill.date).toLocaleString()}
+                                    </small>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
