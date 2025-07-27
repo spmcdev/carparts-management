@@ -6,14 +6,14 @@
       "testMatch": ["<rootDir>/tests/**/*.test.js"],
       "testPathIgnorePatterns": ["<rootDir>/tests/api-integration.test.js"],
       "transform": {},
+      "globals": {
+        "__DEV__": true
+      },
       "collectCoverageFrom": [
         "*.js",
         "!index.js"
       ],
-      "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"],
-      "globals": {
-        "__DEV__": true
-      }
+      "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"]
     },
     {
       "displayName": "backend-integration",
@@ -28,7 +28,7 @@
       "testEnvironment": "jsdom",
       "testMatch": ["<rootDir>/frontend/src/**/*.test.js"],
       "transform": {
-        "^.+\\.js$": "babel-jest"
+        "^.+\\.jsx?$": "babel-jest"
       },
       "moduleNameMapper": {
         "\\.(css|less|scss|sass)$": "identity-obj-proxy"

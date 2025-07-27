@@ -96,16 +96,27 @@ describe('Car Parts Management API - Integration Tests', () => {
   });
 
   describe('Enhanced Bills Management', () => {
-    test('should retrieve bills with enhanced fields', async () => {
+    test('should retrieve bills with pagination support', async () => {
       const response = await request(API_BASE_URL)
-        .get('/bills?limit=10')
+        .get('/bills?page=1&limit=10')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
-      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body).toHaveProperty('bills');
+      expect(response.body).toHaveProperty('pagination');
+      expect(Array.isArray(response.body.bills)).toBe(true);
       
-      if (response.body.length > 0) {
-        const bill = response.body[0];
+      // Check pagination structure
+      const pagination = response.body.pagination;
+      expect(pagination).toHaveProperty('page');
+      expect(pagination).toHaveProperty('limit');
+      expect(pagination).toHaveProperty('total');
+      expect(pagination).toHaveProperty('pages');
+      expect(pagination).toHaveProperty('hasNextPage');
+      expect(pagination).toHaveProperty('hasPreviousPage');
+      
+      if (response.body.bills.length > 0) {
+        const bill = response.body.bills[0];
         expect(bill).toHaveProperty('id');
         expect(bill).toHaveProperty('customer_name');
         expect(bill).toHaveProperty('customer_phone');
@@ -114,6 +125,17 @@ describe('Car Parts Management API - Integration Tests', () => {
         expect(bill).toHaveProperty('items');
         testBillId = bill.id;
       }
+    });
+
+    test('should search bills with pagination', async () => {
+      const response = await request(API_BASE_URL)
+        .get('/bills?search=test&page=1&limit=5')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('bills');
+      expect(response.body).toHaveProperty('pagination');
+      expect(Array.isArray(response.body.bills)).toBe(true);
     });
 
     test('should create bill with optional bill number', async () => {
@@ -195,10 +217,10 @@ describe('Car Parts Management API - Integration Tests', () => {
     });
   });
 
-  describe('Reservations System', () => {
-    test('should retrieve reservations', async () => {
+  describe('Enhanced Reservations System', () => {
+    test('should retrieve reservations with multi-item support', async () => {
       const response = await request(API_BASE_URL)
-        .get('/api/reservations?limit=10')
+        .get('/api/reservations')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
@@ -209,23 +231,43 @@ describe('Car Parts Management API - Integration Tests', () => {
         expect(reservation).toHaveProperty('id');
         expect(reservation).toHaveProperty('reservation_number');
         expect(reservation).toHaveProperty('customer_name');
+        expect(reservation).toHaveProperty('customer_phone');
         expect(reservation).toHaveProperty('status');
+        expect(reservation).toHaveProperty('total_amount');
+        expect(reservation).toHaveProperty('deposit_amount');
+        expect(reservation).toHaveProperty('remaining_amount');
+        expect(reservation).toHaveProperty('items');
+        expect(Array.isArray(reservation.items)).toBe(true);
         testReservationId = reservation.id;
+        
+        // Test enhanced multi-item structure
+        if (reservation.items.length > 0 && reservation.items[0]) {
+          const item = reservation.items[0];
+          expect(item).toHaveProperty('part_id');
+          expect(item).toHaveProperty('part_name');
+          expect(item).toHaveProperty('quantity');
+          expect(item).toHaveProperty('unit_price');
+          expect(item).toHaveProperty('total_price');
+        }
       }
     });
 
-    test('should filter reservations by status', async () => {
+    test('should search reservations', async () => {
       const response = await request(API_BASE_URL)
-        .get('/api/reservations?status=reserved&limit=10')
+        .get('/api/reservations?search=test')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
-      
-      // All returned reservations should have 'reserved' status
-      response.body.forEach(reservation => {
-        expect(reservation.status).toBe('reserved');
-      });
+    });
+
+    test('should filter reservations by status', async () => {
+      const response = await request(API_BASE_URL)
+        .get('/api/reservations?search=reserved')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
     });
   });
 

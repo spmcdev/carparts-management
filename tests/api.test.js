@@ -343,26 +343,53 @@ describe('Bills Management Endpoints', () => {
   });
 
   describe('GET /bills', () => {
-    it('should return bills for authenticated user', async () => {
+    it('should return paginated bills for authenticated user', async () => {
       const billsData = [
         {
           id: 1,
           customer_name: 'Test Customer',
           bill_number: 'TEST001',
-          date: '2025-07-20',
-          items: [{ id: 1, name: 'Test Part', sold_price: '200' }]
+          created_at: '2025-07-20',
+          items: [{ id: 1, part_name: 'Test Part', total_price: '200' }]
         }
       ];
 
-      mockPool.query.mockResolvedValueOnce({ rows: billsData });
+      const countData = [{ total: '1' }];
+
+      // Mock the main query and count query
+      mockPool.query
+        .mockResolvedValueOnce({ rows: billsData })
+        .mockResolvedValueOnce({ rows: countData });
 
       const response = await request(app)
-        .get('/bills')
+        .get('/bills?page=1&limit=20')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].customer_name).toBe('Test Customer');
+      expect(response.body).toHaveProperty('bills');
+      expect(response.body).toHaveProperty('pagination');
+      expect(response.body.bills).toHaveLength(1);
+      expect(response.body.bills[0].customer_name).toBe('Test Customer');
+      expect(response.body.pagination.total).toBe(1);
+      expect(response.body.pagination.page).toBe(1);
+    });
+
+    it('should handle search in bills', async () => {
+      const billsData = [];
+      const countData = [{ total: '0' }];
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: billsData })
+        .mockResolvedValueOnce({ rows: countData });
+
+      const response = await request(app)
+        .get('/bills?search=test&page=1&limit=20')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('bills');
+      expect(response.body).toHaveProperty('pagination');
+      expect(response.body.bills).toHaveLength(0);
     });
   });
 });
@@ -490,6 +517,130 @@ describe('Role-Based Access Control', () => {
         .set('Authorization', `Bearer ${generalToken}`);
 
       expect(response.status).toBe(403);
+    });
+  });
+});
+
+describe('Enhanced Reservations Management Endpoints', () => {
+  let authToken;
+
+  beforeAll(() => {
+    authToken = jwt.sign(
+      { id: 1, username: 'testuser', role: 'general' },
+      JWT_SECRET
+    );
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('GET /api/reservations', () => {
+    it('should return enhanced reservations with multi-item support', async () => {
+      const reservationsData = [
+        {
+          id: 1,
+          reservation_number: 'RES-20250728-0001',
+          customer_name: 'Test Customer',
+          customer_phone: '123-456-7890',
+          total_amount: '200.00',
+          deposit_amount: '50.00',
+          remaining_amount: '150.00',
+          status: 'reserved',
+          items: [
+            {
+              id: 1,
+              part_id: 1,
+              part_name: 'Test Part',
+              manufacturer: 'Test Manufacturer',
+              quantity: 2,
+              unit_price: '100.00',
+              total_price: '200.00'
+            }
+          ]
+        }
+      ];
+
+      mockPool.query.mockResolvedValueOnce({ rows: reservationsData });
+
+      const response = await request(app)
+        .get('/api/reservations')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0]).toHaveProperty('items');
+      expect(response.body[0]).toHaveProperty('total_amount');
+      expect(response.body[0]).toHaveProperty('remaining_amount');
+      expect(response.body[0].customer_name).toBe('Test Customer');
+    });
+
+    it('should handle search in reservations', async () => {
+      const searchData = [];
+
+      mockPool.query.mockResolvedValueOnce({ rows: searchData });
+
+      const response = await request(app)
+        .get('/api/reservations?search=nonexistent')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(0);
+    });
+  });
+
+  describe('POST /api/reservations', () => {
+    it('should create multi-item reservation successfully', async () => {
+      // Mock part lookup
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: 1, name: 'Test Part', manufacturer: 'Test Manufacturer', available_stock: 10 }]
+      });
+
+      // Mock reservation creation
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: 1, reservation_number: 'RES-20250728-0001' }]
+      });
+
+      // Mock item creation
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: 1 }]
+      });
+
+      const reservationData = {
+        customer_name: 'Test Customer',
+        customer_phone: '123-456-7890',
+        items: [
+          {
+            part_id: 1,
+            quantity: 2,
+            unit_price: 100.00
+          }
+        ],
+        deposit_amount: 50.00,
+        notes: 'Test reservation'
+      };
+
+      const response = await request(app)
+        .post('/api/reservations')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(reservationData);
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('reservation_number');
+      expect(response.body.customer_name).toBe('Test Customer');
+    });
+
+    it('should validate required fields for reservation creation', async () => {
+      const response = await request(app)
+        .post('/api/reservations')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          customer_name: 'Test Customer'
+          // Missing required fields
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Missing required fields');
     });
   });
 });
