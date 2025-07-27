@@ -417,21 +417,31 @@ function Sales({ token, userRole }) {
       setLoading(true);
       setError('');
 
-      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${reservation.id}/complete`, {
+      console.log('Completing reservation:', reservation);
+
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${reservation.id}/complete-enhanced`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({
+          additional_amount: 0 // Can be modified later for additional charges
+        })
       });
+
+      console.log('Completion response status:', res.status);
 
       if (!res.ok) {
         const errorData = await res.json();
+        console.error('Completion error:', errorData);
         throw new Error(errorData.error || 'Failed to complete reservation');
       }
 
       const result = await res.json();
-      setSuccess(`Reservation completed! Bill created with ID: ${result.bill_id}`);
+      console.log('Completion result:', result);
+      
+      setSuccess(`Reservation completed! Bill created: ${result.bill.bill_number}`);
       
       // Refresh data
       fetchReservations();
@@ -440,6 +450,7 @@ function Sales({ token, userRole }) {
       setProcessingReservation(null);
       
     } catch (err) {
+      console.error('Error completing reservation:', err);
       setError(err.message);
     } finally {
       setLoading(false);

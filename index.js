@@ -1356,22 +1356,18 @@ app.post('/api/reservations/:id/complete-enhanced', authenticateToken, async (re
     // Generate bill number
     const billNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
-    // Calculate amounts
-    const bill_amount = reservation.total_amount + additional_amount;
-    const payment_received = reservation.deposit_amount + additional_amount;
-    const balance_amount = Math.max(0, bill_amount - payment_received);
+    // Calculate total amount (reservation total + any additional amount)
+    const total_amount = parseFloat(reservation.total_amount) + parseFloat(additional_amount);
     
     // Create bill
     const billResult = await pool.query(`
       INSERT INTO bills (
         bill_number, customer_name, customer_phone, 
-        bill_amount, payment_received, balance_amount,
-        created_by, from_reservation_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+        total_amount, created_by
+      ) VALUES ($1, $2, $3, $4, $5) RETURNING *
     `, [
       billNumber, reservation.customer_name, reservation.customer_phone,
-      bill_amount, payment_received, balance_amount,
-      req.user.id, reservation.id
+      total_amount, req.user.id
     ]);
     
     const bill = billResult.rows[0];
@@ -1420,9 +1416,9 @@ app.post('/api/reservations/:id/complete-enhanced', authenticateToken, async (re
     // Update reservation status
     await pool.query(`
       UPDATE reservations 
-      SET status = 'completed', completed_date = CURRENT_TIMESTAMP, completed_by = $1, bill_id = $2
-      WHERE id = $3
-    `, [req.user.id, bill.id, id]);
+      SET status = 'completed', completed_date = CURRENT_TIMESTAMP, completed_by = $1
+      WHERE id = $2
+    `, [req.user.id, id]);
     
     // Log audit action for reservation completion
     await logAuditAction(
@@ -1431,7 +1427,7 @@ app.post('/api/reservations/:id/complete-enhanced', authenticateToken, async (re
       'reservations',
       parseInt(id),
       { status: 'reserved' },
-      { status: 'completed', bill_id: bill.id, bill_number: billNumber },
+      { status: 'completed', bill_number: billNumber },
       req
     );
     
