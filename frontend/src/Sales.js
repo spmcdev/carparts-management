@@ -824,11 +824,12 @@ function Sales({ token, userRole }) {
                         <td>
                           <div className="btn-group">
                             <button 
-                              className="btn btn-outline-secondary btn-sm" 
+                              className="btn btn-outline-primary btn-sm" 
                               onClick={() => toggleBillDetails(bill.id)}
-                              title="View Details"
+                              title={expandedBills.has(bill.id) ? "Hide Details" : "View Details"}
                             >
-                              <i className={`fas ${expandedBills.has(bill.id) ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
+                              <i className={`fas ${expandedBills.has(bill.id) ? 'fa-chevron-up' : 'fa-chevron-down'} me-1`}></i>
+                              {expandedBills.has(bill.id) ? 'Hide' : 'Details'}
                             </button>
                             <button className="btn btn-info btn-sm" onClick={() => printBill(bill)}>
                               Print
