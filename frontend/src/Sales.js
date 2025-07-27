@@ -1333,7 +1333,6 @@ function Sales({ token, userRole }) {
                     <th>Customer</th>
                     <th>Phone</th>
                     <th>Items</th>
-                    <th>Total Qty</th>
                     <th>Amount</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -1347,8 +1346,23 @@ function Sales({ token, userRole }) {
                         <td>{new Date(bill.date).toLocaleDateString()}</td>
                         <td>{bill.customer_name}</td>
                         <td>{bill.customer_phone || '-'}</td>
-                        <td>{bill.items ? bill.items.length : 0}</td>
-                        <td>{bill.total_quantity}</td>
+                        <td>
+                          {bill.items && bill.items.length > 0 ? (
+                            <div>
+                              <span className="badge bg-info">{bill.items.length} items</span>
+                              {bill.items.slice(0, 2).map((item, idx) => (
+                                <div key={idx} className="small text-muted">
+                                  {item.part_name} ({item.quantity})
+                                </div>
+                              ))}
+                              {bill.items.length > 2 && (
+                                <div className="small text-muted">+ {bill.items.length - 2} more...</div>
+                              )}
+                            </div>
+                          ) : (
+                            <small className="text-muted">No items</small>
+                          )}
+                        </td>
                         <td>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                         <td>
                           <span className={`badge ${
@@ -1389,7 +1403,7 @@ function Sales({ token, userRole }) {
                       </tr>
                       {expandedBills.has(bill.id) && (
                         <tr>
-                          <td colSpan="9" className="p-0">
+                          <td colSpan="8" className="p-0">
                             <div className="bg-light border-top">
                               <div className="p-3">
                                 <h6 className="mb-3">
@@ -1477,7 +1491,7 @@ function Sales({ token, userRole }) {
       <div className="card mt-4">
         <div className="card-header d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center">
-            <h5 className="mb-0 me-3">Enhanced Reservation Management</h5>
+            <h5 className="mb-0 me-3">Reservation History</h5>
             <button 
               className="btn btn-outline-primary btn-sm"
               onClick={() => {
