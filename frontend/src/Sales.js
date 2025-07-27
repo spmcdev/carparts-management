@@ -797,7 +797,7 @@ function Sales({ token, userRole }) {
           </table>
           <div class="total">
             <p>Total Quantity: ${bill.total_quantity}</p>
-            <p>Total Amount: Rs ${parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
+            <p>Total Amount: Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
           </div>
           <div class="footer">
             <p>Thank you for your business!</p>
@@ -1583,7 +1583,7 @@ function Sales({ token, userRole }) {
                                       />
                                     </td>
                                     <td>
-                                      <strong>${(item.quantity * item.unit_price).toFixed(2)}</strong>
+                                      <strong>Rs. {(item.quantity * item.unit_price).toFixed(2)}</strong>
                                     </td>
                                     <td>
                                       <div className="btn-group btn-group-sm">
@@ -1596,7 +1596,8 @@ function Sales({ token, userRole }) {
                                           disabled={loading}
                                           title="Save changes"
                                         >
-                                          <i className="fas fa-save"></i>
+                                          <i className="fas fa-save me-1"></i>
+                                          Save
                                         </button>
                                         <button 
                                           className="btn btn-danger"
@@ -1604,7 +1605,8 @@ function Sales({ token, userRole }) {
                                           disabled={loading}
                                           title="Remove item"
                                         >
-                                          <i className="fas fa-trash"></i>
+                                          <i className="fas fa-trash me-1"></i>
+                                          Remove
                                         </button>
                                       </div>
                                     </td>
@@ -1615,7 +1617,7 @@ function Sales({ token, userRole }) {
                                 <tr className="table-info">
                                   <th colSpan="3">Total:</th>
                                   <th>
-                                    ${editingBillItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0).toFixed(2)}
+                                    Rs. {editingBillItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0).toFixed(2)}
                                   </th>
                                   <th></th>
                                 </tr>
