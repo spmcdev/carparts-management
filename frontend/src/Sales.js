@@ -1300,7 +1300,7 @@ function Sales({ token, userRole }) {
                 <small className="text-muted">
                   {searchParentIdOnly 
                     ? "💡 Searching only by parent ID (e.g., \"1\", \"23\")" 
-                    : "💡 Try searching by: part name, manufacturer, ID (e.g., \"1\", \"23\"), part number, or parent ID"
+                    : ""
                   }
                 </small>
               </div>
@@ -1900,6 +1900,13 @@ function Sales({ token, userRole }) {
                   </div>
                 </div>
 
+                {/* Update Basic Info Button */}
+                <div className="d-flex justify-content-end mb-3">
+                  <button type="button" className="btn btn-primary" onClick={saveEditBill} disabled={loading}>
+                    {loading ? 'Updating...' : 'Update Basic Info'}
+                  </button>
+                </div>
+
                 {/* SuperAdmin Bill Items Editing */}
                 {userRole === 'superadmin' && (
                   <>
@@ -2074,9 +2081,6 @@ function Sales({ token, userRole }) {
                   setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
                 }} disabled={loading}>
                   Cancel
-                </button>
-                <button type="button" className="btn btn-primary" onClick={saveEditBill} disabled={loading}>
-                  {loading ? 'Updating...' : 'Update Basic Info'}
                 </button>
               </div>
             </div>
