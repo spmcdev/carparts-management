@@ -46,6 +46,39 @@ function Sales({ token, userRole }) {
     notes: ''
   });
 
+  // Filter bills based on search term
+  const filterBills = (bills, searchTerm) => {
+    if (!searchTerm.trim()) return bills;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    return bills.filter(bill => {
+      // Search by bill number
+      if (bill.bill_number && bill.bill_number.toString().toLowerCase().includes(term)) return true;
+      
+      // Search by bill ID
+      if (bill.id && bill.id.toString().toLowerCase().includes(term)) return true;
+      
+      // Search by customer name
+      if (bill.customer_name && bill.customer_name.toLowerCase().includes(term)) return true;
+      
+      // Search by customer phone
+      if (bill.customer_phone && bill.customer_phone.toLowerCase().includes(term)) return true;
+      
+      // Search by part names in bill items
+      if (bill.items && bill.items.length > 0) {
+        const hasPartMatch = bill.items.some(item => 
+          (item.part_name && item.part_name.toLowerCase().includes(term)) ||
+          (item.manufacturer && item.manufacturer.toLowerCase().includes(term)) ||
+          (item.part_id && item.part_id.toString().toLowerCase().includes(term))
+        );
+        if (hasPartMatch) return true;
+      }
+      
+      return false;
+    });
+  };
+
   // Filter parts based on search term
   const filterParts = (parts, searchTerm) => {
     if (!searchTerm.trim()) return parts;
@@ -96,14 +129,10 @@ function Sales({ token, userRole }) {
   };
 
   // Fetch bills
-  const fetchBills = async (search = '') => {
+  const fetchBills = async () => {
     try {
       setLoading(true);
-      const url = search 
-        ? `${API_ENDPOINTS.BILLS}?search=${encodeURIComponent(search)}`
-        : API_ENDPOINTS.BILLS;
-      
-      const res = await fetch(url, {
+      const res = await fetch(API_ENDPOINTS.BILLS, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch bills');
@@ -135,14 +164,6 @@ function Sales({ token, userRole }) {
     fetchBills();
     fetchReservations();
   }, [token]);
-
-  // Handle search with debouncing
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchBills(searchTerm);
-    }, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
 
   // Add item to cart
   const addToCart = (part) => {
@@ -774,17 +795,22 @@ function Sales({ token, userRole }) {
               <input
                 type="text"
                 className="form-control"
-                placeholder="Search bills by number, customer name, or phone"
+                placeholder="Search bills by number, customer name, phone, or part name"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
+              <small className="text-muted">
+                💡 Search by: bill number, customer info, or any part name/manufacturer in the bill
+              </small>
             </div>
           )}
         </div>
         {showSalesHistory && (
           <div className="card-body">
-            {bills.length === 0 ? (
-              <div className="text-muted text-center">No bills found</div>
+            {filterBills(bills, searchTerm).length === 0 ? (
+              <div className="text-muted text-center">
+                {bills.length === 0 ? 'No bills found' : 'No bills match your search'}
+              </div>
             ) : (
               <div className="table-responsive">
                 <table className="table table-striped">
@@ -802,7 +828,7 @@ function Sales({ token, userRole }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {bills.map(bill => (
+                  {filterBills(bills, searchTerm).map(bill => (
                     <React.Fragment key={bill.id}>
                       <tr>
                         <td>{bill.bill_number || bill.id}</td>
