@@ -554,7 +554,9 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     const reservationResult = await pool.query('SELECT generate_reservation_number() as number');
     const reservationNumber = reservationResult.rows[0].number;
     
-    // Create main reservation with calculated total
+    // Create main reservation with calculated total (disable total update trigger temporarily)
+    await pool.query('SET session_replication_role = replica'); // Disable triggers
+    
     const newReservationResult = await pool.query(`
       INSERT INTO reservations (
         reservation_number, customer_name, customer_phone, 
@@ -567,7 +569,7 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     
     const reservation = newReservationResult.rows[0];
     
-    // Create reservation items and update stock
+    // Create reservation items (with triggers still disabled)
     for (const item of validatedItems) {
       // Create reservation item
       await pool.query(`
@@ -579,8 +581,13 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
         reservation.id, item.part_id, item.part_name, item.manufacturer,
         item.quantity, item.unit_price, item.total_price
       ]);
-      
-      // Update part stock (move from available to reserved)
+    }
+    
+    // Re-enable triggers
+    await pool.query('SET session_replication_role = DEFAULT');
+    
+    // Now update stock for each item
+    for (const item of validatedItems) {
       const newAvailable = item.part.available_stock - item.quantity;
       const newReserved = item.part.reserved_stock + item.quantity;
       

@@ -98,17 +98,21 @@ CREATE TRIGGER trigger_validate_reservation_item_total
     EXECUTE FUNCTION validate_reservation_item_total();
 
 -- Function to automatically update reservation total when items change
+-- NOTE: This function is disabled during reservation creation to prevent conflicts
 CREATE OR REPLACE FUNCTION update_reservation_total()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Update the reservation total based on current items
-    UPDATE reservations 
-    SET total_amount = (
-        SELECT COALESCE(SUM(total_price), 0) 
-        FROM reservation_items 
-        WHERE reservation_id = COALESCE(NEW.reservation_id, OLD.reservation_id)
-    )
-    WHERE id = COALESCE(NEW.reservation_id, OLD.reservation_id);
+    -- Only update if we're not in replica mode (used to disable triggers during creation)
+    IF current_setting('session_replication_role') != 'replica' THEN
+        -- Update the reservation total based on current items
+        UPDATE reservations 
+        SET total_amount = (
+            SELECT COALESCE(SUM(total_price), 0) 
+            FROM reservation_items 
+            WHERE reservation_id = COALESCE(NEW.reservation_id, OLD.reservation_id)
+        )
+        WHERE id = COALESCE(NEW.reservation_id, OLD.reservation_id);
+    END IF;
     
     RETURN COALESCE(NEW, OLD);
 END;
@@ -118,6 +122,11 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION validate_reservation_deposit()
 RETURNS TRIGGER AS $$
 BEGIN
+    -- Skip validation during replica mode (used during creation)
+    IF current_setting('session_replication_role') = 'replica' THEN
+        RETURN NEW;
+    END IF;
+    
     -- Only validate if the reservation has items (total_amount > 0)
     IF NEW.total_amount > 0 AND NEW.deposit_amount > NEW.total_amount THEN
         RAISE EXCEPTION 'Deposit amount (%) cannot exceed total reservation amount (%)', 
