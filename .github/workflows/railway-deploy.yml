@@ -75,6 +75,8 @@ jobs:
       - name: Deploy Frontend to Staging
         run: |
           cd frontend
+          # Use staging environment file
+          cp .env.staging .env
           railway up --service frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
@@ -108,6 +110,8 @@ jobs:
       - name: Deploy Frontend to Production
         run: |
           cd frontend
+          # Use production environment file
+          cp .env.production .env
           railway up --service frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
