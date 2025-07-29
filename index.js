@@ -18,7 +18,12 @@ const corsOptions = {
         /\.vercel\.app$/, 
         'http://localhost:3001'
       ] 
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
+    : [
+        'http://localhost:3000', 
+        'http://localhost:3001', 
+        'http://localhost:8080',
+        'https://rasuki-carparts-staging.up.railway.app'
+      ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
