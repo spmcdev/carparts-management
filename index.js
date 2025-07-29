@@ -12,7 +12,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 // CORS configuration for production
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, /\.vercel\.app$/, 'http://localhost:3001'] 
+    ? [
+        process.env.FRONTEND_URL, 
+        'https://rasuki-carparts-staging.up.railway.app',
+        /\.vercel\.app$/, 
+        'http://localhost:3001'
+      ] 
     : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
