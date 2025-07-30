@@ -20,6 +20,10 @@
       "testEnvironment": "node",
       "testMatch": ["<rootDir>/tests/api-integration.test.js"],
       "transform": {},
+      "extensionsToTreatAsEsm": [".js"],
+      "globals": {
+        "__DEV__": true
+      },
       "testTimeout": 30000,
       "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"]
     },
