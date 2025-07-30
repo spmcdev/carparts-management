@@ -69,7 +69,11 @@ jobs:
       
       - name: Deploy Backend to Staging
         if: ${{ secrets.RAILWAY_STAGING_TOKEN != '' }}
-        run: railway up --service backend
+        run: |
+          # Copy staging environment file
+          cp .env.staging .env
+          # Deploy using Railway token
+          railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
@@ -77,14 +81,17 @@ jobs:
         if: ${{ secrets.RAILWAY_STAGING_TOKEN != '' }}
         run: |
           cd frontend
-          railway up --service frontend
+          # Copy staging environment file
+          cp .env.staging .env
+          # Deploy frontend
+          railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
       - name: Run staging health check
         if: ${{ secrets.RAILWAY_STAGING_TOKEN != '' }}
         run: |
-          sleep 30  # Wait for deployment
+          sleep 60  # Wait longer for deployment
           curl -f https://carparts-backend-staging.up.railway.app/debug || echo "Health check failed but continuing"
 
   # Deploy to production when main branch is pushed (after PR approval)
@@ -105,7 +112,11 @@ jobs:
       
       - name: Deploy Backend to Production
         if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN != '' }}
-        run: railway up --service backend
+        run: |
+          # Copy production environment file
+          cp .env.production .env
+          # Deploy using Railway token
+          railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
@@ -113,14 +124,17 @@ jobs:
         if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN != '' }}
         run: |
           cd frontend
-          railway up --service frontend
+          # Copy production environment file
+          cp .env.production .env
+          # Deploy frontend
+          railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
       - name: Run production health check
         if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN != '' }}
         run: |
-          sleep 30  # Wait for deployment
+          sleep 60  # Wait longer for deployment
           curl -f https://carparts.up.railway.app/health || curl -f https://carparts.up.railway.app/debug || echo "Health check failed but continuing"
       
       - name: Notify success
