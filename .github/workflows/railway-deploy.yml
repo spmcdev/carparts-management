@@ -56,7 +56,7 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     environment:
       name: staging
       url: https://carparts-staging.up.railway.app
@@ -68,16 +68,20 @@ jobs:
         run: npm install -g @railway/cli
       
       - name: Deploy Backend to Staging
+        if: ${{ secrets.RAILWAY_STAGING_TOKEN != '' }}
         run: railway up --service backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
       - name: Deploy Frontend to Staging
+        if: ${{ secrets.RAILWAY_STAGING_TOKEN != '' }}
         run: |
           cd frontend
           # Use staging environment file
           cp .env.staging .env
           railway up --service frontend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
@@ -103,11 +107,13 @@ jobs:
         run: npm install -g @railway/cli
       
       - name: Deploy Backend to Production
+        if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN != '' }}
         run: railway up --service backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
       - name: Deploy Frontend to Production
+        if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN != '' }}
         run: |
           cd frontend
           # Use production environment file
