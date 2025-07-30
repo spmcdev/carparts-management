@@ -1740,7 +1740,7 @@ function Sales({ token, userRole }) {
                                         </thead>
                                         <tbody>
                                           {bill.refund_history.map((refund, index) => (
-                                            <tr key={index}>
+                                            <tr key={`refund-${refund.id || index}`}>
                                               <td>
                                                 <small>{new Date(refund.refund_date).toLocaleDateString()}</small>
                                               </td>
@@ -1759,10 +1759,10 @@ function Sales({ token, userRole }) {
                                                 <small>{refund.refunded_by_name}</small>
                                               </td>
                                               <td>
-                                                {refund.refund_items && refund.refund_items.length > 0 ? (
+                                                {refund.refund_items && Array.isArray(refund.refund_items) && refund.refund_items.length > 0 ? (
                                                   <div className="small">
                                                     {refund.refund_items.map((item, itemIndex) => (
-                                                      <div key={`${refund.id}-${itemIndex}`} className="mb-1 p-1" style={{ backgroundColor: '#f8f9fa', borderRadius: '3px' }}>
+                                                      <div key={`refund-${refund.id || index}-item-${itemIndex}`} className="mb-1 p-1" style={{ backgroundColor: '#f8f9fa', borderRadius: '3px' }}>
                                                         <strong>{item.part_name}</strong>
                                                         {item.manufacturer && (
                                                           <div className="text-muted" style={{ fontSize: '0.8em' }}>

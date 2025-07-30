@@ -2056,8 +2056,12 @@ app.get('/bills', authenticateToken, async (req, res) => {
       ) items_agg ON b.id = items_agg.bill_id
       LEFT JOIN (
         SELECT 
-          br.bill_id,
-          json_agg(
+          bill_id,
+          json_agg(refund_data ORDER BY refund_date DESC) as refund_history,
+          SUM(refund_amount) as total_refunded
+        FROM (
+          SELECT 
+            br.bill_id,
             json_build_object(
               'id', br.id,
               'refund_amount', br.refund_amount,
@@ -2065,28 +2069,31 @@ app.get('/bills', authenticateToken, async (req, res) => {
               'refund_type', br.refund_type,
               'refund_date', br.refund_date,
               'refunded_by_name', u.username,
-              'refund_items', COALESCE(
-                (SELECT json_agg(
-                  json_build_object(
-                    'part_id', bri.part_id,
-                    'part_name', p.name,
-                    'manufacturer', p.manufacturer,
-                    'quantity', bri.quantity,
-                    'unit_price', bri.unit_price,
-                    'total_price', bri.total_price
-                  ) ORDER BY bri.id
-                )
-                FROM bill_refund_items bri
-                LEFT JOIN parts p ON bri.part_id = p.id
-                WHERE bri.refund_id = br.id
-                ), '[]'::json
-              )
-            ) ORDER BY br.refund_date DESC
-          ) as refund_history,
-          SUM(br.refund_amount) as total_refunded
-        FROM bill_refunds br
-        LEFT JOIN users u ON br.refunded_by = u.id
-        GROUP BY br.bill_id
+              'refund_items', COALESCE(refund_items.items, '[]'::json)
+            ) as refund_data,
+            br.refund_amount,
+            br.refund_date
+          FROM bill_refunds br
+          LEFT JOIN users u ON br.refunded_by = u.id
+          LEFT JOIN (
+            SELECT 
+              bri.refund_id,
+              json_agg(
+                json_build_object(
+                  'part_id', bri.part_id,
+                  'part_name', p.name,
+                  'manufacturer', p.manufacturer,
+                  'quantity', bri.quantity,
+                  'unit_price', bri.unit_price,
+                  'total_price', bri.total_price
+                ) ORDER BY bri.id
+              ) as items
+            FROM bill_refund_items bri
+            LEFT JOIN parts p ON bri.part_id = p.id
+            GROUP BY bri.refund_id
+          ) refund_items ON br.id = refund_items.refund_id
+        ) refund_with_items
+        GROUP BY bill_id
       ) refunds_agg ON b.id = refunds_agg.bill_id
     `;
     
