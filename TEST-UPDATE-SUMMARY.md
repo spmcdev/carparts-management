@@ -85,8 +85,10 @@ npm run test:unit          # Unit tests (mocked)
 npm run test:integration   # Integration tests (requires auth)
 npm run test:production    # Production health check
 
-# Test current implementation
-node test-current-api.js   # Custom validation script
+# Test staging environment
+node tests/test-staging-remote.js     # Comprehensive staging tests
+node tests/test-refund-staging.js     # Refund system tests
+node tests/test-frontend-staging.js   # Frontend integration tests
 ```
 
 ### **3. Database Validation**
