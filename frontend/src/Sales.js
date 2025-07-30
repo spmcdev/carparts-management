@@ -937,7 +937,13 @@ function Sales({ token, userRole }) {
       setRefundingBill(refundDetails.bill);
       setRefundAmount(refundDetails.remaining_refund_amount);
       setRefundReason('');
-      setRefundType('full');
+      
+      // Automatically set refund type based on bill status
+      if (refundDetails.bill.status === 'partially_refunded') {
+        setRefundType('partial');
+      } else {
+        setRefundType('full');
+      }
       
       // Initialize refund items with remaining quantities
       setRefundItems(refundDetails.bill.items.map(item => ({
@@ -1756,7 +1762,7 @@ function Sales({ token, userRole }) {
                                                 {refund.refund_items && refund.refund_items.length > 0 ? (
                                                   <div className="small">
                                                     {refund.refund_items.map((item, itemIndex) => (
-                                                      <div key={itemIndex} className="mb-1 p-1" style={{ backgroundColor: '#f8f9fa', borderRadius: '3px' }}>
+                                                      <div key={`${refund.id}-${itemIndex}`} className="mb-1 p-1" style={{ backgroundColor: '#f8f9fa', borderRadius: '3px' }}>
                                                         <strong>{item.part_name}</strong>
                                                         {item.manufacturer && (
                                                           <div className="text-muted" style={{ fontSize: '0.8em' }}>
@@ -2453,8 +2459,15 @@ function Sales({ token, userRole }) {
                         setRefundType('full');
                         setRefundAmount(refundAmount); // Use the remaining amount, not the original bill amount
                       }}
+                      disabled={refundingBill.status === 'partially_refunded'}
                     />
-                    <label className="btn btn-outline-danger" htmlFor="fullRefund">Full Refund</label>
+                    <label 
+                      className={`btn ${refundingBill.status === 'partially_refunded' ? 'btn-outline-secondary' : 'btn-outline-danger'}`} 
+                      htmlFor="fullRefund"
+                      title={refundingBill.status === 'partially_refunded' ? 'Full refund not available for partially refunded bills' : ''}
+                    >
+                      {refundingBill.status === 'partially_refunded' ? 'Full Refund (N/A)' : 'Full Refund'}
+                    </label>
                     
                     <input 
                       type="radio" 
@@ -2467,8 +2480,16 @@ function Sales({ token, userRole }) {
                         clearAllRefundItems();
                       }}
                     />
-                    <label className="btn btn-outline-warning" htmlFor="partialRefund">Partial Refund</label>
+                    <label className="btn btn-outline-warning" htmlFor="partialRefund">
+                      {refundingBill.status === 'partially_refunded' ? 'Continue Partial Refund' : 'Partial Refund'}
+                    </label>
                   </div>
+                  {refundingBill.status === 'partially_refunded' && (
+                    <small className="text-muted d-block mt-1">
+                      <i className="fas fa-info-circle me-1"></i>
+                      This bill has been partially refunded. You can only continue with partial refunds.
+                    </small>
+                  )}
                 </div>
 
                 {/* Partial Refund Item Selection */}
