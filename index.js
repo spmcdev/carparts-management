@@ -2034,41 +2034,43 @@ app.get('/bills', authenticateToken, async (req, res) => {
     let query = `
       SELECT 
         b.*,
-        COALESCE(
-          json_agg(
-            CASE WHEN bi.id IS NOT NULL THEN
-              json_build_object(
-                'id', bi.id,
-                'part_id', bi.part_id,
-                'part_name', bi.part_name,
-                'manufacturer', bi.manufacturer,
-                'quantity', bi.quantity,
-                'unit_price', bi.unit_price,
-                'total_price', bi.total_price
-              )
-            END
-          ) FILTER (WHERE bi.id IS NOT NULL), 
-          '[]'::json
-        ) as items,
-        COALESCE(
-          json_agg(
-            CASE WHEN br.id IS NOT NULL THEN
-              json_build_object(
-                'id', br.id,
-                'refund_amount', br.refund_amount,
-                'refund_reason', br.refund_reason,
-                'refund_type', br.refund_type,
-                'refund_date', br.refund_date,
-                'refunded_by_name', u.username
-              )
-            END
-          ) FILTER (WHERE br.id IS NOT NULL),
-          '[]'::json
-        ) as refund_history
+        COALESCE(items_agg.items, '[]'::json) as items,
+        COALESCE(refunds_agg.refund_history, '[]'::json) as refund_history,
+        COALESCE(refunds_agg.total_refunded, 0) as total_refunded
       FROM bills b
-      LEFT JOIN bill_items bi ON b.id = bi.bill_id
-      LEFT JOIN bill_refunds br ON b.id = br.bill_id
-      LEFT JOIN users u ON br.refunded_by = u.id
+      LEFT JOIN (
+        SELECT bi.bill_id,
+               json_agg(
+                 json_build_object(
+                   'id', bi.id,
+                   'part_id', bi.part_id,
+                   'part_name', bi.part_name,
+                   'manufacturer', bi.manufacturer,
+                   'quantity', bi.quantity,
+                   'unit_price', bi.unit_price,
+                   'total_price', bi.total_price
+                 ) ORDER BY bi.id
+               ) as items
+        FROM bill_items bi
+        GROUP BY bi.bill_id
+      ) items_agg ON b.id = items_agg.bill_id
+      LEFT JOIN (
+        SELECT br.bill_id,
+               json_agg(
+                 json_build_object(
+                   'id', br.id,
+                   'refund_amount', br.refund_amount,
+                   'refund_reason', br.refund_reason,
+                   'refund_type', br.refund_type,
+                   'refund_date', br.refund_date,
+                   'refunded_by_name', u.username
+                 ) ORDER BY br.refund_date DESC
+               ) as refund_history,
+               SUM(br.refund_amount) as total_refunded
+        FROM bill_refunds br
+        LEFT JOIN users u ON br.refunded_by = u.id
+        GROUP BY br.bill_id
+      ) refunds_agg ON b.id = refunds_agg.bill_id
     `;
     
     const queryParams = [];
@@ -2089,15 +2091,14 @@ app.get('/bills', authenticateToken, async (req, res) => {
       paramIndex++;
     }
     
-    query += ` GROUP BY b.id ORDER BY b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(parseInt(limit), offset);
     
     const result = await pool.query(query, queryParams);
     
     // Process results to add calculated refund info
     const processedBills = result.rows.map(bill => {
-      const refunds = bill.refund_history || [];
-      const totalRefunded = refunds.reduce((sum, refund) => sum + parseFloat(refund.refund_amount || 0), 0);
+      const totalRefunded = parseFloat(bill.total_refunded || 0);
       const remainingAmount = parseFloat(bill.total_amount) - totalRefunded;
       
       return {
