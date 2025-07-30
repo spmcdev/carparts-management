@@ -912,26 +912,56 @@ function Sales({ token, userRole }) {
   };
 
   // Process refund
-  const handleRefund = (bill) => {
-    setRefundingBill(bill);
-    setRefundAmount(bill.total_amount);
-    setRefundReason('');
-    setRefundType('full');
-    // Initialize refund items with all bill items
-    setRefundItems(bill.items.map(item => ({
-      ...item,
-      refund_quantity: 0,
-      refund_unit_price: item.unit_price,
-      refund_total: 0,
-      selected: false
-    })));
+  const handleRefund = async (bill) => {
+    try {
+      setLoading(true);
+      
+      // Fetch refund details to get remaining quantities
+      const res = await fetch(`${API_ENDPOINTS.BILLS}/${bill.id}/refund-details`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch refund details');
+      }
+      
+      const refundDetails = await res.json();
+      
+      if (!refundDetails.can_continue_refund) {
+        setError('This bill has been fully refunded and cannot be refunded further');
+        return;
+      }
+      
+      setRefundingBill(refundDetails.bill);
+      setRefundAmount(refundDetails.remaining_refund_amount);
+      setRefundReason('');
+      setRefundType('full');
+      
+      // Initialize refund items with remaining quantities
+      setRefundItems(refundDetails.bill.items.map(item => ({
+        ...item,
+        refund_quantity: 0,
+        refund_unit_price: item.unit_price,
+        refund_total: 0,
+        selected: false,
+        max_refund_quantity: item.remaining_quantity, // Store max available for validation
+        already_refunded: item.total_refunded
+      })));
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Update refund item selection
   const updateRefundItemSelection = (itemIndex, selected) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_quantity = selected ? item.quantity : 0;
+        const refund_quantity = selected ? item.remaining_quantity : 0;
         return {
           ...item,
           selected,
@@ -949,7 +979,7 @@ function Sales({ token, userRole }) {
   const updateRefundItemQuantity = (itemIndex, quantity) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_quantity = Math.min(Math.max(0, quantity), item.quantity);
+        const refund_quantity = Math.min(Math.max(0, quantity), item.remaining_quantity);
         return {
           ...item,
           refund_quantity,
@@ -990,9 +1020,9 @@ function Sales({ token, userRole }) {
   const selectAllRefundItems = () => {
     const updatedItems = refundItems.map(item => ({
       ...item,
-      selected: true,
-      refund_quantity: item.quantity,
-      refund_total: item.quantity * item.refund_unit_price
+      selected: item.remaining_quantity > 0, // Only select items with remaining quantity
+      refund_quantity: item.remaining_quantity,
+      refund_total: item.remaining_quantity * item.refund_unit_price
     }));
     setRefundItems(updatedItems);
     updateRefundAmount(updatedItems);
@@ -1473,9 +1503,9 @@ function Sales({ token, userRole }) {
                                 <button className="btn btn-warning btn-sm" onClick={() => handleEditBill(bill)}>
                                   Edit
                                 </button>
-                                {bill.status === 'active' && (
+                                {(bill.status === 'active' || bill.status === 'partially_refunded') && (
                                   <button className="btn btn-danger btn-sm" onClick={() => handleRefund(bill)}>
-                                    Refund
+                                    {bill.status === 'partially_refunded' ? 'Continue Refund' : 'Refund'}
                                   </button>
                                 )}
                               </>
@@ -2171,10 +2201,25 @@ function Sales({ token, userRole }) {
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Process Refund - Bill #{refundingBill.bill_number || refundingBill.id}</h5>
+                <h5 className="modal-title">
+                  {refundingBill.status === 'partially_refunded' ? 'Continue Refund' : 'Process Refund'} - Bill #{refundingBill.bill_number || refundingBill.id}
+                </h5>
                 <button type="button" className="btn-close" onClick={() => setRefundingBill(null)}></button>
               </div>
               <div className="modal-body">
+                {/* Refund Status Information */}
+                {refundingBill.status === 'partially_refunded' && (
+                  <div className="alert alert-info mb-4">
+                    <h6><i className="fas fa-info-circle me-2"></i>Previous Refunds</h6>
+                    <p className="mb-1">
+                      <strong>Total Refunded:</strong> Rs {(refundingBill.total_amount - parseFloat(refundAmount)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    </p>
+                    <p className="mb-0">
+                      <strong>Remaining Amount:</strong> Rs {parseFloat(refundAmount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                )}
+                
                 {/* Refund Type Selection */}
                 <div className="mb-4">
                   <label className="form-label">Refund Type</label>
@@ -2187,7 +2232,7 @@ function Sales({ token, userRole }) {
                       checked={refundType === 'full'}
                       onChange={() => {
                         setRefundType('full');
-                        setRefundAmount(refundingBill.total_amount);
+                        setRefundAmount(refundAmount); // Use the remaining amount, not the original bill amount
                       }}
                     />
                     <label className="btn btn-outline-danger" htmlFor="fullRefund">Full Refund</label>
@@ -2228,7 +2273,9 @@ function Sales({ token, userRole }) {
                           <tr>
                             <th width="50">Select</th>
                             <th>Part Name</th>
-                            <th width="80">Sold Qty</th>
+                            <th width="80">Original</th>
+                            <th width="80">Refunded</th>
+                            <th width="80">Remaining</th>
                             <th width="100">Refund Qty</th>
                             <th width="120">Unit Price</th>
                             <th width="120">Refund Total</th>
@@ -2236,13 +2283,14 @@ function Sales({ token, userRole }) {
                         </thead>
                         <tbody>
                           {refundItems.map((item, index) => (
-                            <tr key={index} className={item.selected ? 'table-warning' : ''}>
+                            <tr key={index} className={item.selected ? 'table-warning' : item.remaining_quantity <= 0 ? 'table-light text-muted' : ''}>
                               <td>
                                 <input
                                   type="checkbox"
                                   className="form-check-input"
                                   checked={item.selected}
                                   onChange={e => updateRefundItemSelection(index, e.target.checked)}
+                                  disabled={item.remaining_quantity <= 0}
                                 />
                               </td>
                               <td>
@@ -2255,14 +2303,22 @@ function Sales({ token, userRole }) {
                                 <span className="badge bg-info">{item.quantity}</span>
                               </td>
                               <td>
+                                <span className="badge bg-warning text-dark">{item.already_refunded || 0}</span>
+                              </td>
+                              <td>
+                                <span className={`badge ${item.remaining_quantity > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                                  {item.remaining_quantity}
+                                </span>
+                              </td>
+                              <td>
                                 <input
                                   type="number"
                                   className="form-control form-control-sm"
                                   value={item.refund_quantity}
                                   onChange={e => updateRefundItemQuantity(index, parseInt(e.target.value) || 0)}
                                   min="0"
-                                  max={item.quantity}
-                                  disabled={!item.selected}
+                                  max={item.remaining_quantity}
+                                  disabled={!item.selected || item.remaining_quantity <= 0}
                                 />
                               </td>
                               <td>
@@ -2304,8 +2360,9 @@ function Sales({ token, userRole }) {
                     readOnly={refundType === 'partial'}
                   />
                   <small className="text-muted">
-                    Maximum: Rs {refundingBill.total_amount.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    Maximum: Rs {parseFloat(refundAmount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
                     {refundType === 'partial' && ' (Amount calculated from selected items)'}
+                    {refundingBill.status === 'partially_refunded' && ' (remaining amount available for refund)'}
                   </small>
                 </div>
 
@@ -2326,9 +2383,13 @@ function Sales({ token, userRole }) {
                 <div className="alert alert-info">
                   <h6><i className="fas fa-info-circle me-2"></i>Refund Information</h6>
                   <ul className="mb-0">
-                    <li><strong>Full Refund:</strong> All items will be returned to stock and full amount refunded</li>
+                    <li><strong>Full Refund:</strong> All remaining items will be returned to stock and remaining amount refunded</li>
                     <li><strong>Partial Refund:</strong> Only selected quantities will be returned to stock</li>
+                    <li><strong>Multiple Refunds:</strong> You can process multiple partial refunds until all items are refunded</li>
                     <li><strong>Stock Adjustment:</strong> Returned items will automatically increase available stock</li>
+                    {refundingBill.status === 'partially_refunded' && (
+                      <li><strong>Continuing Refund:</strong> Previous refunds have been processed - you can refund remaining items</li>
+                    )}
                   </ul>
                 </div>
               </div>

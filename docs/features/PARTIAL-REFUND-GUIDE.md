@@ -109,11 +109,31 @@ This creates the necessary tables for detailed refund tracking.
 
 ## Support for Multiple Refunds
 
-The system supports multiple partial refunds on the same bill:
+✅ **ENHANCED: The system now supports unlimited multiple partial refunds on the same bill:**
+
+### **Multiple Refund Process**
+1. **First Refund**: Process initial partial refund → Bill status: `partially_refunded`
+2. **Continue Refunding**: Click "Continue Refund" → Refund remaining items
+3. **Repeat**: Process as many partial refunds as needed
+4. **Completion**: When all items refunded → Bill status: `refunded`
+
+### **Smart Quantity Tracking**
+- **Remaining Quantities**: System tracks what's left to refund for each item
+- **Visual Indicators**: Color-coded badges show original, refunded, and remaining quantities
+- **Validation**: Prevents over-refunding by validating against remaining quantities
+- **History**: Complete audit trail of all refund transactions
+
+### **Enhanced User Interface**
+- **"Continue Refund" Button**: Appears on partially refunded bills
+- **Refund History Panel**: Shows previous refunds and remaining amounts  
+- **Quantity Breakdown Table**: Original | Refunded | Remaining | New Refund columns
+- **Smart Form Behavior**: Disables fully refunded items, validates remaining quantities
+
+### **Technical Implementation**
 - Each refund creates a separate record in `bill_refunds`
 - Item-level details tracked in `bill_refund_items`
-- Bill status updates automatically:
-  - 'active' → 'partially_refunded' → 'refunded'
+- Bill status updates automatically: 'active' → 'partially_refunded' → 'refunded'
 - Running total of refunds tracked on the bill
+- New endpoint: `GET /bills/:id/refund-details` for remaining quantity calculations
 
-This comprehensive system provides maximum flexibility while maintaining data integrity and audit trails.
+This comprehensive system provides maximum flexibility while maintaining data integrity and complete audit trails for compliance and customer service excellence.

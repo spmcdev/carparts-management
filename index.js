@@ -2444,6 +2444,107 @@ app.delete('/bills/:billId/items/:itemId', authenticateToken, requireSuperAdmin,
   }
 });
 
+// Get bill refund details (for continuing partial refunds)
+app.get('/bills/:id/refund-details', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Get bill with items
+    const billResult = await pool.query(`
+      SELECT b.*, 
+             json_agg(
+               json_build_object(
+                 'id', bi.id,
+                 'part_id', bi.part_id,
+                 'part_name', p.name,
+                 'manufacturer', p.manufacturer,
+                 'quantity', bi.quantity,
+                 'unit_price', bi.unit_price,
+                 'total_price', bi.total_price
+               )
+               ORDER BY bi.id
+             ) as items
+      FROM bills b
+      LEFT JOIN bill_items bi ON b.id = bi.bill_id
+      LEFT JOIN parts p ON bi.part_id = p.id
+      WHERE b.id = $1
+      GROUP BY b.id
+    `, [id]);
+    
+    if (billResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    
+    const bill = billResult.rows[0];
+    
+    // Get all previous refunds for this bill
+    const refundsResult = await pool.query(`
+      SELECT br.*, 
+             json_agg(
+               CASE WHEN bri.id IS NOT NULL THEN
+                 json_build_object(
+                   'part_id', bri.part_id,
+                   'quantity', bri.quantity,
+                   'unit_price', bri.unit_price,
+                   'total_price', bri.total_price
+                 )
+               ELSE NULL END
+             ) as refund_items
+      FROM bill_refunds br
+      LEFT JOIN bill_refund_items bri ON br.id = bri.refund_id
+      WHERE br.bill_id = $1
+      GROUP BY br.id
+      ORDER BY br.refund_date DESC
+    `, [id]);
+    
+    const refunds = refundsResult.rows;
+    
+    // Calculate remaining quantities for each item
+    const itemsWithRemaining = bill.items.map(item => {
+      let totalRefunded = 0;
+      
+      // Sum up all previous refunds for this part
+      refunds.forEach(refund => {
+        if (refund.refund_items) {
+          refund.refund_items.forEach(refundItem => {
+            if (refundItem && refundItem.part_id === item.part_id) {
+              totalRefunded += refundItem.quantity;
+            }
+          });
+        }
+      });
+      
+      const remainingQuantity = item.quantity - totalRefunded;
+      
+      return {
+        ...item,
+        total_refunded: totalRefunded,
+        remaining_quantity: remainingQuantity,
+        can_refund: remainingQuantity > 0
+      };
+    });
+    
+    // Calculate remaining refund amount
+    const totalRefundedAmount = refunds.reduce((sum, refund) => sum + parseFloat(refund.refund_amount), 0);
+    const remainingRefundAmount = parseFloat(bill.total_amount) - totalRefundedAmount;
+    
+    res.json({
+      bill: {
+        ...bill,
+        items: itemsWithRemaining
+      },
+      refund_history: refunds,
+      total_refunded_amount: totalRefundedAmount,
+      remaining_refund_amount: remainingRefundAmount,
+      can_continue_refund: remainingRefundAmount > 0 && itemsWithRemaining.some(item => item.can_refund)
+    });
+    
+  } catch (err) {
+    console.error('Error getting refund details:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Process refund
 app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
@@ -2487,6 +2588,31 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
         throw new Error('Bill is already fully refunded');
       }
       
+      // Get remaining quantities for partial refund validation
+      let remainingQuantities = {};
+      if (bill.status === 'partially_refunded') {
+        // Get all previous refunds for this bill
+        const refundsResult = await pool.query(`
+          SELECT bri.part_id, SUM(bri.quantity) as total_refunded
+          FROM bill_refunds br
+          JOIN bill_refund_items bri ON br.id = bri.refund_id
+          WHERE br.bill_id = $1
+          GROUP BY bri.part_id
+        `, [id]);
+        
+        // Calculate remaining quantities
+        bill.items.forEach(item => {
+          const refunded = refundsResult.rows.find(r => r.part_id === item.part_id);
+          const totalRefunded = refunded ? parseInt(refunded.total_refunded) : 0;
+          remainingQuantities[item.part_id] = item.quantity - totalRefunded;
+        });
+      } else {
+        // For bills that haven't been refunded yet, all quantities are available
+        bill.items.forEach(item => {
+          remainingQuantities[item.part_id] = item.quantity;
+        });
+      }
+      
       // Determine refund status and items to refund
       let newStatus = 'refunded';
       let itemsToRefund = bill.items;
@@ -2498,27 +2624,34 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
           throw new Error('Partial refund requires selected items');
         }
         
-        // Validate refund items
+        // Validate refund items against remaining quantities
         for (const refundItem of refund_items) {
           const originalItem = bill.items.find(item => item.part_id === refundItem.part_id);
           if (!originalItem) {
             throw new Error(`Part ID ${refundItem.part_id} not found in bill`);
           }
-          if (refundItem.quantity > originalItem.quantity) {
-            throw new Error(`Cannot refund ${refundItem.quantity} units of part ${refundItem.part_id}, only ${originalItem.quantity} were sold`);
+          
+          const remainingQuantity = remainingQuantities[refundItem.part_id];
+          if (refundItem.quantity > remainingQuantity) {
+            throw new Error(`Cannot refund ${refundItem.quantity} units of part ${refundItem.part_id}, only ${remainingQuantity} units remain available for refund`);
+          }
+          
+          if (remainingQuantity <= 0) {
+            throw new Error(`Part ${refundItem.part_id} has already been fully refunded`);
           }
         }
         
         itemsToRefund = refund_items;
         
-        // Check if this is actually a full refund (all items with full quantities)
-        const isFullRefund = refund_items.length === bill.items.length && 
-          refund_items.every(refundItem => {
-            const originalItem = bill.items.find(item => item.part_id === refundItem.part_id);
-            return originalItem && refundItem.quantity === originalItem.quantity;
-          });
+        // Check if this refund completes all remaining quantities
+        const isCompleteRefund = bill.items.every(item => {
+          const refundItem = refund_items.find(ri => ri.part_id === item.part_id);
+          const refundQuantity = refundItem ? refundItem.quantity : 0;
+          const remainingAfterThisRefund = remainingQuantities[item.part_id] - refundQuantity;
+          return remainingAfterThisRefund <= 0;
+        });
         
-        if (isFullRefund) {
+        if (isCompleteRefund) {
           newStatus = 'refunded';
         }
       } else {
