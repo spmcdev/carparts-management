@@ -12,8 +12,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 // CORS configuration for production
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, /\.vercel\.app$/, 'http://localhost:3001'] 
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
+    ? [
+        process.env.FRONTEND_URL, 
+        'https://rasuki-carparts-staging.up.railway.app',
+        /\.vercel\.app$/, 
+        'http://localhost:3001'
+      ] 
+    : [
+        'http://localhost:3000', 
+        'http://localhost:3001', 
+        'http://localhost:8080',
+        'https://rasuki-carparts-staging.up.railway.app'
+      ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -2024,19 +2034,62 @@ app.get('/bills', authenticateToken, async (req, res) => {
     let query = `
       SELECT 
         b.*,
-        json_agg(
-          json_build_object(
-            'id', bi.id,
-            'part_id', bi.part_id,
-            'part_name', bi.part_name,
-            'manufacturer', bi.manufacturer,
-            'quantity', bi.quantity,
-            'unit_price', bi.unit_price,
-            'total_price', bi.total_price
-          )
-        ) as items
+        COALESCE(items_agg.items, '[]'::json) as items,
+        COALESCE(refunds_agg.refund_history, '[]'::json) as refund_history,
+        COALESCE(refunds_agg.total_refunded, 0) as total_refunded
       FROM bills b
-      LEFT JOIN bill_items bi ON b.id = bi.bill_id
+      LEFT JOIN (
+        SELECT bi.bill_id,
+               json_agg(
+                 json_build_object(
+                   'id', bi.id,
+                   'part_id', bi.part_id,
+                   'part_name', bi.part_name,
+                   'manufacturer', bi.manufacturer,
+                   'quantity', bi.quantity,
+                   'unit_price', bi.unit_price,
+                   'total_price', bi.total_price
+                 ) ORDER BY bi.id
+               ) as items
+        FROM bill_items bi
+        GROUP BY bi.bill_id
+      ) items_agg ON b.id = items_agg.bill_id
+      LEFT JOIN (
+        SELECT 
+          br.bill_id,
+          json_agg(
+            json_build_object(
+              'id', br.id,
+              'refund_amount', br.refund_amount,
+              'refund_reason', br.refund_reason,
+              'refund_type', br.refund_type,
+              'refund_date', br.refund_date,
+              'refunded_by_name', u.username,
+              'refund_items', COALESCE(bri_agg.items, '[]'::json)
+            ) ORDER BY br.refund_date DESC
+          ) as refund_history,
+          SUM(br.refund_amount) as total_refunded
+        FROM bill_refunds br
+        LEFT JOIN users u ON br.refunded_by = u.id
+        LEFT JOIN (
+          SELECT 
+            bri.refund_id,
+            json_agg(
+              json_build_object(
+                'part_id', bri.part_id,
+                'part_name', p.name,
+                'manufacturer', p.manufacturer,
+                'quantity', bri.quantity,
+                'unit_price', bri.unit_price,
+                'total_price', bri.total_price
+              ) ORDER BY bri.id
+            ) as items
+          FROM bill_refund_items bri
+          LEFT JOIN parts p ON bri.part_id = p.id
+          GROUP BY bri.refund_id
+        ) bri_agg ON br.id = bri_agg.refund_id
+        GROUP BY br.bill_id
+      ) refunds_agg ON b.id = refunds_agg.bill_id
     `;
     
     const queryParams = [];
@@ -2057,10 +2110,23 @@ app.get('/bills', authenticateToken, async (req, res) => {
       paramIndex++;
     }
     
-    query += ` GROUP BY b.id ORDER BY b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(parseInt(limit), offset);
     
     const result = await pool.query(query, queryParams);
+    
+    // Process results to add calculated refund info
+    const processedBills = result.rows.map(bill => {
+      const totalRefunded = parseFloat(bill.total_refunded || 0);
+      const remainingAmount = parseFloat(bill.total_amount) - totalRefunded;
+      
+      return {
+        ...bill,
+        total_refunded: totalRefunded,
+        remaining_amount: remainingAmount,
+        refund_percentage: bill.total_amount > 0 ? (totalRefunded / parseFloat(bill.total_amount)) * 100 : 0
+      };
+    });
     
     // Get total count for pagination
     let countQuery = `
@@ -2089,7 +2155,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     
     res.json({
-      bills: result.rows,
+      bills: processedBills,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -2434,6 +2500,107 @@ app.delete('/bills/:billId/items/:itemId', authenticateToken, requireSuperAdmin,
   }
 });
 
+// Get bill refund details (for continuing partial refunds)
+app.get('/bills/:id/refund-details', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Get bill with items
+    const billResult = await pool.query(`
+      SELECT b.*, 
+             json_agg(
+               json_build_object(
+                 'id', bi.id,
+                 'part_id', bi.part_id,
+                 'part_name', p.name,
+                 'manufacturer', p.manufacturer,
+                 'quantity', bi.quantity,
+                 'unit_price', bi.unit_price,
+                 'total_price', bi.total_price
+               )
+               ORDER BY bi.id
+             ) as items
+      FROM bills b
+      LEFT JOIN bill_items bi ON b.id = bi.bill_id
+      LEFT JOIN parts p ON bi.part_id = p.id
+      WHERE b.id = $1
+      GROUP BY b.id
+    `, [id]);
+    
+    if (billResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    
+    const bill = billResult.rows[0];
+    
+    // Get all previous refunds for this bill
+    const refundsResult = await pool.query(`
+      SELECT br.*, 
+             json_agg(
+               CASE WHEN bri.id IS NOT NULL THEN
+                 json_build_object(
+                   'part_id', bri.part_id,
+                   'quantity', bri.quantity,
+                   'unit_price', bri.unit_price,
+                   'total_price', bri.total_price
+                 )
+               ELSE NULL END
+             ) as refund_items
+      FROM bill_refunds br
+      LEFT JOIN bill_refund_items bri ON br.id = bri.refund_id
+      WHERE br.bill_id = $1
+      GROUP BY br.id
+      ORDER BY br.refund_date DESC
+    `, [id]);
+    
+    const refunds = refundsResult.rows;
+    
+    // Calculate remaining quantities for each item
+    const itemsWithRemaining = bill.items.map(item => {
+      let totalRefunded = 0;
+      
+      // Sum up all previous refunds for this part
+      refunds.forEach(refund => {
+        if (refund.refund_items) {
+          refund.refund_items.forEach(refundItem => {
+            if (refundItem && refundItem.part_id === item.part_id) {
+              totalRefunded += refundItem.quantity;
+            }
+          });
+        }
+      });
+      
+      const remainingQuantity = item.quantity - totalRefunded;
+      
+      return {
+        ...item,
+        total_refunded: totalRefunded,
+        remaining_quantity: remainingQuantity,
+        can_refund: remainingQuantity > 0
+      };
+    });
+    
+    // Calculate remaining refund amount
+    const totalRefundedAmount = refunds.reduce((sum, refund) => sum + parseFloat(refund.refund_amount), 0);
+    const remainingRefundAmount = parseFloat(bill.total_amount) - totalRefundedAmount;
+    
+    res.json({
+      bill: {
+        ...bill,
+        items: itemsWithRemaining
+      },
+      refund_history: refunds,
+      total_refunded_amount: totalRefundedAmount,
+      remaining_refund_amount: remainingRefundAmount,
+      can_continue_refund: remainingRefundAmount > 0 && itemsWithRemaining.some(item => item.can_refund)
+    });
+    
+  } catch (err) {
+    console.error('Error getting refund details:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Process refund
 app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
@@ -2477,6 +2644,31 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
         throw new Error('Bill is already fully refunded');
       }
       
+      // Get remaining quantities for partial refund validation
+      let remainingQuantities = {};
+      if (bill.status === 'partially_refunded') {
+        // Get all previous refunds for this bill
+        const refundsResult = await pool.query(`
+          SELECT bri.part_id, SUM(bri.quantity) as total_refunded
+          FROM bill_refunds br
+          JOIN bill_refund_items bri ON br.id = bri.refund_id
+          WHERE br.bill_id = $1
+          GROUP BY bri.part_id
+        `, [id]);
+        
+        // Calculate remaining quantities
+        bill.items.forEach(item => {
+          const refunded = refundsResult.rows.find(r => r.part_id === item.part_id);
+          const totalRefunded = refunded ? parseInt(refunded.total_refunded) : 0;
+          remainingQuantities[item.part_id] = item.quantity - totalRefunded;
+        });
+      } else {
+        // For bills that haven't been refunded yet, all quantities are available
+        bill.items.forEach(item => {
+          remainingQuantities[item.part_id] = item.quantity;
+        });
+      }
+      
       // Determine refund status and items to refund
       let newStatus = 'refunded';
       let itemsToRefund = bill.items;
@@ -2488,27 +2680,34 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
           throw new Error('Partial refund requires selected items');
         }
         
-        // Validate refund items
+        // Validate refund items against remaining quantities
         for (const refundItem of refund_items) {
           const originalItem = bill.items.find(item => item.part_id === refundItem.part_id);
           if (!originalItem) {
             throw new Error(`Part ID ${refundItem.part_id} not found in bill`);
           }
-          if (refundItem.quantity > originalItem.quantity) {
-            throw new Error(`Cannot refund ${refundItem.quantity} units of part ${refundItem.part_id}, only ${originalItem.quantity} were sold`);
+          
+          const remainingQuantity = remainingQuantities[refundItem.part_id];
+          if (refundItem.quantity > remainingQuantity) {
+            throw new Error(`Cannot refund ${refundItem.quantity} units of part ${refundItem.part_id}, only ${remainingQuantity} units remain available for refund`);
+          }
+          
+          if (remainingQuantity <= 0) {
+            throw new Error(`Part ${refundItem.part_id} has already been fully refunded`);
           }
         }
         
         itemsToRefund = refund_items;
         
-        // Check if this is actually a full refund (all items with full quantities)
-        const isFullRefund = refund_items.length === bill.items.length && 
-          refund_items.every(refundItem => {
-            const originalItem = bill.items.find(item => item.part_id === refundItem.part_id);
-            return originalItem && refundItem.quantity === originalItem.quantity;
-          });
+        // Check if this refund completes all remaining quantities
+        const isCompleteRefund = bill.items.every(item => {
+          const refundItem = refund_items.find(ri => ri.part_id === item.part_id);
+          const refundQuantity = refundItem ? refundItem.quantity : 0;
+          const remainingAfterThisRefund = remainingQuantities[item.part_id] - refundQuantity;
+          return remainingAfterThisRefund <= 0;
+        });
         
-        if (isFullRefund) {
+        if (isCompleteRefund) {
           newStatus = 'refunded';
         }
       } else {
@@ -2528,18 +2727,14 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
       );
       
       // Create refund record for tracking
-      await pool.query(
+      const refundInsertResult = await pool.query(
         `INSERT INTO bill_refunds (bill_id, refund_amount, refund_reason, refund_type, refunded_by, refund_date)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)`,
+         VALUES ($1, $2, $3, $4, $5, CURRENT_DATE) RETURNING id`,
         [id, refund_amount, refund_reason, refund_type || 'full', req.user.id]
       );
       
       // Get the refund ID for item tracking
-      const refundResult = await pool.query(
-        'SELECT id FROM bill_refunds WHERE bill_id = $1 ORDER BY refund_date DESC LIMIT 1',
-        [id]
-      );
-      const refundId = refundResult.rows[0]?.id;
+      const refundId = refundInsertResult.rows[0]?.id;
       
       // Restore stock for refunded items
       for (const item of itemsToRefund) {
@@ -2614,6 +2809,45 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
   } catch (err) {
     console.error('Error processing refund:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Debug endpoint to check refund data
+app.get('/debug-refunds/:billId', authenticateToken, async (req, res) => {
+  const { billId } = req.params;
+  
+  try {
+    console.log('Debugging refund data for bill:', billId);
+    
+    // Get bill_refunds
+    const refundsResult = await pool.query(`
+      SELECT id, bill_id, refund_amount, refund_reason, refund_type, refund_date, refunded_by
+      FROM bill_refunds 
+      WHERE bill_id = $1 
+      ORDER BY id
+    `, [billId]);
+
+    // Get bill_refund_items
+    const refundItemsResult = await pool.query(`
+      SELECT bri.*, p.name as part_name
+      FROM bill_refund_items bri
+      LEFT JOIN parts p ON bri.part_id = p.id
+      WHERE bri.refund_id IN (SELECT id FROM bill_refunds WHERE bill_id = $1)
+      ORDER BY bri.refund_id, bri.part_id
+    `, [billId]);
+
+    res.json({
+      bill_id: billId,
+      refunds: refundsResult.rows,
+      refund_items: refundItemsResult.rows,
+      summary: {
+        total_refunds: refundsResult.rows.length,
+        total_refund_items: refundItemsResult.rows.length
+      }
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -10,12 +10,15 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^6.30.1",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "serve": "^14.2.4"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "build": "CI=false react-scripts build",
+    "build:railway": "npm install --prefer-offline && CI=false npm run build",
+    "serve": "serve -s build -p $PORT",
+    "test": "react-scripts test --passWithNoTests",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

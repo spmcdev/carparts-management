@@ -37,18 +37,48 @@ carparts/
 ├── frontend/                 # React frontend application
 │   ├── src/
 │   │   ├── components/       # React components
-│   │   ├── config/          # API configuration
-│   │   └── __tests__/       # Frontend tests
+│   │   └── config/          # API configuration
 │   ├── build/               # Production build
 │   └── package.json
-├── migrations/              # Database migration files
-├── __tests__/              # Backend tests
+├── docs/                    # 📚 Complete documentation
+│   ├── deployment/          # Deployment guides
+│   ├── testing/            # Testing documentation
+│   ├── features/           # Feature implementation guides
+│   └── database/           # Database setup and schema
+├── database/               # 🗄️ Database files
+│   ├── migrations/         # Database migration files
+│   │   ├── 00-consolidated-migration.sql # ✅ Primary migration
+│   │   └── archive/        # Individual migrations (archived)
+│   └── setup/             # Database setup scripts
+├── tests/                   # Backend tests
+│   ├── partial-refund.test.js # Working Jest tests ✅
+│   ├── test-staging-remote.js # Staging validation
+│   └── archive/            # Archived test files
+├── scripts/                # 🛠️ Utility scripts
+│   ├── deployment/         # Deployment automation
+│   ├── database/          # Database operations
+│   ├── monitoring/        # Health checks
+│   └── archive/           # Legacy scripts
 ├── index.js                # Express server
 ├── package.json            # Backend dependencies
 ├── docker-compose.yml      # Docker configuration
-├── DEPLOYMENT.md           # Deployment guide
 └── README.md              # This file
 ```
+
+## 📚 Documentation
+
+Complete documentation is organized in the [`docs/`](docs/) folder:
+
+- **[📋 Documentation Index](docs/README.md)** - Complete documentation overview
+- **[🚀 Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Production deployment instructions  
+- **[🧪 Testing Guide](docs/testing/TESTING.md)** - Test execution and validation
+- **[⚡ Feature Guides](docs/features/)** - Implementation guides for specific features
+- **[🏗️ Railway CI/CD Setup](docs/deployment/RAILWAY-CICD-SETUP.md)** - Automated deployment pipeline
+
+For quick reference:
+- **Getting Started**: See [Quick Start](#quick-start) below
+- **Testing**: Run `npm test` for core tests, see [Testing Docs](docs/testing/) for comprehensive validation
+- **Deployment**: Follow [Deployment Guide](docs/deployment/DEPLOYMENT.md) for production setup
 
 ## Quick Start
 
@@ -75,8 +105,8 @@ carparts/
    # Edit .env with your database credentials
    
    # Run database migrations
-   # Connect to your PostgreSQL and run the SQL files in order:
-   # 01-init.sql, 02-users.sql, etc.
+   # Use the consolidated migration file:
+   psql -d your_database < database/migrations/00-consolidated-migration.sql
    
    # Start backend server
    npm start
@@ -118,15 +148,15 @@ This application is ready for deployment on:
 - **Backend**: Railway (PostgreSQL + Node.js)
 - **Frontend**: Vercel (React static hosting)
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+See [Deployment Guide](docs/deployment/DEPLOYMENT.md) for detailed deployment instructions.
 
 ### Quick Deploy Commands
 
 ```bash
 # Prepare for deployment
-./deploy-prep.sh
+./scripts/deployment/deploy-prep.sh
 
-# Deploy to Railway + Vercel (see DEPLOYMENT.md)
+# Deploy to Railway + Vercel (see docs/deployment/DEPLOYMENT.md)
 ```
 
 ## API Documentation
@@ -196,7 +226,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 For deployment help, see:
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide
+- [Deployment Guide](docs/deployment/DEPLOYMENT.md) - Complete deployment guide
 - [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) - Step-by-step checklist
 
 ## Acknowledgments
@@ -212,3 +242,4 @@ For deployment help, see:
 - **v1.1.0** - Added audit logging and advanced reporting
 - **v1.2.0** - Mobile responsive design and print functionality
 - **v1.3.0** - Production-ready with Docker and deployment guides
+# Pipeline test

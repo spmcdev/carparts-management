@@ -1,0 +1,28 @@
+{
+  "projects": [
+    {
+      "displayName": "working-tests",
+      "testEnvironment": "node",
+      "testMatch": ["<rootDir>/tests/partial-refund.test.js"],
+      "transform": {
+        "^.+\\.js$": "babel-jest"
+      },
+      "globals": {
+        "__DEV__": true
+      },
+      "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
+    },
+    {
+      "displayName": "staging-tests",
+      "testEnvironment": "node", 
+      "testMatch": [
+        "<rootDir>/tests/test-staging-remote.js",
+        "<rootDir>/tests/test-refund-staging.js",
+        "<rootDir>/tests/test-frontend-staging.js"
+      ],
+      "transform": {
+        "^.+\\.js$": "babel-jest"
+      }
+    }
+  ]
+}

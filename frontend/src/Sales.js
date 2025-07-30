@@ -912,26 +912,62 @@ function Sales({ token, userRole }) {
   };
 
   // Process refund
-  const handleRefund = (bill) => {
-    setRefundingBill(bill);
-    setRefundAmount(bill.total_amount);
-    setRefundReason('');
-    setRefundType('full');
-    // Initialize refund items with all bill items
-    setRefundItems(bill.items.map(item => ({
-      ...item,
-      refund_quantity: 0,
-      refund_unit_price: item.unit_price,
-      refund_total: 0,
-      selected: false
-    })));
+  const handleRefund = async (bill) => {
+    try {
+      setLoading(true);
+      
+      // Fetch refund details to get remaining quantities
+      const res = await fetch(`${API_ENDPOINTS.BILLS}/${bill.id}/refund-details`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch refund details');
+      }
+      
+      const refundDetails = await res.json();
+      
+      if (!refundDetails.can_continue_refund) {
+        setError('This bill has been fully refunded and cannot be refunded further');
+        return;
+      }
+      
+      setRefundingBill(refundDetails.bill);
+      setRefundAmount(refundDetails.remaining_refund_amount);
+      setRefundReason('');
+      
+      // Automatically set refund type based on bill status
+      if (refundDetails.bill.status === 'partially_refunded') {
+        setRefundType('partial');
+      } else {
+        setRefundType('full');
+      }
+      
+      // Initialize refund items with remaining quantities
+      setRefundItems(refundDetails.bill.items.map(item => ({
+        ...item,
+        refund_quantity: 0,
+        refund_unit_price: item.unit_price,
+        refund_total: 0,
+        selected: false,
+        max_refund_quantity: item.remaining_quantity, // Store max available for validation
+        already_refunded: item.total_refunded
+      })));
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Update refund item selection
   const updateRefundItemSelection = (itemIndex, selected) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_quantity = selected ? item.quantity : 0;
+        const refund_quantity = selected ? item.remaining_quantity : 0;
         return {
           ...item,
           selected,
@@ -949,7 +985,7 @@ function Sales({ token, userRole }) {
   const updateRefundItemQuantity = (itemIndex, quantity) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_quantity = Math.min(Math.max(0, quantity), item.quantity);
+        const refund_quantity = Math.min(Math.max(0, quantity), item.remaining_quantity);
         return {
           ...item,
           refund_quantity,
@@ -990,9 +1026,9 @@ function Sales({ token, userRole }) {
   const selectAllRefundItems = () => {
     const updatedItems = refundItems.map(item => ({
       ...item,
-      selected: true,
-      refund_quantity: item.quantity,
-      refund_total: item.quantity * item.refund_unit_price
+      selected: item.remaining_quantity > 0, // Only select items with remaining quantity
+      refund_quantity: item.remaining_quantity,
+      refund_total: item.remaining_quantity * item.refund_unit_price
     }));
     setRefundItems(updatedItems);
     updateRefundAmount(updatedItems);
@@ -1076,6 +1112,66 @@ function Sales({ token, userRole }) {
       </svg>
     `)}`;
 
+    // Determine bill status for header
+    const getStatusDisplay = () => {
+      if (bill.status === 'refunded') return '<div style="color: red; font-weight: bold; margin: 10px 0;">FULLY REFUNDED</div>';
+      if (bill.status === 'partially_refunded') return '<div style="color: orange; font-weight: bold; margin: 10px 0;">PARTIALLY REFUNDED</div>';
+      return '';
+    };
+
+    // Generate refund history section
+    const getRefundHistoryHTML = () => {
+      if (!bill.refund_history || bill.refund_history.length === 0) return '';
+      
+      return `
+        <div style="margin-top: 30px; border-top: 2px solid #ccc; padding-top: 20px;">
+          <h3>Refund History</h3>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px;">Date</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Type</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Amount</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Reason</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Processed By</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Items Refunded</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bill.refund_history.map(refund => `
+                <tr>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${new Date(refund.refund_date).toLocaleDateString()}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${refund.refund_type.toUpperCase()}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">Rs ${parseFloat(refund.refund_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${refund.refund_reason}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${refund.refunded_by_name}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px;">
+                    ${refund.refund_items && refund.refund_items.length > 0 ? 
+                      refund.refund_items.map(item => 
+                        `<div style="margin-bottom: 5px; padding: 3px; background-color: #f8f9fa; border-radius: 3px;">
+                          <strong>${item.part_name}</strong>
+                          ${item.manufacturer ? `<br><span style="color: #666; font-size: 10px;">${item.manufacturer}</span>` : ''}
+                          <br>Qty: ${item.quantity} × Rs ${parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })} = Rs ${parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                        </div>`
+                      ).join('')
+                      : '<span style="color: #666;">No item details</span>'
+                    }
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background-color: #e8f4fd; font-weight: bold;">
+                <td colspan="2" style="border: 1px solid #ddd; padding: 8px;">Total Refunded</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Rs ${parseFloat(bill.total_refunded || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                <td colspan="3" style="border: 1px solid #ddd; padding: 8px;">Remaining: Rs ${parseFloat(bill.remaining_amount || bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      `;
+    };
+
     printWindow.document.write(`
       <html>
         <head>
@@ -1091,6 +1187,10 @@ function Sales({ token, userRole }) {
             .items-table th { background-color: #f2f2f2; }
             .total { text-align: right; font-weight: bold; font-size: 18px; }
             .footer { margin-top: 30px; text-align: center; }
+            .refund-section { margin-top: 30px; border-top: 2px solid #ccc; padding-top: 20px; }
+            .status-alert { padding: 10px; margin: 10px 0; border-radius: 5px; text-align: center; }
+            .refunded { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+            .partially-refunded { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
             @media print {
               body { margin: 15px; }
               .logo img { max-width: 100px; height: auto; }
@@ -1107,12 +1207,17 @@ function Sales({ token, userRole }) {
               <h2>Car Parts Sales Invoice</h2>
             </div>
           </div>
+          
+          ${getStatusDisplay()}
+          
           <div class="bill-info">
             <p><strong>Bill Number:</strong> ${bill.bill_number || bill.id}</p>
             <p><strong>Date:</strong> ${new Date(bill.date).toLocaleDateString()}</p>
             <p><strong>Customer:</strong> ${bill.customer_name}</p>
             ${bill.customer_phone ? `<p><strong>Phone:</strong> ${bill.customer_phone}</p>` : ''}
+            <p><strong>Status:</strong> ${bill.status.toUpperCase().replace('_', ' ')}</p>
           </div>
+          
           <table class="items-table">
             <thead>
               <tr>
@@ -1135,13 +1240,22 @@ function Sales({ token, userRole }) {
               `).join('')}
             </tbody>
           </table>
+          
           <div class="total">
             <p>Total Quantity: ${bill.total_quantity}</p>
-            <p>Total Amount: Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
+            <p>Original Amount: Rs ${parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
+            ${bill.total_refunded > 0 ? `
+              <p style="color: red;">Total Refunded: Rs ${parseFloat(bill.total_refunded).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
+              <p style="color: ${bill.remaining_amount > 0 ? 'green' : 'gray'};">Net Amount: Rs ${parseFloat(bill.remaining_amount || bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
+            ` : ''}
           </div>
+          
+          ${getRefundHistoryHTML()}
+          
           <div class="footer">
             <p>Thank you for your business!</p>
             <p>Rasuki Group - Quality Car Parts</p>
+            ${bill.status !== 'active' ? `<p style="font-style: italic; color: #666;">This bill has been ${bill.status.replace('_', ' ')}.</p>` : ''}
           </div>
         </body>
       </html>
@@ -1445,15 +1559,42 @@ function Sales({ token, userRole }) {
                             <small className="text-muted">No items</small>
                           )}
                         </td>
-                        <td>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                         <td>
-                          <span className={`badge ${
-                            bill.status === 'active' ? 'bg-success' :
-                            bill.status === 'refunded' ? 'bg-danger' :
-                            'bg-warning'
-                          }`}>
-                            {bill.status}
-                          </span>
+                          <div>
+                            <strong>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                            {bill.total_refunded > 0 && (
+                              <div>
+                                <small className="text-danger">
+                                  Refunded: Rs {parseFloat(bill.total_refunded).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                                </small>
+                                <br />
+                                <small className={`${bill.remaining_amount > 0 ? 'text-success' : 'text-muted'}`}>
+                                  Net: Rs {parseFloat(bill.remaining_amount || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                                </small>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            <span className={`badge ${
+                              bill.status === 'active' ? 'bg-success' :
+                              bill.status === 'refunded' ? 'bg-danger' :
+                              bill.status === 'partially_refunded' ? 'bg-warning text-dark' :
+                              'bg-secondary'
+                            }`}>
+                              {bill.status === 'partially_refunded' ? 'Partial Refund' :
+                               bill.status === 'refunded' ? 'Fully Refunded' :
+                               bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
+                            </span>
+                            {bill.total_refunded > 0 && (
+                              <div className="mt-1">
+                                <small className="text-muted">
+                                  {bill.refund_percentage?.toFixed(1)}% refunded
+                                </small>
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <div className="btn-group">
@@ -1473,9 +1614,9 @@ function Sales({ token, userRole }) {
                                 <button className="btn btn-warning btn-sm" onClick={() => handleEditBill(bill)}>
                                   Edit
                                 </button>
-                                {bill.status === 'active' && (
+                                {(bill.status === 'active' || bill.status === 'partially_refunded') && (
                                   <button className="btn btn-danger btn-sm" onClick={() => handleRefund(bill)}>
-                                    Refund
+                                    {bill.status === 'partially_refunded' ? 'Continue Refund' : 'Refund'}
                                   </button>
                                 )}
                               </>
@@ -1488,53 +1629,88 @@ function Sales({ token, userRole }) {
                           <td colSpan="8" className="p-0">
                             <div className="bg-light border-top">
                               <div className="p-3">
-                                <h6 className="mb-3">
-                                  <i className="fas fa-list me-2"></i>
-                                  Bill Items Details
-                                </h6>
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                  <h6 className="mb-0">
+                                    <i className="fas fa-list me-2"></i>
+                                    Bill Items Details
+                                  </h6>
+                                  {(bill.status === 'partially_refunded' || bill.status === 'refunded') && (
+                                    <span className={`badge ${bill.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark'}`}>
+                                      {bill.status === 'refunded' ? 'Fully Refunded' : 'Partially Refunded'}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {/* Refund Summary (for refunded bills) */}
+                                {bill.total_refunded > 0 && (
+                                  <div className="alert alert-info mb-3">
+                                    <div className="row">
+                                      <div className="col-md-6">
+                                        <small><strong>Original Amount:</strong> Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</small>
+                                      </div>
+                                      <div className="col-md-6">
+                                        <small><strong>Total Refunded:</strong> Rs {parseFloat(bill.total_refunded).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</small>
+                                      </div>
+                                      <div className="col-md-6">
+                                        <small><strong>Remaining Amount:</strong> Rs {parseFloat(bill.remaining_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</small>
+                                      </div>
+                                      <div className="col-md-6">
+                                        <small><strong>Refund Percentage:</strong> {bill.refund_percentage?.toFixed(1)}%</small>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Original Bill Items */}
                                 {bill.items && bill.items.length > 0 ? (
-                                  <div className="table-responsive">
-                                    <table className="table table-sm table-striped mb-0">
-                                      <thead className="table-dark">
-                                        <tr>
-                                          <th>Part Name</th>
-                                          <th>Manufacturer</th>
-                                          <th>Quantity</th>
-                                          <th>Unit Price</th>
-                                          <th>Total Price</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {bill.items.map((item, index) => (
-                                          <tr key={index}>
-                                            <td>
-                                              <strong>{item.part_name}</strong>
-                                              {item.part_id && (
-                                                <small className="text-muted d-block">
-                                                  ID: {item.part_id}
-                                                </small>
-                                              )}
-                                            </td>
-                                            <td>{item.manufacturer || 'N/A'}</td>
-                                            <td>
-                                              <span className="badge bg-primary">{item.quantity}</span>
-                                            </td>
-                                            <td>Rs {parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
-                                            <td>
-                                              <strong>Rs {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
-                                            </td>
+                                  <div className="mt-4">
+                                    <h6 className="mb-3">
+                                      <i className="fas fa-receipt me-2"></i>
+                                      Original Bill Items
+                                    </h6>
+                                    <div className="table-responsive">
+                                      <table className="table table-sm table-striped mb-0">
+                                        <thead className="table-dark">
+                                          <tr>
+                                            <th>Part Name</th>
+                                            <th>Manufacturer</th>
+                                            <th>Quantity</th>
+                                            <th>Unit Price</th>
+                                            <th>Total Price</th>
                                           </tr>
-                                        ))}
-                                      </tbody>
-                                      <tfoot className="table-warning">
-                                        <tr>
-                                          <td colSpan="2"><strong>Total</strong></td>
-                                          <td><strong>{bill.total_quantity}</strong></td>
-                                          <td></td>
-                                          <td><strong>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
-                                        </tr>
-                                      </tfoot>
-                                    </table>
+                                        </thead>
+                                        <tbody>
+                                          {bill.items.map((item, index) => (
+                                            <tr key={index}>
+                                              <td>
+                                                <strong>{item.part_name}</strong>
+                                                {item.part_id && (
+                                                  <small className="text-muted d-block">
+                                                    ID: {item.part_id}
+                                                  </small>
+                                                )}
+                                              </td>
+                                              <td>{item.manufacturer || 'N/A'}</td>
+                                              <td>
+                                                <span className="badge bg-primary">{item.quantity}</span>
+                                              </td>
+                                              <td>Rs {parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                                              <td>
+                                                <strong>Rs {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                        <tfoot className="table-warning">
+                                          <tr>
+                                            <td colSpan="2"><strong>Total</strong></td>
+                                            <td><strong>{bill.total_quantity}</strong></td>
+                                            <td></td>
+                                            <td><strong>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
+                                          </tr>
+                                        </tfoot>
+                                      </table>
+                                    </div>
                                   </div>
                                 ) : (
                                   <div className="text-muted text-center py-3">
@@ -1542,6 +1718,85 @@ function Sales({ token, userRole }) {
                                     No items found for this bill
                                   </div>
                                 )}
+                                
+                                {/* Refund History */}
+                                {bill.refund_history && bill.refund_history.length > 0 && (
+                                  <div className="mt-4">
+                                    <h6 className="mb-3">
+                                      <i className="fas fa-undo me-2"></i>
+                                      Refund History
+                                    </h6>
+                                    <div className="table-responsive">
+                                      <table className="table table-sm table-bordered">
+                                        <thead className="table-secondary">
+                                          <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Amount</th>
+                                            <th>Reason</th>
+                                            <th>Processed By</th>
+                                            <th>Items Refunded</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {bill.refund_history.map((refund, index) => (
+                                            <tr key={`refund-${refund.id || index}`}>
+                                              <td>
+                                                <small>{new Date(refund.refund_date).toLocaleDateString()}</small>
+                                              </td>
+                                              <td>
+                                                <span className={`badge ${refund.refund_type === 'full' ? 'bg-danger' : 'bg-warning text-dark'}`}>
+                                                  {refund.refund_type === 'full' ? 'Full' : 'Partial'}
+                                                </span>
+                                              </td>
+                                              <td>
+                                                <strong>Rs {parseFloat(refund.refund_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                              </td>
+                                              <td>
+                                                <small>{refund.refund_reason}</small>
+                                              </td>
+                                              <td>
+                                                <small>{refund.refunded_by_name}</small>
+                                              </td>
+                                              <td>
+                                                {refund.refund_items && Array.isArray(refund.refund_items) && refund.refund_items.length > 0 ? (
+                                                  <div className="small">
+                                                    {refund.refund_items.map((item, itemIndex) => (
+                                                      <div key={`refund-${refund.id || index}-item-${itemIndex}`} className="mb-1 p-1" style={{ backgroundColor: '#f8f9fa', borderRadius: '3px' }}>
+                                                        <strong>{item.part_name}</strong>
+                                                        {item.manufacturer && (
+                                                          <div className="text-muted" style={{ fontSize: '0.8em' }}>
+                                                            {item.manufacturer}
+                                                          </div>
+                                                        )}
+                                                        <div className="d-flex justify-content-between align-items-center">
+                                                          <span className="badge bg-secondary">{item.quantity}x</span>
+                                                          <span>Rs {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ) : (
+                                                  <small className="text-muted">No item details</small>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                        <tfoot className="table-info">
+                                          <tr>
+                                            <td colSpan="2"><strong>Total Refunded</strong></td>
+                                            <td><strong>Rs {parseFloat(bill.total_refunded).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
+                                            <td colSpan="3">
+                                              <strong>Remaining: Rs {parseFloat(bill.remaining_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                            </td>
+                                          </tr>
+                                        </tfoot>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+                                
                                 <div className="mt-3 row">
                                   <div className="col-md-6">
                                     <small className="text-muted">
@@ -2171,10 +2426,25 @@ function Sales({ token, userRole }) {
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Process Refund - Bill #{refundingBill.bill_number || refundingBill.id}</h5>
+                <h5 className="modal-title">
+                  {refundingBill.status === 'partially_refunded' ? 'Continue Refund' : 'Process Refund'} - Bill #{refundingBill.bill_number || refundingBill.id}
+                </h5>
                 <button type="button" className="btn-close" onClick={() => setRefundingBill(null)}></button>
               </div>
               <div className="modal-body">
+                {/* Refund Status Information */}
+                {refundingBill.status === 'partially_refunded' && (
+                  <div className="alert alert-info mb-4">
+                    <h6><i className="fas fa-info-circle me-2"></i>Previous Refunds</h6>
+                    <p className="mb-1">
+                      <strong>Total Refunded:</strong> Rs {(refundingBill.total_amount - parseFloat(refundAmount)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    </p>
+                    <p className="mb-0">
+                      <strong>Remaining Amount:</strong> Rs {parseFloat(refundAmount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                )}
+                
                 {/* Refund Type Selection */}
                 <div className="mb-4">
                   <label className="form-label">Refund Type</label>
@@ -2187,10 +2457,17 @@ function Sales({ token, userRole }) {
                       checked={refundType === 'full'}
                       onChange={() => {
                         setRefundType('full');
-                        setRefundAmount(refundingBill.total_amount);
+                        setRefundAmount(refundAmount); // Use the remaining amount, not the original bill amount
                       }}
+                      disabled={refundingBill.status === 'partially_refunded'}
                     />
-                    <label className="btn btn-outline-danger" htmlFor="fullRefund">Full Refund</label>
+                    <label 
+                      className={`btn ${refundingBill.status === 'partially_refunded' ? 'btn-outline-secondary' : 'btn-outline-danger'}`} 
+                      htmlFor="fullRefund"
+                      title={refundingBill.status === 'partially_refunded' ? 'Full refund not available for partially refunded bills' : ''}
+                    >
+                      {refundingBill.status === 'partially_refunded' ? 'Full Refund (N/A)' : 'Full Refund'}
+                    </label>
                     
                     <input 
                       type="radio" 
@@ -2203,8 +2480,16 @@ function Sales({ token, userRole }) {
                         clearAllRefundItems();
                       }}
                     />
-                    <label className="btn btn-outline-warning" htmlFor="partialRefund">Partial Refund</label>
+                    <label className="btn btn-outline-warning" htmlFor="partialRefund">
+                      {refundingBill.status === 'partially_refunded' ? 'Continue Partial Refund' : 'Partial Refund'}
+                    </label>
                   </div>
+                  {refundingBill.status === 'partially_refunded' && (
+                    <small className="text-muted d-block mt-1">
+                      <i className="fas fa-info-circle me-1"></i>
+                      This bill has been partially refunded. You can only continue with partial refunds.
+                    </small>
+                  )}
                 </div>
 
                 {/* Partial Refund Item Selection */}
@@ -2228,7 +2513,9 @@ function Sales({ token, userRole }) {
                           <tr>
                             <th width="50">Select</th>
                             <th>Part Name</th>
-                            <th width="80">Sold Qty</th>
+                            <th width="80">Original</th>
+                            <th width="80">Refunded</th>
+                            <th width="80">Remaining</th>
                             <th width="100">Refund Qty</th>
                             <th width="120">Unit Price</th>
                             <th width="120">Refund Total</th>
@@ -2236,13 +2523,14 @@ function Sales({ token, userRole }) {
                         </thead>
                         <tbody>
                           {refundItems.map((item, index) => (
-                            <tr key={index} className={item.selected ? 'table-warning' : ''}>
+                            <tr key={index} className={item.selected ? 'table-warning' : item.remaining_quantity <= 0 ? 'table-light text-muted' : ''}>
                               <td>
                                 <input
                                   type="checkbox"
                                   className="form-check-input"
                                   checked={item.selected}
                                   onChange={e => updateRefundItemSelection(index, e.target.checked)}
+                                  disabled={item.remaining_quantity <= 0}
                                 />
                               </td>
                               <td>
@@ -2255,14 +2543,22 @@ function Sales({ token, userRole }) {
                                 <span className="badge bg-info">{item.quantity}</span>
                               </td>
                               <td>
+                                <span className="badge bg-warning text-dark">{item.already_refunded || 0}</span>
+                              </td>
+                              <td>
+                                <span className={`badge ${item.remaining_quantity > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                                  {item.remaining_quantity}
+                                </span>
+                              </td>
+                              <td>
                                 <input
                                   type="number"
                                   className="form-control form-control-sm"
                                   value={item.refund_quantity}
                                   onChange={e => updateRefundItemQuantity(index, parseInt(e.target.value) || 0)}
                                   min="0"
-                                  max={item.quantity}
-                                  disabled={!item.selected}
+                                  max={item.remaining_quantity}
+                                  disabled={!item.selected || item.remaining_quantity <= 0}
                                 />
                               </td>
                               <td>
@@ -2304,8 +2600,9 @@ function Sales({ token, userRole }) {
                     readOnly={refundType === 'partial'}
                   />
                   <small className="text-muted">
-                    Maximum: Rs {refundingBill.total_amount.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    Maximum: Rs {parseFloat(refundAmount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
                     {refundType === 'partial' && ' (Amount calculated from selected items)'}
+                    {refundingBill.status === 'partially_refunded' && ' (remaining amount available for refund)'}
                   </small>
                 </div>
 
@@ -2326,9 +2623,13 @@ function Sales({ token, userRole }) {
                 <div className="alert alert-info">
                   <h6><i className="fas fa-info-circle me-2"></i>Refund Information</h6>
                   <ul className="mb-0">
-                    <li><strong>Full Refund:</strong> All items will be returned to stock and full amount refunded</li>
+                    <li><strong>Full Refund:</strong> All remaining items will be returned to stock and remaining amount refunded</li>
                     <li><strong>Partial Refund:</strong> Only selected quantities will be returned to stock</li>
+                    <li><strong>Multiple Refunds:</strong> You can process multiple partial refunds until all items are refunded</li>
                     <li><strong>Stock Adjustment:</strong> Returned items will automatically increase available stock</li>
+                    {refundingBill.status === 'partially_refunded' && (
+                      <li><strong>Continuing Refund:</strong> Previous refunds have been processed - you can refund remaining items</li>
+                    )}
                   </ul>
                 </div>
               </div>
