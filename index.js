@@ -2816,6 +2816,45 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
   }
 });
 
+// Debug endpoint to check refund data
+app.get('/debug-refunds/:billId', authenticateToken, async (req, res) => {
+  const { billId } = req.params;
+  
+  try {
+    console.log('Debugging refund data for bill:', billId);
+    
+    // Get bill_refunds
+    const refundsResult = await pool.query(`
+      SELECT id, bill_id, refund_amount, refund_reason, refund_type, refund_date, refunded_by
+      FROM bill_refunds 
+      WHERE bill_id = $1 
+      ORDER BY id
+    `, [billId]);
+
+    // Get bill_refund_items
+    const refundItemsResult = await pool.query(`
+      SELECT bri.*, p.name as part_name
+      FROM bill_refund_items bri
+      LEFT JOIN parts p ON bri.part_id = p.id
+      WHERE bri.refund_id IN (SELECT id FROM bill_refunds WHERE bill_id = $1)
+      ORDER BY bri.refund_id, bri.part_id
+    `, [billId]);
+
+    res.json({
+      bill_id: billId,
+      refunds: refundsResult.rows,
+      refund_items: refundItemsResult.rows,
+      summary: {
+        total_refunds: refundsResult.rows.length,
+        total_refund_items: refundItemsResult.rows.length
+      }
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
