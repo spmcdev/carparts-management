@@ -37,14 +37,14 @@ railway connect postgres
 ### 2. **Run Database Scripts**
 ```sql
 -- In the PostgreSQL console, run:
-\i setup-database.sql
-\i 18-enhance-reservation-system.sql
+\i database/setup/setup-database.sql
+\i database/migrations/archive/18-enhance-reservation-system.sql
 ```
 
 ### 3. **Add Staging Test Data** (Optional)
 ```sql
 -- Run the staging-specific setup:
-\i setup-staging-database.sql
+\i database/setup/setup-staging-database.sql
 ```
 
 ## Environment Variables

@@ -118,11 +118,19 @@ railway run npm run migrate
 
 ### Option 2: Manual Database Setup
 1. Connect to your PostgreSQL database using the connection string from Railway
-2. Run all your SQL migration files in order:
-   - 01-init.sql
-   - 02-users.sql
-   - 03-update-parts.sql
-   - etc.
+2. Run the consolidated migration file:
+   ```bash
+   # Connect to database
+   railway connect postgres
+   
+   # Run migration
+   \i database/migrations/00-consolidated-migration.sql
+   ```
+
+   Or run setup scripts for new environments:
+   ```bash
+   \i database/setup/setup-database.sql
+   ```
 
 ## Testing Your Deployment
 

@@ -45,11 +45,15 @@ carparts/
 │   ├── testing/            # Testing documentation
 │   ├── features/           # Feature implementation guides
 │   └── database/           # Database setup and schema
+├── database/               # 🗄️ Database files
+│   ├── migrations/         # Database migration files
+│   │   ├── 00-consolidated-migration.sql # ✅ Primary migration
+│   │   └── archive/        # Individual migrations (archived)
+│   └── setup/             # Database setup scripts
 ├── tests/                   # Backend tests
 │   ├── partial-refund.test.js # Working Jest tests ✅
 │   ├── test-staging-remote.js # Staging validation
 │   └── archive/            # Archived test files
-├── migrations/              # Database migration files (SQL)
 ├── scripts/                # 🛠️ Utility scripts
 │   ├── deployment/         # Deployment automation
 │   ├── database/          # Database operations
@@ -101,8 +105,8 @@ For quick reference:
    # Edit .env with your database credentials
    
    # Run database migrations
-   # Connect to your PostgreSQL and run the SQL files in order:
-   # 01-init.sql, 02-users.sql, etc.
+   # Use the consolidated migration file:
+   psql -d your_database < database/migrations/00-consolidated-migration.sql
    
    # Start backend server
    npm start

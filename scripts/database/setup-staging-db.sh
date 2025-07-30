@@ -15,7 +15,7 @@ if ! command -v railway &> /dev/null; then
 fi
 
 # Check if we're in the right directory
-if [ ! -f "setup-database.sql" ]; then
+if [ ! -f "database/setup/setup-database.sql" ]; then
     echo "❌ setup-database.sql not found. Please run this script from the project root."
     exit 1
 fi
@@ -36,14 +36,14 @@ echo ""
 echo "📦 Setting up database schema and initial data..."
 
 # Connect to PostgreSQL and run the setup script
-railway connect postgres < setup-database.sql
+railway connect postgres < database/setup/setup-database.sql
 
 echo ""
 echo "🚀 Running enhanced reservation system migration..."
 
 # Run the enhanced reservation system if available
-if [ -f "18-enhance-reservation-system.sql" ]; then
-    railway connect postgres < 18-enhance-reservation-system.sql
+if [ -f "database/migrations/archive/18-enhance-reservation-system.sql" ]; then
+    railway connect postgres < database/migrations/archive/18-enhance-reservation-system.sql
     echo "✅ Enhanced reservation system installed"
 fi
 

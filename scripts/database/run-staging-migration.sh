@@ -9,7 +9,7 @@ echo ""
 
 # Use Railway CLI to get database connection and run migration
 echo "📝 Executing SQL migration..."
-railway connect Postgres < 00-consolidated-migration.sql
+railway connect Postgres < database/migrations/00-consolidated-migration.sql
 
 echo ""
 echo "✅ Migration completed!"
