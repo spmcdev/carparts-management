@@ -20,7 +20,7 @@ railway link carparts-staging
 ### 2. **Run Automated Setup**
 ```bash
 # From your project root directory
-./setup-staging-db.sh
+./scripts/database/setup-staging-db.sh
 ```
 
 ## Manual Setup
@@ -144,5 +144,5 @@ railway connect postgres -c "\copy parts FROM 'parts.csv' DELIMITER ',' CSV HEAD
 ```bash
 # Clear staging data and start fresh
 railway connect postgres -c "TRUNCATE parts, bills, reservations CASCADE;"
-./setup-staging-db.sh
+./scripts/database/setup-staging-db.sh
 ```

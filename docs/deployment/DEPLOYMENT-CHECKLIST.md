@@ -54,7 +54,7 @@
 
 ### Start deployment preparation:
 ```bash
-./deploy-prep.sh
+./scripts/deployment/deploy-prep.sh
 ```
 
 ### Commit and push your code:

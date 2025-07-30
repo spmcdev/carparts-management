@@ -50,7 +50,11 @@ carparts/
 │   ├── test-staging-remote.js # Staging validation
 │   └── archive/            # Archived test files
 ├── migrations/              # Database migration files (SQL)
-├── scripts/                # Utility scripts
+├── scripts/                # 🛠️ Utility scripts
+│   ├── deployment/         # Deployment automation
+│   ├── database/          # Database operations
+│   ├── monitoring/        # Health checks
+│   └── archive/           # Legacy scripts
 ├── index.js                # Express server
 ├── package.json            # Backend dependencies
 ├── docker-compose.yml      # Docker configuration
@@ -146,7 +150,7 @@ See [Deployment Guide](docs/deployment/DEPLOYMENT.md) for detailed deployment in
 
 ```bash
 # Prepare for deployment
-./deploy-prep.sh
+./scripts/deployment/deploy-prep.sh
 
 # Deploy to Railway + Vercel (see docs/deployment/DEPLOYMENT.md)
 ```

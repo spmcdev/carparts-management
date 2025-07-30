@@ -11,7 +11,7 @@
     "test:refund": "node tests/test-refund-staging.js",
     "test:frontend": "node tests/test-frontend-staging.js",
     "test:production": "cd scripts && npm install && npm run health-check",
-    "health-check": "cd scripts && node production-health-check.js",
+    "health-check": "cd scripts && node monitoring/production-health-check.js",
     "migrate:quantity": "echo 'Run 16-implement-quantity-management.sql in Railway PostgreSQL console'",
     "backup:current": "echo 'Backup current system before quantity migration'"
   },
