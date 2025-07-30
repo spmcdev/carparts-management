@@ -2063,11 +2063,29 @@ app.get('/bills', authenticateToken, async (req, res) => {
                    'refund_reason', br.refund_reason,
                    'refund_type', br.refund_type,
                    'refund_date', br.refund_date,
-                   'refunded_by_name', u.username
+                   'refunded_by_name', u.username,
+                   'refund_items', COALESCE(bri_details.items, '[]'::json)
                  ) ORDER BY br.refund_date DESC
                ) as refund_history,
                SUM(br.refund_amount) as total_refunded
         FROM bill_refunds br
+        LEFT JOIN users u ON br.refunded_by = u.id
+        LEFT JOIN (
+          SELECT bri.refund_id,
+                 json_agg(
+                   json_build_object(
+                     'part_id', bri.part_id,
+                     'part_name', p.name,
+                     'manufacturer', p.manufacturer,
+                     'quantity', bri.quantity,
+                     'unit_price', bri.unit_price,
+                     'total_price', bri.total_price
+                   ) ORDER BY bri.id
+                 ) as items
+          FROM bill_refund_items bri
+          LEFT JOIN parts p ON bri.part_id = p.id
+          GROUP BY bri.refund_id
+        ) bri_details ON br.id = bri_details.refund_id
         LEFT JOIN users u ON br.refunded_by = u.id
         GROUP BY br.bill_id
       ) refunds_agg ON b.id = refunds_agg.bill_id

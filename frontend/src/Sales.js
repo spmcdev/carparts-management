@@ -1128,6 +1128,7 @@ function Sales({ token, userRole }) {
                 <th style="border: 1px solid #ddd; padding: 8px;">Amount</th>
                 <th style="border: 1px solid #ddd; padding: 8px;">Reason</th>
                 <th style="border: 1px solid #ddd; padding: 8px;">Processed By</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Items Refunded</th>
               </tr>
             </thead>
             <tbody>
@@ -1138,6 +1139,18 @@ function Sales({ token, userRole }) {
                   <td style="border: 1px solid #ddd; padding: 8px;">Rs ${parseFloat(refund.refund_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                   <td style="border: 1px solid #ddd; padding: 8px;">${refund.refund_reason}</td>
                   <td style="border: 1px solid #ddd; padding: 8px;">${refund.refunded_by_name}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px;">
+                    ${refund.refund_items && refund.refund_items.length > 0 ? 
+                      refund.refund_items.map(item => 
+                        `<div style="margin-bottom: 5px; padding: 3px; background-color: #f8f9fa; border-radius: 3px;">
+                          <strong>${item.part_name}</strong>
+                          ${item.manufacturer ? `<br><span style="color: #666; font-size: 10px;">${item.manufacturer}</span>` : ''}
+                          <br>Qty: ${item.quantity} × Rs ${parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })} = Rs ${parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                        </div>`
+                      ).join('')
+                      : '<span style="color: #666;">No item details</span>'
+                    }
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1145,7 +1158,7 @@ function Sales({ token, userRole }) {
               <tr style="background-color: #e8f4fd; font-weight: bold;">
                 <td colspan="2" style="border: 1px solid #ddd; padding: 8px;">Total Refunded</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">Rs ${parseFloat(bill.total_refunded || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
-                <td colspan="2" style="border: 1px solid #ddd; padding: 8px;">Remaining: Rs ${parseFloat(bill.remaining_amount || bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                <td colspan="3" style="border: 1px solid #ddd; padding: 8px;">Remaining: Rs ${parseFloat(bill.remaining_amount || bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
               </tr>
             </tfoot>
           </table>
@@ -1641,49 +1654,57 @@ function Sales({ token, userRole }) {
                                     </div>
                                   </div>
                                 )}
+                                
+                                {/* Original Bill Items */}
                                 {bill.items && bill.items.length > 0 ? (
-                                  <div className="table-responsive">
-                                    <table className="table table-sm table-striped mb-0">
-                                      <thead className="table-dark">
-                                        <tr>
-                                          <th>Part Name</th>
-                                          <th>Manufacturer</th>
-                                          <th>Quantity</th>
-                                          <th>Unit Price</th>
-                                          <th>Total Price</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {bill.items.map((item, index) => (
-                                          <tr key={index}>
-                                            <td>
-                                              <strong>{item.part_name}</strong>
-                                              {item.part_id && (
-                                                <small className="text-muted d-block">
-                                                  ID: {item.part_id}
-                                                </small>
-                                              )}
-                                            </td>
-                                            <td>{item.manufacturer || 'N/A'}</td>
-                                            <td>
-                                              <span className="badge bg-primary">{item.quantity}</span>
-                                            </td>
-                                            <td>Rs {parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
-                                            <td>
-                                              <strong>Rs {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
-                                            </td>
+                                  <div className="mt-4">
+                                    <h6 className="mb-3">
+                                      <i className="fas fa-receipt me-2"></i>
+                                      Original Bill Items
+                                    </h6>
+                                    <div className="table-responsive">
+                                      <table className="table table-sm table-striped mb-0">
+                                        <thead className="table-dark">
+                                          <tr>
+                                            <th>Part Name</th>
+                                            <th>Manufacturer</th>
+                                            <th>Quantity</th>
+                                            <th>Unit Price</th>
+                                            <th>Total Price</th>
                                           </tr>
-                                        ))}
-                                      </tbody>
-                                      <tfoot className="table-warning">
-                                        <tr>
-                                          <td colSpan="2"><strong>Total</strong></td>
-                                          <td><strong>{bill.total_quantity}</strong></td>
-                                          <td></td>
-                                          <td><strong>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
-                                        </tr>
-                                      </tfoot>
-                                    </table>
+                                        </thead>
+                                        <tbody>
+                                          {bill.items.map((item, index) => (
+                                            <tr key={index}>
+                                              <td>
+                                                <strong>{item.part_name}</strong>
+                                                {item.part_id && (
+                                                  <small className="text-muted d-block">
+                                                    ID: {item.part_id}
+                                                  </small>
+                                                )}
+                                              </td>
+                                              <td>{item.manufacturer || 'N/A'}</td>
+                                              <td>
+                                                <span className="badge bg-primary">{item.quantity}</span>
+                                              </td>
+                                              <td>Rs {parseFloat(item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                                              <td>
+                                                <strong>Rs {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                        <tfoot className="table-warning">
+                                          <tr>
+                                            <td colSpan="2"><strong>Total</strong></td>
+                                            <td><strong>{bill.total_quantity}</strong></td>
+                                            <td></td>
+                                            <td><strong>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
+                                          </tr>
+                                        </tfoot>
+                                      </table>
+                                    </div>
                                   </div>
                                 ) : (
                                   <div className="text-muted text-center py-3">
@@ -1708,6 +1729,7 @@ function Sales({ token, userRole }) {
                                             <th>Amount</th>
                                             <th>Reason</th>
                                             <th>Processed By</th>
+                                            <th>Items Refunded</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -1730,6 +1752,28 @@ function Sales({ token, userRole }) {
                                               <td>
                                                 <small>{refund.refunded_by_name}</small>
                                               </td>
+                                              <td>
+                                                {refund.refund_items && refund.refund_items.length > 0 ? (
+                                                  <div className="small">
+                                                    {refund.refund_items.map((item, itemIndex) => (
+                                                      <div key={itemIndex} className="mb-1 p-1" style={{ backgroundColor: '#f8f9fa', borderRadius: '3px' }}>
+                                                        <strong>{item.part_name}</strong>
+                                                        {item.manufacturer && (
+                                                          <div className="text-muted" style={{ fontSize: '0.8em' }}>
+                                                            {item.manufacturer}
+                                                          </div>
+                                                        )}
+                                                        <div className="d-flex justify-content-between align-items-center">
+                                                          <span className="badge bg-secondary">{item.quantity}x</span>
+                                                          <span>Rs {parseFloat(item.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ) : (
+                                                  <small className="text-muted">No item details</small>
+                                                )}
+                                              </td>
                                             </tr>
                                           ))}
                                         </tbody>
@@ -1737,7 +1781,7 @@ function Sales({ token, userRole }) {
                                           <tr>
                                             <td colSpan="2"><strong>Total Refunded</strong></td>
                                             <td><strong>Rs {parseFloat(bill.total_refunded).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
-                                            <td colSpan="2">
+                                            <td colSpan="3">
                                               <strong>Remaining: Rs {parseFloat(bill.remaining_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
                                             </td>
                                           </tr>
