@@ -2086,7 +2086,6 @@ app.get('/bills', authenticateToken, async (req, res) => {
           LEFT JOIN parts p ON bri.part_id = p.id
           GROUP BY bri.refund_id
         ) bri_details ON br.id = bri_details.refund_id
-        LEFT JOIN users u ON br.refunded_by = u.id
         GROUP BY br.bill_id
       ) refunds_agg ON b.id = refunds_agg.bill_id
     `;
