@@ -2727,18 +2727,14 @@ app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) 
       );
       
       // Create refund record for tracking
-      await pool.query(
+      const refundInsertResult = await pool.query(
         `INSERT INTO bill_refunds (bill_id, refund_amount, refund_reason, refund_type, refunded_by, refund_date)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)`,
+         VALUES ($1, $2, $3, $4, $5, CURRENT_DATE) RETURNING id`,
         [id, refund_amount, refund_reason, refund_type || 'full', req.user.id]
       );
       
       // Get the refund ID for item tracking
-      const refundResult = await pool.query(
-        'SELECT id FROM bill_refunds WHERE bill_id = $1 ORDER BY refund_date DESC LIMIT 1',
-        [id]
-      );
-      const refundId = refundResult.rows[0]?.id;
+      const refundId = refundInsertResult.rows[0]?.id;
       
       // Restore stock for refunded items
       for (const item of itemsToRefund) {
