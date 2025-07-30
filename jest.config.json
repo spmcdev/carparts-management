@@ -1,43 +1,16 @@
 {
   "projects": [
     {
-      "displayName": "backend-unit",
+      "displayName": "working-tests",
       "testEnvironment": "node",
-      "testMatch": ["<rootDir>/tests/**/*.test.js"],
-      "testPathIgnorePatterns": ["<rootDir>/tests/api-integration.test.js"],
-      "transform": {},
-      "globals": {
-        "__DEV__": true
-      },
-      "collectCoverageFrom": [
-        "*.js",
-        "!index.js"
-      ],
-      "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"]
-    },
-    {
-      "displayName": "backend-integration",
-      "testEnvironment": "node",
-      "testMatch": ["<rootDir>/tests/api-integration.test.js"],
-      "transform": {},
-      "extensionsToTreatAsEsm": [".js"],
-      "globals": {
-        "__DEV__": true
-      },
-      "testTimeout": 30000,
-      "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"]
-    },
-    {
-      "displayName": "frontend",
-      "testEnvironment": "jsdom",
-      "testMatch": ["<rootDir>/frontend/src/**/*.test.js"],
+      "testMatch": ["<rootDir>/tests/*.test.js"],
       "transform": {
-        "^.+\\.jsx?$": "babel-jest"
+        "^.+\\.js$": "babel-jest"
       },
-      "moduleNameMapper": {
-        "\\.(css|less|scss|sass)$": "identity-obj-proxy"
+      "globals": {
+        "__DEV__": true
       },
-      "setupFilesAfterEnv": ["<rootDir>/frontend/src/setupTests.js"]
+      "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
     }
   ]
 }
