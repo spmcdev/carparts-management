@@ -2034,19 +2034,41 @@ app.get('/bills', authenticateToken, async (req, res) => {
     let query = `
       SELECT 
         b.*,
-        json_agg(
-          json_build_object(
-            'id', bi.id,
-            'part_id', bi.part_id,
-            'part_name', bi.part_name,
-            'manufacturer', bi.manufacturer,
-            'quantity', bi.quantity,
-            'unit_price', bi.unit_price,
-            'total_price', bi.total_price
-          )
-        ) as items
+        COALESCE(
+          json_agg(
+            CASE WHEN bi.id IS NOT NULL THEN
+              json_build_object(
+                'id', bi.id,
+                'part_id', bi.part_id,
+                'part_name', bi.part_name,
+                'manufacturer', bi.manufacturer,
+                'quantity', bi.quantity,
+                'unit_price', bi.unit_price,
+                'total_price', bi.total_price
+              )
+            END
+          ) FILTER (WHERE bi.id IS NOT NULL), 
+          '[]'::json
+        ) as items,
+        COALESCE(
+          json_agg(
+            CASE WHEN br.id IS NOT NULL THEN
+              json_build_object(
+                'id', br.id,
+                'refund_amount', br.refund_amount,
+                'refund_reason', br.refund_reason,
+                'refund_type', br.refund_type,
+                'refund_date', br.refund_date,
+                'refunded_by_name', u.username
+              )
+            END
+          ) FILTER (WHERE br.id IS NOT NULL),
+          '[]'::json
+        ) as refund_history
       FROM bills b
       LEFT JOIN bill_items bi ON b.id = bi.bill_id
+      LEFT JOIN bill_refunds br ON b.id = br.bill_id
+      LEFT JOIN users u ON br.refunded_by = u.id
     `;
     
     const queryParams = [];
@@ -2071,6 +2093,20 @@ app.get('/bills', authenticateToken, async (req, res) => {
     queryParams.push(parseInt(limit), offset);
     
     const result = await pool.query(query, queryParams);
+    
+    // Process results to add calculated refund info
+    const processedBills = result.rows.map(bill => {
+      const refunds = bill.refund_history || [];
+      const totalRefunded = refunds.reduce((sum, refund) => sum + parseFloat(refund.refund_amount || 0), 0);
+      const remainingAmount = parseFloat(bill.total_amount) - totalRefunded;
+      
+      return {
+        ...bill,
+        total_refunded: totalRefunded,
+        remaining_amount: remainingAmount,
+        refund_percentage: bill.total_amount > 0 ? (totalRefunded / parseFloat(bill.total_amount)) * 100 : 0
+      };
+    });
     
     // Get total count for pagination
     let countQuery = `
@@ -2099,7 +2135,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     
     res.json({
-      bills: result.rows,
+      bills: processedBills,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
