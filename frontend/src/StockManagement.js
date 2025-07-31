@@ -132,6 +132,7 @@ function StockManagement({ userRole }) {
                 <th>Name</th>
                 <th>Manufacturer</th>
                 ${reportType === 'Available Stock' ? `
+                  <th>Part Number</th>
                   <th>Available Qty</th>
                   <th>Reserved Qty</th>
                   <th>Total Stock</th>
@@ -175,6 +176,7 @@ function StockManagement({ userRole }) {
                     <td>${item.name}</td>
                     <td>${item.manufacturer || 'N/A'}</td>
                     ${reportType === 'Available Stock' ? `
+                      <td>${item.part_number || 'N/A'}</td>
                       <td>${item.available_stock || 0}</td>
                       <td>${item.reserved_stock || 0}</td>
                       <td>${item.total_stock || 0}</td>
@@ -374,6 +376,18 @@ function StockManagement({ userRole }) {
     loadAvailableContainers();
   }, []);
 
+  // Auto-dismiss success and error messages after 5 seconds
+  React.useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+        setError('');
+      }, 5000); // 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [success, error]);
+
   // Auto-refresh sold stock report when filters change
   React.useEffect(() => {
     // Only auto-refresh if we already have sold stock data and filters are applied
@@ -548,6 +562,7 @@ function StockManagement({ userRole }) {
                     <tr>
                       <th>ID</th>
                       <th>Name</th>
+                      <th>Part Number</th>
                       <th>Manufacturer</th>
                       <th>Available Qty</th>
                       <th>Reserved Qty</th>
@@ -562,6 +577,7 @@ function StockManagement({ userRole }) {
                       <tr key={part.id}>
                         <td>{part.id}</td>
                         <td>{part.name}</td>
+                        <td>{part.part_number || 'N/A'}</td>
                         <td>{part.manufacturer}</td>
                         <td><span className="badge bg-success">{part.available_stock || 0}</span></td>
                         <td><span className="badge bg-warning">{part.reserved_stock || 0}</span></td>
@@ -808,7 +824,6 @@ function StockManagement({ userRole }) {
                           className="page-link" 
                           onClick={() => {
                             setCurrentPage(currentPage - 1);
-                            setTimeout(handleGetSoldStock, 100);
                           }}
                           disabled={!soldStockData.pagination.hasPreviousPage}
                         >
@@ -825,7 +840,6 @@ function StockManagement({ userRole }) {
                           className="page-link" 
                           onClick={() => {
                             setCurrentPage(currentPage + 1);
-                            setTimeout(handleGetSoldStock, 100);
                           }}
                           disabled={!soldStockData.pagination.hasNextPage}
                         >
