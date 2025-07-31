@@ -22,6 +22,10 @@ function StockManagement({ userRole }) {
   const [soldStockSummary, setSoldStockSummary] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
+  
+  // New state for available stock filters
+  const [availableContainerNo, setAvailableContainerNo] = useState('');
+  const [availableLocalPurchaseFilter, setAvailableLocalPurchaseFilter] = useState('');
   const [availableContainers, setAvailableContainers] = useState([]);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
 
@@ -216,8 +220,24 @@ function StockManagement({ userRole }) {
         throw new Error('Failed to fetch parts');
       }
       const data = await res.json();
+      
       // Filter parts that have available stock > 0
-      const available = data.filter(part => parseInt(part.available_stock || 0) > 0);
+      let available = data.filter(part => parseInt(part.available_stock || 0) > 0);
+      
+      // Apply Purchase Type filter
+      if (availableLocalPurchaseFilter !== '') {
+        const isLocalPurchase = availableLocalPurchaseFilter === 'true';
+        available = available.filter(part => {
+          const partIsLocal = part.local_purchase === true || part.local_purchase === 'true';
+          return partIsLocal === isLocalPurchase;
+        });
+      }
+      
+      // Apply Container Number filter
+      if (availableContainerNo) {
+        available = available.filter(part => part.container_no === availableContainerNo);
+      }
+      
       setAvailableStock(available);
       setShowAvailableStock(true);
       const totalQuantity = available.reduce((total, item) => total + parseInt(item.available_stock || 0), 0);
@@ -366,6 +386,18 @@ function StockManagement({ userRole }) {
     }
   }, [startDate, endDate, localPurchaseFilter, containerNo, currentPage]);
 
+  // Auto-refresh available stock when filters change
+  React.useEffect(() => {
+    // Only auto-refresh if we already have available stock data and filters are applied
+    if (availableStock.length > 0 && (availableLocalPurchaseFilter !== '' || availableContainerNo)) {
+      const refreshTimer = setTimeout(() => {
+        handleGetAvailableStock();
+      }, 500); // Debounce to avoid too many requests
+
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [availableLocalPurchaseFilter, availableContainerNo]);
+
   const handleGetParentChildRelations = async () => {
     setLoading(true);
     setError('');
@@ -455,6 +487,46 @@ function StockManagement({ userRole }) {
             )}
           </div>
           <div className="card-body">
+            {/* Filter Section for Available Stock */}
+            <div className="row g-3 mb-4">
+              <div className="col-md-6">
+                <label className="form-label">Purchase Type:</label>
+                <select
+                  className="form-control"
+                  value={availableLocalPurchaseFilter}
+                  onChange={(e) => {
+                    setAvailableLocalPurchaseFilter(e.target.value);
+                    // Reset container filter when purchase type changes
+                    if (e.target.value !== 'false') {
+                      setAvailableContainerNo('');
+                    }
+                  }}
+                >
+                  <option value="">All Types</option>
+                  <option value="true">Local Purchase</option>
+                  <option value="false">Container Purchase</option>
+                </select>
+                <small className="text-muted">Filter by source</small>
+              </div>
+              {/* Conditionally show Container Number filter only for Container Purchase */}
+              {availableLocalPurchaseFilter === 'false' && (
+                <div className="col-md-6">
+                  <label className="form-label">Container Number:</label>
+                  <select
+                    className="form-control"
+                    value={availableContainerNo}
+                    onChange={(e) => setAvailableContainerNo(e.target.value)}
+                  >
+                    <option value="">All Containers</option>
+                    {availableContainers.map(container => (
+                      <option key={container} value={container}>{container}</option>
+                    ))}
+                  </select>
+                  <small className="text-muted">Filter by container</small>
+                </div>
+              )}
+            </div>
+
             <div className="d-flex gap-2 mb-3">
               <button className="btn btn-primary" onClick={handleGetAvailableStock}>
                 Get Available Stock
@@ -525,7 +597,7 @@ function StockManagement({ userRole }) {
         </div>
 
         {/* Sold Stock Section */}
-        <div className="card">
+        <div className="card mb-4">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h4>Sold Stock Report</h4>
             {soldStock.length > 0 && (
