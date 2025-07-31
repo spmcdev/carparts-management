@@ -1521,7 +1521,7 @@ function Sales({ token, userRole }) {
             ) : (
               <>
                 <div className="table-responsive">
-                  <table className="table table-striped">
+                  <table className="table table-striped bills-table">
                     <thead>
                     <tr>
                       <th>Bill #</th>
@@ -1537,7 +1537,10 @@ function Sales({ token, userRole }) {
                   <tbody>
                     {bills.map(bill => (
                     <React.Fragment key={bill.id}>
-                      <tr>
+                      <tr className={`bill-row ${expandedBills.has(bill.id) ? 'bill-expanded' : ''}`} style={{
+                        borderLeft: '4px solid #007bff',
+                        backgroundColor: expandedBills.has(bill.id) ? '#f8f9fa' : 'transparent'
+                      }}>
                         <td>{bill.bill_number || bill.id}</td>
                         <td>{new Date(bill.date).toLocaleDateString()}</td>
                         <td>{bill.customer_name}</td>
@@ -1627,7 +1630,7 @@ function Sales({ token, userRole }) {
                       {expandedBills.has(bill.id) && (
                         <tr>
                           <td colSpan="8" className="p-0">
-                            <div className="bg-light border-top">
+                            <div className="bill-details-container"  style={{ borderStyle: 'solid !important' }}>
                               <div className="p-3">
                                 <div className="d-flex justify-content-between align-items-center mb-3">
                                   <h6 className="mb-0">
@@ -1812,6 +1815,12 @@ function Sales({ token, userRole }) {
                               </div>
                             </div>
                           </td>
+                        </tr>
+                      )}
+                      {/* Add spacing between bills */}
+                      {expandedBills.has(bill.id) && (
+                        <tr className="bill-separator">
+                          <td colSpan="8" style={{ height: '10px', backgroundColor: 'transparent' }}></td>
                         </tr>
                       )}
                     </React.Fragment>

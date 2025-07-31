@@ -36,3 +36,37 @@
     transform: rotate(360deg);
   }
 }
+
+/* Bill Visual Enhancement Styles */
+.bill-row {
+  border-left: 4px solid transparent !important;
+  transition: all 0.3s ease;
+}
+
+.bill-row.bill-expanded {
+  border-left-color: #007bff !important;
+  background-color: #f8f9fa !important;
+}
+
+.bill-row:hover {
+  background-color: #f5f5f5 !important;
+}
+
+.bill-separator {
+  height: 10px;
+  background-color: transparent !important;
+}
+
+/* Enhanced border for expanded bill details */
+.bill-details-container {
+  border: 3px solid #007bff !important;
+  border-radius: 8px;
+  margin: 8px;
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0,123,255,0.1);
+}
+
+/* Additional spacing between bill sections */
+.bills-table tbody .bill-row + .bill-row {
+  border-top: 2px solid #dee2e6;
+}
