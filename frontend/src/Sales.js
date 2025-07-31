@@ -1,6 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from './config/api';
 
+// CSS styles for reservation search functionality
+const reservationSearchStyles = `
+  .hover-bg-light:hover {
+    background-color: #f8f9fa !important;
+    transition: background-color 0.2s ease;
+  }
+  
+  .reservation-search-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .reservation-search-item:hover {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+  }
+`;
+
+// Inject styles
+if (typeof document !== 'undefined' && !document.getElementById('reservation-search-styles')) {
+  const styleSheet = document.createElement('style');
+  styleSheet.id = 'reservation-search-styles';
+  styleSheet.innerText = reservationSearchStyles;
+  document.head.appendChild(styleSheet);
+}
+
 function Sales({ token, userRole }) {
   const [availableParts, setAvailableParts] = useState([]);
   const [bills, setBills] = useState([]);
@@ -66,6 +92,10 @@ function Sales({ token, userRole }) {
   // Multi-item reservation cart
   const [reservationCartItems, setReservationCartItems] = useState([]);
   
+  // Reservation parts search
+  const [reservationPartSearchTerm, setReservationPartSearchTerm] = useState('');
+  const [showReservationPartsList, setShowReservationPartsList] = useState(false);
+  
   // Edit reservation modal state
   const [editingReservation, setEditingReservation] = useState(null);
   const [editReservationData, setEditReservationData] = useState({});
@@ -92,6 +122,36 @@ function Sales({ token, userRole }) {
       }
       
       // Otherwise, search by all fields as before
+      // Search by name
+      if (part.name && part.name.toLowerCase().includes(term)) return true;
+      
+      // Search by manufacturer
+      if (part.manufacturer && part.manufacturer.toLowerCase().includes(term)) return true;
+      
+      // Search by part ID (exact match or starts with)
+      if (part.id && (part.id.toString() === term || part.id.toString().startsWith(term))) return true;
+      
+      // Search by part number
+      if (part.part_number && part.part_number.toLowerCase().includes(term)) return true;
+      
+      // Search by parent ID (exact match or starts with)
+      if (part.parent_id && (part.parent_id.toString() === term || part.parent_id.toString().startsWith(term))) return true;
+      
+      return false;
+    });
+  };
+
+  // Filter available parts for reservation (exclude already added parts)
+  const filterReservationParts = (parts, searchTerm) => {
+    const availableForReservation = parts.filter(part => 
+      !reservationCartItems.some(item => item.part_id === part.id)
+    );
+    
+    if (!searchTerm.trim()) return availableForReservation;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    return availableForReservation.filter(part => {
       // Search by name
       if (part.name && part.name.toLowerCase().includes(term)) return true;
       
@@ -2699,24 +2759,106 @@ function Sales({ token, userRole }) {
                   {/* Part Selection */}
                   <div className="mb-3">
                     <label className="form-label">Add Parts to Reservation</label>
-                    <div className="input-group">
-                      <select
+                    <div className="input-group mb-2">
+                      <input
+                        type="text"
                         className="form-control"
+                        placeholder="Search parts by name, manufacturer, part number, or ID..."
+                        value={reservationPartSearchTerm}
+                        onChange={(e) => {
+                          setReservationPartSearchTerm(e.target.value);
+                          setShowReservationPartsList(e.target.value.length > 0);
+                        }}
+                        onFocus={() => setShowReservationPartsList(reservationPartSearchTerm.length > 0)}
+                      />
+                      <button 
+                        className="btn btn-outline-secondary" 
+                        type="button"
+                        onClick={() => {
+                          setReservationPartSearchTerm('');
+                          setShowReservationPartsList(false);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    
+                    {/* Search Results */}
+                    {showReservationPartsList && (
+                      <div className="border rounded" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        {reservationPartSearchTerm.length === 0 ? (
+                          <div className="p-3 text-muted text-center">
+                            <i className="fas fa-search me-2"></i>
+                            Start typing to search for parts...
+                          </div>
+                        ) : filterReservationParts(availableParts, reservationPartSearchTerm).length === 0 ? (
+                          <div className="p-3 text-muted text-center">
+                            <i className="fas fa-exclamation-circle me-2"></i>
+                            No parts found matching your search.
+                          </div>
+                        ) : (
+                          filterReservationParts(availableParts, reservationPartSearchTerm).map(part => (
+                            <div key={part.id} className="d-flex justify-content-between align-items-center p-2 border-bottom reservation-search-item">
+                              <div className="flex-grow-1">
+                                <div className="d-flex justify-content-between align-items-start">
+                                  <div>
+                                    <strong>{part.name}</strong>
+                                    <br />
+                                    <small className="text-muted">
+                                      {part.manufacturer}
+                                      {part.part_number && ` • Part #${part.part_number}`}
+                                      {part.parent_id && ` • Parent: ${part.parent_id}`}
+                                    </small>
+                                    <br />
+                                    <small>
+                                      <span className="badge bg-success">Stock: {part.available_stock}</span>
+                                      <span className="badge bg-info ms-1">ID: {part.id}</span>
+                                      {part.recommended_price && (
+                                        <span className="badge bg-warning text-dark ms-1">
+                                          Rs. {parseFloat(part.recommended_price).toFixed(2)}
+                                        </span>
+                                      )}
+                                    </small>
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm ms-2"
+                                onClick={() => {
+                                  addToReservationCart(part);
+                                  setReservationPartSearchTerm('');
+                                  setShowReservationPartsList(false);
+                                }}
+                                disabled={part.available_stock <= 0}
+                              >
+                                <i className="fas fa-plus me-1"></i>
+                                Add
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Alternative: Quick select dropdown for users who prefer it */}
+                    <div className="mt-2">
+                      <small className="text-muted">Or use quick select:</small>
+                      <select
+                        className="form-control form-control-sm"
                         onChange={e => {
                           const selectedPart = availableParts.find(part => part.id == e.target.value);
                           if (selectedPart) addToReservationCart(selectedPart);
                           e.target.value = '';
                         }}
                       >
-                        <option value="">Choose a part to add...</option>
+                        <option value="">Quick select a part...</option>
                         {availableParts
                           .filter(part => !reservationCartItems.some(item => item.part_id === part.id))
+                          .slice(0, 20) // Limit to first 20 for performance
                           .map(part => (
                             <option key={part.id} value={part.id}>
-                              ID:{part.id} - {part.name} - {part.manufacturer} 
-                              {part.part_number && ` (#${part.part_number})`}
-                              {part.parent_id && ` (Parent: ${part.parent_id})`} 
-                              (Stock: {part.available_stock})
+                              {part.name} - {part.manufacturer} (Stock: {part.available_stock})
                             </option>
                           ))}
                       </select>
