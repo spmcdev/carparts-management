@@ -287,6 +287,7 @@ function StockManagement() {
         id: item.part_id,
         name: item.part_name,
         manufacturer: item.manufacturer,
+        part_number: item.part_number,
         sold_stock: item.sales_summary.total_sold_quantity,
         sold_price: item.sales_summary.average_selling_price,
         total_revenue: item.sales_summary.total_revenue,
@@ -624,28 +625,20 @@ function StockManagement() {
             </div>
 
             {/* Summary Cards */}
-            {soldStockSummary && (
+            {soldStockData && (
               <div className="row g-3 mb-4">
                 <div className="col-md-2">
                   <div className="card bg-primary text-white">
                     <div className="card-body text-center">
-                      <h5>{soldStockSummary.summary.total_items_sold}</h5>
-                      <small>Items Sold</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-2">
-                  <div className="card bg-success text-white">
-                    <div className="card-body text-center">
-                      <h5>Rs {soldStockSummary.summary.total_revenue.toLocaleString('en-LK')}</h5>
-                      <small>Total Revenue</small>
+                      <h5>{soldStockData.summary.unique_parts_sold}</h5>
+                      <small>Parts Sold</small>
                     </div>
                   </div>
                 </div>
                 <div className="col-md-2">
                   <div className="card bg-info text-white">
                     <div className="card-body text-center">
-                      <h5>{soldStockSummary.summary.total_quantity_sold}</h5>
+                      <h5>{soldStockData.summary.total_quantity_sold}</h5>
                       <small>Units Sold</small>
                     </div>
                   </div>
@@ -653,7 +646,7 @@ function StockManagement() {
                 <div className="col-md-2">
                   <div className="card bg-warning text-dark">
                     <div className="card-body text-center">
-                      <h5>{soldStockSummary.summary.local_purchase_items}</h5>
+                      <h5>{soldStockData.summary.local_purchase_items}</h5>
                       <small>Local Items</small>
                     </div>
                   </div>
@@ -661,7 +654,7 @@ function StockManagement() {
                 <div className="col-md-2">
                   <div className="card bg-secondary text-white">
                     <div className="card-body text-center">
-                      <h5>{soldStockSummary.summary.container_items}</h5>
+                      <h5>{soldStockData.summary.container_items}</h5>
                       <small>Container Items</small>
                     </div>
                   </div>
@@ -669,8 +662,16 @@ function StockManagement() {
                 <div className="col-md-2">
                   <div className="card bg-dark text-white">
                     <div className="card-body text-center">
-                      <h5>Rs {soldStockSummary.summary.average_selling_price.toFixed(0)}</h5>
+                      <h5>Rs {soldStockData.summary.overall_average_selling_price.toFixed(0)}</h5>
                       <small>Avg Price</small>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-2">
+                  <div className="card bg-success text-white">
+                    <div className="card-body text-center">
+                      <h5>Rs {soldStockData.summary.total_revenue.toLocaleString('en-LK')}</h5>
+                      <small>Total Revenue</small>
                     </div>
                   </div>
                 </div>
@@ -684,15 +685,13 @@ function StockManagement() {
                   <thead className="table-dark">
                     <tr>
                       <th>Part Details</th>
-                      <th>Customer</th>
+                      <th>Part Number</th>
                       <th>Qty Sold</th>
                       <th>Unit Price</th>
                       <th>Total</th>
                       <th>Source</th>
                       <th>Container</th>
                       <th>Profit Margin</th>
-                      <th>Date</th>
-                      <th>Bill</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -704,7 +703,7 @@ function StockManagement() {
                             <small className="text-muted">{item.manufacturer}</small>
                           </div>
                         </td>
-                        <td>{item.customer_name}</td>
+                        <td>{item.part_number || 'N/A'}</td>
                         <td><span className="badge bg-danger">{item.sold_stock}</span></td>
                         <td>Rs {parseFloat(item.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                         <td><strong>Rs {parseFloat(item.total_revenue).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
@@ -716,13 +715,11 @@ function StockManagement() {
                         <td>{item.container_no || 'N/A'}</td>
                         <td>
                           {item.profit_margin ? (
-                            <span className="badge bg-success">{item.profit_margin}</span>
+                            <span className="badge bg-success">{item.profit_margin}%</span>
                           ) : (
                             <span className="text-muted">N/A</span>
                           )}
                         </td>
-                        <td>{item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
-                        <td>#{item.bill_number}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -774,10 +771,10 @@ function StockManagement() {
                         <li><strong>Items Displayed:</strong> {soldStock.length}</li>
                         <li><strong>Total Quantity:</strong> <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
                         <li><strong>Total Revenue:</strong> <span className="badge bg-success">Rs {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span></li>
-                        {soldStockSummary && (
+                        {soldStockData && (
                           <>
-                            <li><strong>Local Purchase Revenue:</strong> Rs {soldStockSummary.summary.local_purchase_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Container Purchase Revenue:</strong> Rs {soldStockSummary.summary.container_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Local Purchase Revenue:</strong> Rs {soldStockData.summary.local_purchase_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Container Purchase Revenue:</strong> Rs {soldStockData.summary.container_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                           </>
                         )}
                       </ul>
