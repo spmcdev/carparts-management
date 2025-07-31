@@ -27,8 +27,7 @@ A comprehensive car parts inventory management system built with React frontend 
 
 ### DevOps
 - **Docker** for containerization
-- **Railway** for backend hosting
-- **Vercel** for frontend hosting
+- **Railway** for backend and frontend hosting
 
 ## Project Structure
 
@@ -154,7 +153,7 @@ docker-compose -f docker-compose.prod.yml up --build
 This application is ready for deployment on:
 
 - **Backend**: Railway (PostgreSQL + Node.js)
-- **Frontend**: Vercel (React static hosting)
+- **Frontend**: Railway (React static hosting)
 
 See [Deployment Guide](docs/deployment/DEPLOYMENT.md) for detailed deployment instructions.
 
@@ -164,7 +163,7 @@ See [Deployment Guide](docs/deployment/DEPLOYMENT.md) for detailed deployment in
 # Prepare for deployment
 ./scripts/deployment/deploy-prep.sh
 
-# Deploy to Railway + Vercel (see docs/deployment/DEPLOYMENT.md)
+# Deploy to Railway (see docs/deployment/DEPLOYMENT.md)
 ```
 
 ## API Documentation
@@ -241,7 +240,7 @@ For deployment help, see:
 
 - React community for excellent documentation
 - Railway for simple backend hosting
-- Vercel for seamless frontend deployment
+- Railway for comprehensive full-stack deployment
 - Bootstrap for responsive UI components
 
 ## Version History

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Deployment Preparation Script for Vercel + Railway
+# Deployment Preparation Script for Railway Full-Stack
 # This script prepares your project for deployment
 
 echo "🚀 Car Parts Management - Deployment Preparation"
@@ -23,11 +23,8 @@ else
     echo "✅ railway.json exists"
 fi
 
-if [ ! -f "frontend/vercel.json" ]; then
-    echo "❌ frontend/vercel.json not found"
-else
-    echo "✅ frontend/vercel.json exists"
-fi
+# Railway handles frontend deployment without vercel.json
+echo "✅ Frontend ready for Railway deployment"
 
 if [ ! -f ".env.example" ]; then
     echo "❌ .env.example not found"
@@ -75,9 +72,9 @@ echo "   - Create new project from GitHub repo"
 echo "   - Add PostgreSQL database"
 echo "   - Set environment variables (see DEPLOYMENT.md)"
 echo ""
-echo "3. Deploy frontend to Vercel:"
-echo "   - Go to vercel.com"
-echo "   - Create new project from GitHub repo"
+echo "3. Deploy frontend to Railway:"
+echo "   - In your Railway project, create a new service"
+echo "   - Connect to your GitHub repo"
 echo "   - Set root directory to 'frontend'"
 echo "   - Set REACT_APP_API_URL environment variable"
 echo ""
