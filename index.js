@@ -3195,6 +3195,31 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
   }
 });
 
+// Get available container numbers for sold stock filtering
+app.get('/sold-stock-containers', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT p.container_no 
+      FROM parts p
+      JOIN bill_items bi ON p.id = bi.part_id
+      WHERE p.container_no IS NOT NULL 
+        AND p.container_no != ''
+        AND p.local_purchase = false
+      ORDER BY p.container_no
+    `);
+    
+    const containers = result.rows.map(row => row.container_no);
+    res.json(containers);
+    
+  } catch (err) {
+    console.error('Error fetching sold stock containers:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch container numbers',
+      details: err.message 
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

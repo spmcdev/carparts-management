@@ -23,6 +23,7 @@ function StockManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
   const [availableContainers, setAvailableContainers] = useState([]);
+  const [autoRefreshing, setAutoRefreshing] = useState(false);
 
   const printStockReport = (stockData, reportType, dateRange = null) => {
     // Base64 encoded logo SVG
@@ -229,10 +230,15 @@ function StockManagement() {
     }
   };
 
-  const handleGetSoldStock = async () => {
-    setLoading(true);
+  const handleGetSoldStock = async (isAutoRefresh = false) => {
+    if (isAutoRefresh) {
+      setAutoRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError('');
-    setSuccess('');
+    if (!isAutoRefresh) setSuccess('');
+    
     try {
       // Build query parameters
       const params = new URLSearchParams();
@@ -293,34 +299,52 @@ function StockManagement() {
       })));
       
       setShowSoldStock(true);
-      setSuccess(`Found ${reportData.summary.total_items_sold} items sold. Total revenue: Rs ${reportData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
+      if (!isAutoRefresh) {
+        setSuccess(`Found ${reportData.summary.total_items_sold} items sold. Total revenue: Rs ${reportData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
+      }
       
     } catch (err) {
       console.error('Error fetching sold stock:', err);
       setError('Failed to retrieve sold stock report.');
     } finally {
       setLoading(false);
+      setAutoRefreshing(false);
     }
   };
 
   // Function to load available containers for the dropdown
   const loadAvailableContainers = async () => {
     try {
-      const res = await fetch(API_ENDPOINTS.PARTS, {
+      // Load containers that have been used in sold stock (container purchases only)
+      const res = await fetch(`${API_ENDPOINTS.BASE_URL}/sold-stock-containers`, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` })
         }
       });
       if (res.ok) {
-        const parts = await res.json();
-        const containers = [...new Set(parts
-          .map(part => part.container_no)
-          .filter(container => container && container.trim() !== '')
-        )].sort();
+        const containers = await res.json();
         setAvailableContainers(containers);
       }
     } catch (err) {
-      console.error('Error loading containers:', err);
+      console.error('Error loading sold stock containers:', err);
+      // Fallback to loading all containers if the sold stock endpoint fails
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const parts = await res.json();
+          const containers = [...new Set(parts
+            .map(part => part.container_no)
+            .filter(container => container && container.trim() !== '')
+          )].sort();
+          setAvailableContainers(containers);
+        }
+      } catch (fallbackErr) {
+        console.error('Error loading containers fallback:', fallbackErr);
+      }
     }
   };
 
@@ -328,6 +352,18 @@ function StockManagement() {
   React.useEffect(() => {
     loadAvailableContainers();
   }, []);
+
+  // Auto-refresh sold stock report when filters change
+  React.useEffect(() => {
+    // Only auto-refresh if we already have sold stock data and filters are applied
+    if (soldStockData && (startDate || endDate || localPurchaseFilter !== '' || containerNo)) {
+      const refreshTimer = setTimeout(() => {
+        handleGetSoldStock(true); // Pass true to indicate auto-refresh
+      }, 500); // Debounce to avoid too many requests
+
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [startDate, endDate, localPurchaseFilter, containerNo, currentPage]);
 
   const handleGetParentChildRelations = async () => {
     setLoading(true);
@@ -524,25 +560,17 @@ function StockManagement() {
                 <small className="text-muted">Optional</small>
               </div>
               <div className="col-md-3">
-                <label className="form-label">Container Number:</label>
-                <select
-                  className="form-control"
-                  value={containerNo}
-                  onChange={(e) => setContainerNo(e.target.value)}
-                >
-                  <option value="">All Containers</option>
-                  {availableContainers.map(container => (
-                    <option key={container} value={container}>{container}</option>
-                  ))}
-                </select>
-                <small className="text-muted">Filter by container</small>
-              </div>
-              <div className="col-md-3">
                 <label className="form-label">Purchase Type:</label>
                 <select
                   className="form-control"
                   value={localPurchaseFilter}
-                  onChange={(e) => setLocalPurchaseFilter(e.target.value)}
+                  onChange={(e) => {
+                    setLocalPurchaseFilter(e.target.value);
+                    // Reset container filter when purchase type changes
+                    if (e.target.value !== 'false') {
+                      setContainerNo('');
+                    }
+                  }}
                 >
                   <option value="">All Types</option>
                   <option value="true">Local Purchase</option>
@@ -550,13 +578,30 @@ function StockManagement() {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
+              {/* Conditionally show Container Number filter only for Container Purchase */}
+              {localPurchaseFilter === 'false' && (
+                <div className="col-md-3">
+                  <label className="form-label">Container Number:</label>
+                  <select
+                    className="form-control"
+                    value={containerNo}
+                    onChange={(e) => setContainerNo(e.target.value)}
+                  >
+                    <option value="">All Containers</option>
+                    {availableContainers.map(container => (
+                      <option key={container} value={container}>{container}</option>
+                    ))}
+                  </select>
+                  <small className="text-muted">Filter by container</small>
+                </div>
+              )}
             </div>
 
-            <div className="d-flex gap-2 mb-3">
+            <div className="d-flex gap-2 mb-3 align-items-center">
               <button 
                 className="btn btn-primary" 
-                onClick={handleGetSoldStock}
-                disabled={loading}
+                onClick={() => handleGetSoldStock(false)}
+                disabled={loading || autoRefreshing}
               >
                 {loading ? 'Loading...' : 'Get Sold Stock Report'}
               </button>
@@ -567,6 +612,14 @@ function StockManagement() {
                 >
                   Print Report
                 </button>
+              )}
+              {autoRefreshing && (
+                <div className="d-flex align-items-center text-muted">
+                  <div className="spinner-border spinner-border-sm me-2" role="status">
+                    <span className="visually-hidden">Auto-refreshing...</span>
+                  </div>
+                  <small>Auto-refreshing...</small>
+                </div>
               )}
             </div>
 
