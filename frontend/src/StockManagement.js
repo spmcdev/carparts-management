@@ -283,19 +283,19 @@ function StockManagement() {
       }
       
       // Update legacy soldStock for compatibility with existing print function
-      setSoldStock(reportData.sold_stock.map(item => ({
-        id: item.part_details.part_id,
-        name: item.part_details.part_name,
-        manufacturer: item.part_details.manufacturer,
-        sold_stock: item.sale_metrics.sold_quantity,
-        sold_price: item.sale_metrics.sold_price,
-        total_revenue: item.sale_metrics.sale_total,
-        sold_date: item.sale_details.sale_date,
-        bill_number: item.sale_details.bill_number || item.sale_details.bill_id,
-        customer_name: item.customer_details.customer_name,
-        container_no: item.part_details.container_no,
-        local_purchase: item.part_details.local_purchase,
-        profit_margin: item.sale_metrics.profit_margin
+      setSoldStock(reportData.sold_parts.map(item => ({
+        id: item.part_id,
+        name: item.part_name,
+        manufacturer: item.manufacturer,
+        sold_stock: item.sales_summary.total_sold_quantity,
+        sold_price: item.sales_summary.average_selling_price,
+        total_revenue: item.sales_summary.total_revenue,
+        sold_date: item.sales_summary.last_sale_date,
+        bill_number: '', // Not available in new structure
+        customer_name: '', // Not available in new structure
+        container_no: item.container_no,
+        local_purchase: item.local_purchase,
+        profit_margin: item.sales_summary.average_profit_margin_percent
       })));
       
       setShowSoldStock(true);
