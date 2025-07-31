@@ -2853,7 +2853,7 @@ app.get('/debug-refunds/:billId', authenticateToken, async (req, res) => {
 
 // ====================== SOLD STOCK REPORT ROUTES ======================
 
-// Get sold stock report with filtering and pagination
+// Get sold stock report with filtering and pagination (grouped by parts)
 app.get('/sold-stock-report', authenticateToken, async (req, res) => {
   try {
     const { 
@@ -2903,7 +2903,7 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
     // Build the WHERE clause
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-    // Main query for sold stock data
+    // Main query for sold stock data - grouped by part
     const query = `
       SELECT 
         p.id as part_id,
@@ -2914,26 +2914,30 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
         p.local_purchase,
         p.cost_price,
         p.recommended_price,
-        bi.part_id,
-        bi.part_name as bill_part_name,
-        bi.manufacturer as bill_manufacturer,
-        bi.quantity as sold_quantity,
-        bi.unit_price as sold_price,
-        bi.total_price as sale_total,
-        b.id as bill_id,
-        b.bill_number,
-        b.customer_name,
-        b.customer_phone,
-        DATE(b.created_at) as bill_date,
-        b.status as bill_status,
-        b.created_at as sale_date,
-        u.username as sold_by
+        SUM(bi.quantity) as total_sold_quantity,
+        COUNT(DISTINCT b.id) as times_sold,
+        AVG(bi.unit_price) as average_selling_price,
+        MIN(bi.unit_price) as min_selling_price,
+        MAX(bi.unit_price) as max_selling_price,
+        SUM(bi.total_price) as total_revenue,
+        MIN(DATE(b.created_at)) as first_sale_date,
+        MAX(DATE(b.created_at)) as last_sale_date,
+        CASE 
+          WHEN p.cost_price IS NOT NULL AND AVG(bi.unit_price) > 0 THEN
+            ROUND(((AVG(bi.unit_price) - p.cost_price) / AVG(bi.unit_price) * 100), 2)
+          ELSE NULL
+        END as average_profit_margin_percent,
+        CASE 
+          WHEN p.cost_price IS NOT NULL THEN
+            SUM((bi.unit_price - p.cost_price) * bi.quantity)
+          ELSE NULL
+        END as total_profit
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
-      LEFT JOIN users u ON b.created_by = u.id
       ${whereClause}
-      ORDER BY b.created_at DESC, bi.id DESC
+      GROUP BY p.id, p.name, p.manufacturer, p.part_number, p.container_no, p.local_purchase, p.cost_price, p.recommended_price
+      ORDER BY total_sold_quantity DESC, total_revenue DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -2943,7 +2947,7 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
 
     // Get total count for pagination
     const countQuery = `
-      SELECT COUNT(DISTINCT bi.id) as total
+      SELECT COUNT(DISTINCT p.id) as total
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
@@ -2957,17 +2961,19 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
     // Calculate summary statistics
     const summaryQuery = `
       SELECT 
-        COUNT(DISTINCT bi.id) as total_items_sold,
-        COUNT(DISTINCT b.id) as total_bills,
         COUNT(DISTINCT p.id) as unique_parts_sold,
         SUM(bi.quantity) as total_quantity_sold,
         SUM(bi.total_price) as total_revenue,
-        AVG(bi.unit_price) as average_selling_price,
+        AVG(bi.unit_price) as overall_average_selling_price,
+        COUNT(DISTINCT b.id) as total_transactions,
         MIN(DATE(b.created_at)) as earliest_sale,
         MAX(DATE(b.created_at)) as latest_sale,
-        COUNT(CASE WHEN p.local_purchase = true THEN 1 END) as local_purchase_items,
-        COUNT(CASE WHEN p.local_purchase = false THEN 1 END) as container_items,
-        COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers
+        COUNT(CASE WHEN p.local_purchase = true THEN bi.id END) as local_purchase_items,
+        COUNT(CASE WHEN p.local_purchase = false THEN bi.id END) as container_items,
+        COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers,
+        SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) as local_purchase_revenue,
+        SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) as container_revenue,
+        SUM(CASE WHEN p.cost_price IS NOT NULL THEN (bi.unit_price - p.cost_price) * bi.quantity ELSE 0 END) as total_profit
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
@@ -2979,53 +2985,45 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
 
     // Process the sold stock data
     const soldStockData = result.rows.map(row => ({
-      sale_details: {
-        bill_id: row.bill_id,
-        bill_number: row.bill_number,
-        bill_date: row.bill_date,
-        bill_status: row.bill_status,
-        sale_date: row.sale_date,
-        sold_by: row.sold_by
-      },
-      customer_details: {
-        customer_name: row.customer_name,
-        customer_phone: row.customer_phone
-      },
-      part_details: {
-        part_id: row.part_id,
-        part_name: row.part_name,
-        manufacturer: row.manufacturer,
-        part_number: row.part_number,
-        container_no: row.container_no,
-        local_purchase: row.local_purchase,
-        cost_price: row.cost_price ? parseFloat(row.cost_price) : null,
-        recommended_price: row.recommended_price ? parseFloat(row.recommended_price) : null
-      },
-      sale_metrics: {
-        sold_quantity: row.sold_quantity,
-        sold_price: parseFloat(row.sold_price),
-        sale_total: parseFloat(row.sale_total),
-        profit_margin: row.cost_price ? 
-          ((parseFloat(row.sold_price) - parseFloat(row.cost_price)) / parseFloat(row.sold_price) * 100).toFixed(2) + '%' : 
-          null
+      part_id: row.part_id,
+      part_name: row.part_name,
+      manufacturer: row.manufacturer,
+      part_number: row.part_number,
+      container_no: row.container_no,
+      local_purchase: row.local_purchase,
+      cost_price: row.cost_price ? parseFloat(row.cost_price) : null,
+      recommended_price: row.recommended_price ? parseFloat(row.recommended_price) : null,
+      sales_summary: {
+        total_sold_quantity: parseInt(row.total_sold_quantity),
+        times_sold: parseInt(row.times_sold),
+        total_revenue: parseFloat(row.total_revenue),
+        average_selling_price: parseFloat(row.average_selling_price),
+        min_selling_price: parseFloat(row.min_selling_price),
+        max_selling_price: parseFloat(row.max_selling_price),
+        first_sale_date: row.first_sale_date,
+        last_sale_date: row.last_sale_date,
+        average_profit_margin_percent: row.average_profit_margin_percent ? parseFloat(row.average_profit_margin_percent) : null,
+        total_profit: row.total_profit ? parseFloat(row.total_profit) : null
       }
     }));
 
     // Build response
     const response = {
-      sold_stock: soldStockData,
+      sold_parts: soldStockData,
       summary: {
-        total_items_sold: parseInt(summary.total_items_sold),
-        total_bills: parseInt(summary.total_bills),
         unique_parts_sold: parseInt(summary.unique_parts_sold),
         total_quantity_sold: parseInt(summary.total_quantity_sold),
         total_revenue: parseFloat(summary.total_revenue || 0),
-        average_selling_price: summary.average_selling_price ? parseFloat(summary.average_selling_price) : 0,
+        overall_average_selling_price: summary.overall_average_selling_price ? parseFloat(summary.overall_average_selling_price) : 0,
+        total_transactions: parseInt(summary.total_transactions),
         earliest_sale: summary.earliest_sale,
         latest_sale: summary.latest_sale,
         local_purchase_items: parseInt(summary.local_purchase_items),
         container_items: parseInt(summary.container_items),
-        unique_containers: parseInt(summary.unique_containers)
+        unique_containers: parseInt(summary.unique_containers),
+        local_purchase_revenue: parseFloat(summary.local_purchase_revenue || 0),
+        container_revenue: parseFloat(summary.container_revenue || 0),
+        total_profit: parseFloat(summary.total_profit || 0)
       },
       filters_applied: {
         container_no: container_no || null,
@@ -3055,7 +3053,7 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
   }
 });
 
-// Get sold stock summary (aggregated statistics only)
+// Get sold stock summary (aggregated statistics by parts)
 app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
   try {
     const { 
@@ -3100,9 +3098,8 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
     // Comprehensive summary query
     const summaryQuery = `
       SELECT 
-        COUNT(DISTINCT bi.id) as total_items_sold,
-        COUNT(DISTINCT b.id) as total_bills,
         COUNT(DISTINCT p.id) as unique_parts_sold,
+        COUNT(DISTINCT b.id) as total_transactions,
         SUM(bi.quantity) as total_quantity_sold,
         SUM(bi.total_price) as total_revenue,
         AVG(bi.unit_price) as average_selling_price,
@@ -3110,8 +3107,8 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
         MAX(bi.unit_price) as max_selling_price,
         MIN(DATE(b.created_at)) as earliest_sale,
         MAX(DATE(b.created_at)) as latest_sale,
-        COUNT(CASE WHEN p.local_purchase = true THEN 1 END) as local_purchase_items,
-        COUNT(CASE WHEN p.local_purchase = false THEN 1 END) as container_items,
+        COUNT(CASE WHEN p.local_purchase = true THEN bi.id END) as local_purchase_items,
+        COUNT(CASE WHEN p.local_purchase = false THEN bi.id END) as container_items,
         COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers,
         SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) as local_purchase_revenue,
         SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) as container_revenue,
@@ -3125,22 +3122,33 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
     const result = await pool.query(summaryQuery, params);
     const summary = result.rows[0];
 
-    // Get top selling parts
+    // Get top selling parts by quantity
     const topPartsQuery = `
       SELECT 
+        p.id,
         p.name,
         p.manufacturer,
+        p.part_number,
         p.container_no,
         p.local_purchase,
+        p.cost_price,
+        p.recommended_price,
         SUM(bi.quantity) as total_sold,
         SUM(bi.total_price) as total_revenue,
         COUNT(DISTINCT b.id) as times_sold,
-        AVG(bi.unit_price) as avg_price
+        AVG(bi.unit_price) as avg_price,
+        MIN(bi.unit_price) as min_price,
+        MAX(bi.unit_price) as max_price,
+        CASE 
+          WHEN p.cost_price IS NOT NULL AND AVG(bi.unit_price) > 0 THEN
+            ROUND(((AVG(bi.unit_price) - p.cost_price) / AVG(bi.unit_price) * 100), 2)
+          ELSE NULL
+        END as avg_profit_margin_percent
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
       ${whereClause}
-      GROUP BY p.id, p.name, p.manufacturer, p.container_no, p.local_purchase
+      GROUP BY p.id, p.name, p.manufacturer, p.part_number, p.container_no, p.local_purchase, p.cost_price, p.recommended_price
       ORDER BY total_sold DESC
       LIMIT 10
     `;
@@ -3149,9 +3157,8 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
 
     const response = {
       summary: {
-        total_items_sold: parseInt(summary.total_items_sold || 0),
-        total_bills: parseInt(summary.total_bills || 0),
         unique_parts_sold: parseInt(summary.unique_parts_sold || 0),
+        total_transactions: parseInt(summary.total_transactions || 0),
         total_quantity_sold: parseInt(summary.total_quantity_sold || 0),
         total_revenue: parseFloat(summary.total_revenue || 0),
         average_selling_price: summary.average_selling_price ? parseFloat(summary.average_selling_price) : 0,
@@ -3167,14 +3174,21 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
         estimated_profit: parseFloat(summary.estimated_profit || 0)
       },
       top_selling_parts: topPartsResult.rows.map(part => ({
+        part_id: part.id,
         name: part.name,
         manufacturer: part.manufacturer,
+        part_number: part.part_number,
         container_no: part.container_no,
         local_purchase: part.local_purchase,
+        cost_price: part.cost_price ? parseFloat(part.cost_price) : null,
+        recommended_price: part.recommended_price ? parseFloat(part.recommended_price) : null,
         total_sold: parseInt(part.total_sold),
         total_revenue: parseFloat(part.total_revenue),
         times_sold: parseInt(part.times_sold),
-        avg_price: parseFloat(part.avg_price)
+        avg_price: parseFloat(part.avg_price),
+        min_price: parseFloat(part.min_price),
+        max_price: parseFloat(part.max_price),
+        avg_profit_margin_percent: part.avg_profit_margin_percent ? parseFloat(part.avg_profit_margin_percent) : null
       })),
       filters_applied: {
         container_no: container_no || null,
