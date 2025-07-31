@@ -2889,13 +2889,13 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
 
     // Filter by date range
     if (from_date) {
-      conditions.push(`b.bill_date >= $${paramIndex}`);
+      conditions.push(`DATE(b.created_at) >= $${paramIndex}`);
       params.push(from_date);
       paramIndex++;
     }
 
     if (to_date) {
-      conditions.push(`b.bill_date <= $${paramIndex}`);
+      conditions.push(`DATE(b.created_at) <= $${paramIndex}`);
       params.push(to_date);
       paramIndex++;
     }
@@ -2924,7 +2924,7 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
         b.bill_number,
         b.customer_name,
         b.customer_phone,
-        b.bill_date,
+        DATE(b.created_at) as bill_date,
         b.status as bill_status,
         b.created_at as sale_date,
         u.username as sold_by
@@ -2963,8 +2963,8 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
         SUM(bi.quantity) as total_quantity_sold,
         SUM(bi.total_price) as total_revenue,
         AVG(bi.unit_price) as average_selling_price,
-        MIN(b.bill_date) as earliest_sale,
-        MAX(b.bill_date) as latest_sale,
+        MIN(DATE(b.created_at)) as earliest_sale,
+        MAX(DATE(b.created_at)) as latest_sale,
         COUNT(CASE WHEN p.local_purchase = true THEN 1 END) as local_purchase_items,
         COUNT(CASE WHEN p.local_purchase = false THEN 1 END) as container_items,
         COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers
@@ -3084,13 +3084,13 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
     }
 
     if (from_date) {
-      conditions.push(`b.bill_date >= $${paramIndex}`);
+      conditions.push(`DATE(b.created_at) >= $${paramIndex}`);
       params.push(from_date);
       paramIndex++;
     }
 
     if (to_date) {
-      conditions.push(`b.bill_date <= $${paramIndex}`);
+      conditions.push(`DATE(b.created_at) <= $${paramIndex}`);
       params.push(to_date);
       paramIndex++;
     }
@@ -3108,8 +3108,8 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
         AVG(bi.unit_price) as average_selling_price,
         MIN(bi.unit_price) as min_selling_price,
         MAX(bi.unit_price) as max_selling_price,
-        MIN(b.bill_date) as earliest_sale,
-        MAX(b.bill_date) as latest_sale,
+        MIN(DATE(b.created_at)) as earliest_sale,
+        MAX(DATE(b.created_at)) as latest_sale,
         COUNT(CASE WHEN p.local_purchase = true THEN 1 END) as local_purchase_items,
         COUNT(CASE WHEN p.local_purchase = false THEN 1 END) as container_items,
         COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers,
