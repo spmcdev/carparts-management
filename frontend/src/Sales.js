@@ -315,7 +315,11 @@ function Sales({ token, userRole }) {
 
   // Calculate total
   const calculateTotal = () => {
-    return cartItems.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
+    return cartItems.reduce((total, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const unitPrice = parseFloat(item.unit_price) || 0;
+      return total + (quantity * unitPrice);
+    }, 0);
   };
 
   // Enhanced reservation cart functions
@@ -340,6 +344,16 @@ function Sales({ token, userRole }) {
 
   // Update reservation cart item quantity
   const updateReservationCartQuantity = (partId, quantity) => {
+    // Allow empty string for deletion/editing
+    if (quantity === '') {
+      setReservationCartItems(reservationCartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, quantity: '' }
+          : item
+      ));
+      return;
+    }
+    
     const numQuantity = parseInt(quantity);
     if (numQuantity < 1 || isNaN(numQuantity)) return;
     
@@ -352,6 +366,16 @@ function Sales({ token, userRole }) {
 
   // Update reservation cart item price
   const updateReservationCartPrice = (partId, price) => {
+    // Allow empty string for deletion/editing
+    if (price === '') {
+      setReservationCartItems(reservationCartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, unit_price: '' }
+          : item
+      ));
+      return;
+    }
+    
     const numPrice = parseFloat(price);
     if (isNaN(numPrice) || numPrice < 0) return;
     
@@ -369,7 +393,11 @@ function Sales({ token, userRole }) {
 
   // Calculate reservation total
   const calculateReservationTotal = () => {
-    return reservationCartItems.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
+    return reservationCartItems.reduce((total, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const unitPrice = parseFloat(item.unit_price) || 0;
+      return total + (quantity * unitPrice);
+    }, 0);
   };
 
   // Create enhanced multi-item reservation
@@ -2913,7 +2941,7 @@ function Sales({ token, userRole }) {
                                   />
                                 </td>
                                 <td>
-                                  <small>Rs. {(item.quantity * item.unit_price).toFixed(2)}</small>
+                                  <small>Rs. {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}</small>
                                 </td>
                                 <td>
                                   <button
@@ -2947,7 +2975,18 @@ function Sales({ token, userRole }) {
                         type="number"
                         className="form-control"
                         value={reservationData.deposit_amount}
-                        onChange={e => setReservationData({...reservationData, deposit_amount: parseFloat(e.target.value) || 0})}
+                        onChange={e => {
+                          const value = e.target.value;
+                          // Allow empty string for deletion/editing
+                          if (value === '') {
+                            setReservationData({...reservationData, deposit_amount: ''});
+                          } else {
+                            const numValue = parseFloat(value);
+                            if (!isNaN(numValue) && numValue >= 0) {
+                              setReservationData({...reservationData, deposit_amount: numValue});
+                            }
+                          }
+                        }}
                         min="0"
                         step="0.01"
                       />
@@ -3016,8 +3055,19 @@ function Sales({ token, userRole }) {
                     <input
                       type="number"
                       className="form-control"
-                      value={editReservationData.deposit_amount || 0}
-                      onChange={e => setEditReservationData({...editReservationData, deposit_amount: parseFloat(e.target.value) || 0})}
+                      value={editReservationData.deposit_amount || ''}
+                      onChange={e => {
+                        const value = e.target.value;
+                        // Allow empty string for deletion/editing
+                        if (value === '') {
+                          setEditReservationData({...editReservationData, deposit_amount: ''});
+                        } else {
+                          const numValue = parseFloat(value);
+                          if (!isNaN(numValue) && numValue >= 0) {
+                            setEditReservationData({...editReservationData, deposit_amount: numValue});
+                          }
+                        }
+                      }}
                       min="0"
                       step="0.01"
                     />
@@ -3070,9 +3120,18 @@ function Sales({ token, userRole }) {
                               className="form-control form-control-sm"
                               value={item.quantity}
                               onChange={e => {
+                                const value = e.target.value;
                                 const newItems = [...editingReservationItems];
-                                newItems[index].quantity = parseInt(e.target.value) || 1;
-                                newItems[index].total_price = newItems[index].quantity * newItems[index].unit_price;
+                                // Allow empty string for deletion/editing
+                                if (value === '') {
+                                  newItems[index].quantity = '';
+                                } else {
+                                  const numValue = parseInt(value);
+                                  if (!isNaN(numValue) && numValue >= 1) {
+                                    newItems[index].quantity = numValue;
+                                  }
+                                }
+                                newItems[index].total_price = (parseFloat(newItems[index].quantity) || 0) * (parseFloat(newItems[index].unit_price) || 0);
                                 setEditingReservationItems(newItems);
                               }}
                               min="1"
@@ -3084,9 +3143,18 @@ function Sales({ token, userRole }) {
                               className="form-control form-control-sm"
                               value={item.unit_price}
                               onChange={e => {
+                                const value = e.target.value;
                                 const newItems = [...editingReservationItems];
-                                newItems[index].unit_price = parseFloat(e.target.value) || 0;
-                                newItems[index].total_price = newItems[index].quantity * newItems[index].unit_price;
+                                // Allow empty string for deletion/editing
+                                if (value === '') {
+                                  newItems[index].unit_price = '';
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  if (!isNaN(numValue) && numValue >= 0) {
+                                    newItems[index].unit_price = numValue;
+                                  }
+                                }
+                                newItems[index].total_price = (parseFloat(newItems[index].quantity) || 0) * (parseFloat(newItems[index].unit_price) || 0);
                                 setEditingReservationItems(newItems);
                               }}
                               min="0"
@@ -3094,7 +3162,7 @@ function Sales({ token, userRole }) {
                             />
                           </td>
                           <td>
-                            <span>Rs. {(item.quantity * item.unit_price).toFixed(2)}</span>
+                            <span>Rs. {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}</span>
                           </td>
                           <td>
                             <div className="btn-group" role="group">
