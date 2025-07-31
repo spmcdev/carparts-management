@@ -14,6 +14,15 @@ function StockManagement() {
   const [showSoldStock, setShowSoldStock] = useState(false);
   const [showAvailableStock, setShowAvailableStock] = useState(false);
   const [showParentChildRelations, setShowParentChildRelations] = useState(false);
+  
+  // New state for enhanced sold stock report
+  const [containerNo, setContainerNo] = useState('');
+  const [localPurchaseFilter, setLocalPurchaseFilter] = useState('');
+  const [soldStockData, setSoldStockData] = useState(null);
+  const [soldStockSummary, setSoldStockSummary] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [availableContainers, setAvailableContainers] = useState([]);
 
   const printStockReport = (stockData, reportType, dateRange = null) => {
     // Base64 encoded logo SVG
@@ -130,6 +139,9 @@ function StockManagement() {
                   <th>Sold Date</th>
                   <th>Unit Price (Rs.)</th>
                   <th>Total Revenue (Rs.)</th>
+                  <th>Source</th>
+                  <th>Container No.</th>
+                  <th>Profit Margin</th>
                 `}
                 `}
               </tr>
@@ -170,6 +182,9 @@ function StockManagement() {
                       <td>${item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
                       <td>Rs. ${parseFloat(item.sold_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${(parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>${item.local_purchase ? 'Local Purchase' : 'Container Purchase'}</td>
+                      <td>${item.container_no || 'N/A'}</td>
+                      <td>${item.profit_margin || 'N/A'}</td>
                     `}
                   `}
                 </tr>
@@ -215,67 +230,104 @@ function StockManagement() {
   };
 
   const handleGetSoldStock = async () => {
-    if (!startDate || !endDate) {
-      setError('Please select both start and end dates.');
-      return;
-    }
-    
     setLoading(true);
     setError('');
     setSuccess('');
     try {
-      // Fetch bills within the date range
-      const res = await fetch(API_ENDPOINTS.BILLS, {
+      // Build query parameters
+      const params = new URLSearchParams();
+      
+      if (startDate) params.append('from_date', startDate);
+      if (endDate) params.append('to_date', endDate);
+      if (containerNo) params.append('container_no', containerNo);
+      if (localPurchaseFilter !== '') params.append('local_purchase', localPurchaseFilter);
+      params.append('page', currentPage.toString());
+      params.append('limit', itemsPerPage.toString());
+      
+      // Fetch detailed report
+      const reportRes = await fetch(`${API_ENDPOINTS.BASE_URL}/sold-stock-report?${params}`, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` })
         }
       });
-      if (!res.ok) {
-        throw new Error('Failed to fetch bills');
+      
+      if (!reportRes.ok) {
+        throw new Error('Failed to fetch sold stock report');
       }
-      const bills = await res.json();
       
-      // Filter bills by date range and extract sold items
-      const filteredBills = bills.filter(bill => {
-        const billDate = new Date(bill.date || bill.created_at);
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        return billDate >= start && billDate <= end && bill.status === 'active';
-      });
+      const reportData = await reportRes.json();
+      setSoldStockData(reportData);
       
-      // Convert bill items to sold stock format
-      const soldItems = [];
-      filteredBills.forEach(bill => {
-        if (bill.items && bill.items.length > 0) {
-          bill.items.forEach(item => {
-            soldItems.push({
-              id: item.part_id,
-              name: item.part_name,
-              manufacturer: item.manufacturer,
-              sold_stock: item.quantity,
-              sold_price: item.unit_price,
-              total_revenue: item.total_price,
-              sold_date: bill.date || bill.created_at,
-              bill_number: bill.bill_number || bill.id,
-              customer_name: bill.customer_name,
-              recommended_price: item.unit_price // We'll use the sold price as baseline
-            });
-          });
+      // Fetch summary data
+      const summaryParams = new URLSearchParams();
+      if (startDate) summaryParams.append('from_date', startDate);
+      if (endDate) summaryParams.append('to_date', endDate);
+      if (containerNo) summaryParams.append('container_no', containerNo);
+      if (localPurchaseFilter !== '') summaryParams.append('local_purchase', localPurchaseFilter);
+      
+      const summaryRes = await fetch(`${API_ENDPOINTS.BASE_URL}/sold-stock-summary?${summaryParams}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
         }
       });
       
-      setSoldStock(soldItems);
+      if (summaryRes.ok) {
+        const summaryData = await summaryRes.json();
+        setSoldStockSummary(summaryData);
+      }
+      
+      // Update legacy soldStock for compatibility with existing print function
+      setSoldStock(reportData.sold_stock.map(item => ({
+        id: item.part_details.part_id,
+        name: item.part_details.part_name,
+        manufacturer: item.part_details.manufacturer,
+        sold_stock: item.sale_metrics.sold_quantity,
+        sold_price: item.sale_metrics.sold_price,
+        total_revenue: item.sale_metrics.sale_total,
+        sold_date: item.sale_details.sale_date,
+        bill_number: item.sale_details.bill_number || item.sale_details.bill_id,
+        customer_name: item.customer_details.customer_name,
+        container_no: item.part_details.container_no,
+        local_purchase: item.part_details.local_purchase,
+        profit_margin: item.sale_metrics.profit_margin
+      })));
+      
       setShowSoldStock(true);
-      const totalQuantity = soldItems.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0);
-      const totalRevenue = soldItems.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0);
-      setSuccess(`Found ${soldItems.length} items with ${totalQuantity} units sold between ${startDate} and ${endDate}. Total revenue: Rs ${totalRevenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
+      setSuccess(`Found ${reportData.summary.total_items_sold} items sold. Total revenue: Rs ${reportData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
+      
     } catch (err) {
       console.error('Error fetching sold stock:', err);
-      setError('Failed to retrieve sold stock.');
+      setError('Failed to retrieve sold stock report.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Function to load available containers for the dropdown
+  const loadAvailableContainers = async () => {
+    try {
+      const res = await fetch(API_ENDPOINTS.PARTS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      if (res.ok) {
+        const parts = await res.json();
+        const containers = [...new Set(parts
+          .map(part => part.container_no)
+          .filter(container => container && container.trim() !== '')
+        )].sort();
+        setAvailableContainers(containers);
+      }
+    } catch (err) {
+      console.error('Error loading containers:', err);
+    }
+  };
+
+  // Load containers on component mount
+  React.useEffect(() => {
+    loadAvailableContainers();
+  }, []);
 
   const handleGetParentChildRelations = async () => {
     setLoading(true);
@@ -449,8 +501,9 @@ function StockManagement() {
             )}
           </div>
           <div className="card-body">
-            <div className="row g-3 mb-3">
-              <div className="col-md-4">
+            {/* Enhanced Filter Section */}
+            <div className="row g-3 mb-4">
+              <div className="col-md-3">
                 <label className="form-label">Start Date:</label>
                 <input
                   type="date"
@@ -458,8 +511,9 @@ function StockManagement() {
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
+                <small className="text-muted">Optional</small>
               </div>
-              <div className="col-md-4">
+              <div className="col-md-3">
                 <label className="form-label">End Date:</label>
                 <input
                   type="date"
@@ -467,62 +521,245 @@ function StockManagement() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
+                <small className="text-muted">Optional</small>
               </div>
-              <div className="col-md-4 d-flex align-items-end">
-                <button className="btn btn-primary me-2" onClick={handleGetSoldStock}>
-                  Get Sold Stock
-                </button>
-                {soldStock.length > 0 && (
-                  <button 
-                    className="btn btn-success" 
-                    onClick={() => printStockReport(soldStock, 'Sold Stock', `${startDate} to ${endDate}`)}
-                  >
-                    Print Report
-                  </button>
-                )}
+              <div className="col-md-3">
+                <label className="form-label">Container Number:</label>
+                <select
+                  className="form-control"
+                  value={containerNo}
+                  onChange={(e) => setContainerNo(e.target.value)}
+                >
+                  <option value="">All Containers</option>
+                  {availableContainers.map(container => (
+                    <option key={container} value={container}>{container}</option>
+                  ))}
+                </select>
+                <small className="text-muted">Filter by container</small>
+              </div>
+              <div className="col-md-3">
+                <label className="form-label">Purchase Type:</label>
+                <select
+                  className="form-control"
+                  value={localPurchaseFilter}
+                  onChange={(e) => setLocalPurchaseFilter(e.target.value)}
+                >
+                  <option value="">All Types</option>
+                  <option value="true">Local Purchase</option>
+                  <option value="false">Container Purchase</option>
+                </select>
+                <small className="text-muted">Filter by source</small>
               </div>
             </div>
 
+            <div className="d-flex gap-2 mb-3">
+              <button 
+                className="btn btn-primary" 
+                onClick={handleGetSoldStock}
+                disabled={loading}
+              >
+                {loading ? 'Loading...' : 'Get Sold Stock Report'}
+              </button>
+              {soldStock.length > 0 && (
+                <button 
+                  className="btn btn-success" 
+                  onClick={() => printStockReport(soldStock, 'Sold Stock', startDate && endDate ? `${startDate} to ${endDate}` : 'All dates')}
+                >
+                  Print Report
+                </button>
+              )}
+            </div>
+
+            {/* Summary Cards */}
+            {soldStockSummary && (
+              <div className="row g-3 mb-4">
+                <div className="col-md-2">
+                  <div className="card bg-primary text-white">
+                    <div className="card-body text-center">
+                      <h5>{soldStockSummary.summary.total_items_sold}</h5>
+                      <small>Items Sold</small>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-2">
+                  <div className="card bg-success text-white">
+                    <div className="card-body text-center">
+                      <h5>Rs {soldStockSummary.summary.total_revenue.toLocaleString('en-LK')}</h5>
+                      <small>Total Revenue</small>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-2">
+                  <div className="card bg-info text-white">
+                    <div className="card-body text-center">
+                      <h5>{soldStockSummary.summary.total_quantity_sold}</h5>
+                      <small>Units Sold</small>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-2">
+                  <div className="card bg-warning text-dark">
+                    <div className="card-body text-center">
+                      <h5>{soldStockSummary.summary.local_purchase_items}</h5>
+                      <small>Local Items</small>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-2">
+                  <div className="card bg-secondary text-white">
+                    <div className="card-body text-center">
+                      <h5>{soldStockSummary.summary.container_items}</h5>
+                      <small>Container Items</small>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-2">
+                  <div className="card bg-dark text-white">
+                    <div className="card-body text-center">
+                      <h5>Rs {soldStockSummary.summary.average_selling_price.toFixed(0)}</h5>
+                      <small>Avg Price</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Enhanced Table */}
             {soldStock.length > 0 && showSoldStock && (
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
                   <thead className="table-dark">
                     <tr>
-                      <th>ID</th>
-                      <th>Name</th>
-                      <th>Manufacturer</th>
-                      <th>Quantity Sold</th>
-                      <th>Unit Price (Rs.)</th>
-                      <th>Total Revenue (Rs.)</th>
-                      <th>Date Sold</th>
-                      <th>Bill ID</th>
+                      <th>Part Details</th>
                       <th>Customer</th>
+                      <th>Qty Sold</th>
+                      <th>Unit Price</th>
+                      <th>Total</th>
+                      <th>Source</th>
+                      <th>Container</th>
+                      <th>Profit Margin</th>
+                      <th>Date</th>
+                      <th>Bill</th>
                     </tr>
                   </thead>
                   <tbody>
                     {soldStock.map((item, index) => (
                       <tr key={`${item.id}-${index}`}>
-                        <td>{item.id}</td>
-                        <td>{item.name}</td>
-                        <td>{item.manufacturer}</td>
-                        <td><span className="badge bg-danger">{item.sold_stock}</span></td>
-                        <td>Rs. {parseFloat(item.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</td>
-                        <td><strong>Rs. {parseFloat(item.total_revenue).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></td>
-                        <td>{item.sold_date ? item.sold_date.slice(0, 10) : 'N/A'}</td>
-                        <td>#{item.bill_number}</td>
+                        <td>
+                          <div>
+                            <strong>{item.name}</strong><br />
+                            <small className="text-muted">{item.manufacturer}</small>
+                          </div>
+                        </td>
                         <td>{item.customer_name}</td>
+                        <td><span className="badge bg-danger">{item.sold_stock}</span></td>
+                        <td>Rs {parseFloat(item.sold_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                        <td><strong>Rs {parseFloat(item.total_revenue).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
+                        <td>
+                          <span className={`badge ${item.local_purchase ? 'bg-warning text-dark' : 'bg-info'}`}>
+                            {item.local_purchase ? 'Local' : 'Container'}
+                          </span>
+                        </td>
+                        <td>{item.container_no || 'N/A'}</td>
+                        <td>
+                          {item.profit_margin ? (
+                            <span className="badge bg-success">{item.profit_margin}</span>
+                          ) : (
+                            <span className="text-muted">N/A</span>
+                          )}
+                        </td>
+                        <td>{item.sold_date ? new Date(item.sold_date).toLocaleDateString() : 'N/A'}</td>
+                        <td>#{item.bill_number}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <div className="mt-3">
-                  <strong>Summary:</strong>
-                  <ul>
-                    <li>Total Items Sold: {soldStock.length}</li>
-                    <li>Total Quantity Sold: <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
-                    <li>Total Revenue: <strong>Rs. {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Average Sale Price per Unit: Rs. {soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0) > 0 ? (soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0) / soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }) : '0.00'}</li>
-                  </ul>
+
+                {/* Pagination */}
+                {soldStockData && soldStockData.pagination && soldStockData.pagination.pages > 1 && (
+                  <nav>
+                    <ul className="pagination justify-content-center">
+                      <li className={`page-item ${!soldStockData.pagination.hasPreviousPage ? 'disabled' : ''}`}>
+                        <button 
+                          className="page-link" 
+                          onClick={() => {
+                            setCurrentPage(currentPage - 1);
+                            setTimeout(handleGetSoldStock, 100);
+                          }}
+                          disabled={!soldStockData.pagination.hasPreviousPage}
+                        >
+                          Previous
+                        </button>
+                      </li>
+                      <li className="page-item active">
+                        <span className="page-link">
+                          Page {soldStockData.pagination.page} of {soldStockData.pagination.pages}
+                        </span>
+                      </li>
+                      <li className={`page-item ${!soldStockData.pagination.hasNextPage ? 'disabled' : ''}`}>
+                        <button 
+                          className="page-link" 
+                          onClick={() => {
+                            setCurrentPage(currentPage + 1);
+                            setTimeout(handleGetSoldStock, 100);
+                          }}
+                          disabled={!soldStockData.pagination.hasNextPage}
+                        >
+                          Next
+                        </button>
+                      </li>
+                    </ul>
+                  </nav>
+                )}
+
+                {/* Enhanced Summary */}
+                <div className="mt-4">
+                  <div className="row">
+                    <div className="col-md-6">
+                      <h5>Report Summary</h5>
+                      <ul className="list-unstyled">
+                        <li><strong>Items Displayed:</strong> {soldStock.length}</li>
+                        <li><strong>Total Quantity:</strong> <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
+                        <li><strong>Total Revenue:</strong> <span className="badge bg-success">Rs {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span></li>
+                        {soldStockSummary && (
+                          <>
+                            <li><strong>Local Purchase Revenue:</strong> Rs {soldStockSummary.summary.local_purchase_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Container Purchase Revenue:</strong> Rs {soldStockSummary.summary.container_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+                    {soldStockSummary && soldStockSummary.top_selling_parts.length > 0 && (
+                      <div className="col-md-6">
+                        <h5>Top Selling Parts</h5>
+                        <div className="table-responsive">
+                          <table className="table table-sm">
+                            <thead>
+                              <tr>
+                                <th>Part</th>
+                                <th>Sold</th>
+                                <th>Revenue</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {soldStockSummary.top_selling_parts.slice(0, 5).map((part, index) => (
+                                <tr key={index}>
+                                  <td>
+                                    <small>
+                                      <strong>{part.name}</strong><br />
+                                      {part.manufacturer}
+                                    </small>
+                                  </td>
+                                  <td><span className="badge bg-primary">{part.total_sold}</span></td>
+                                  <td>Rs {part.total_revenue.toLocaleString('en-LK')}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

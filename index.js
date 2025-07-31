@@ -2851,6 +2851,350 @@ app.get('/debug-refunds/:billId', authenticateToken, async (req, res) => {
   }
 });
 
+// ====================== SOLD STOCK REPORT ROUTES ======================
+
+// Get sold stock report with filtering and pagination
+app.get('/sold-stock-report', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      container_no, 
+      local_purchase, 
+      from_date, 
+      to_date, 
+      page = 1, 
+      limit = 20 
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Build dynamic WHERE conditions
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    // Filter by container number
+    if (container_no) {
+      conditions.push(`p.container_no = $${paramIndex}`);
+      params.push(container_no);
+      paramIndex++;
+    }
+
+    // Filter by local purchase (true/false)
+    if (local_purchase !== undefined) {
+      const isLocal = local_purchase === 'true' || local_purchase === true;
+      conditions.push(`p.local_purchase = $${paramIndex}`);
+      params.push(isLocal);
+      paramIndex++;
+    }
+
+    // Filter by date range
+    if (from_date) {
+      conditions.push(`b.bill_date >= $${paramIndex}`);
+      params.push(from_date);
+      paramIndex++;
+    }
+
+    if (to_date) {
+      conditions.push(`b.bill_date <= $${paramIndex}`);
+      params.push(to_date);
+      paramIndex++;
+    }
+
+    // Build the WHERE clause
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // Main query for sold stock data
+    const query = `
+      SELECT 
+        p.id as part_id,
+        p.name as part_name,
+        p.manufacturer,
+        p.part_number,
+        p.container_no,
+        p.local_purchase,
+        p.cost_price,
+        p.recommended_price,
+        bi.part_id,
+        bi.part_name as bill_part_name,
+        bi.manufacturer as bill_manufacturer,
+        bi.quantity as sold_quantity,
+        bi.unit_price as sold_price,
+        bi.total_price as sale_total,
+        b.id as bill_id,
+        b.bill_number,
+        b.customer_name,
+        b.customer_phone,
+        b.bill_date,
+        b.status as bill_status,
+        b.created_at as sale_date,
+        u.username as sold_by
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN parts p ON bi.part_id = p.id
+      LEFT JOIN users u ON b.created_by = u.id
+      ${whereClause}
+      ORDER BY b.created_at DESC, bi.id DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    params.push(parseInt(limit), offset);
+
+    const result = await pool.query(query, params);
+
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(DISTINCT bi.id) as total
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN parts p ON bi.part_id = p.id
+      ${whereClause}
+    `;
+
+    const countParams = params.slice(0, -2); // Remove limit and offset
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Calculate summary statistics
+    const summaryQuery = `
+      SELECT 
+        COUNT(DISTINCT bi.id) as total_items_sold,
+        COUNT(DISTINCT b.id) as total_bills,
+        COUNT(DISTINCT p.id) as unique_parts_sold,
+        SUM(bi.quantity) as total_quantity_sold,
+        SUM(bi.total_price) as total_revenue,
+        AVG(bi.unit_price) as average_selling_price,
+        MIN(b.bill_date) as earliest_sale,
+        MAX(b.bill_date) as latest_sale,
+        COUNT(CASE WHEN p.local_purchase = true THEN 1 END) as local_purchase_items,
+        COUNT(CASE WHEN p.local_purchase = false THEN 1 END) as container_items,
+        COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN parts p ON bi.part_id = p.id
+      ${whereClause}
+    `;
+
+    const summaryResult = await pool.query(summaryQuery, countParams);
+    const summary = summaryResult.rows[0];
+
+    // Process the sold stock data
+    const soldStockData = result.rows.map(row => ({
+      sale_details: {
+        bill_id: row.bill_id,
+        bill_number: row.bill_number,
+        bill_date: row.bill_date,
+        bill_status: row.bill_status,
+        sale_date: row.sale_date,
+        sold_by: row.sold_by
+      },
+      customer_details: {
+        customer_name: row.customer_name,
+        customer_phone: row.customer_phone
+      },
+      part_details: {
+        part_id: row.part_id,
+        part_name: row.part_name,
+        manufacturer: row.manufacturer,
+        part_number: row.part_number,
+        container_no: row.container_no,
+        local_purchase: row.local_purchase,
+        cost_price: row.cost_price ? parseFloat(row.cost_price) : null,
+        recommended_price: row.recommended_price ? parseFloat(row.recommended_price) : null
+      },
+      sale_metrics: {
+        sold_quantity: row.sold_quantity,
+        sold_price: parseFloat(row.sold_price),
+        sale_total: parseFloat(row.sale_total),
+        profit_margin: row.cost_price ? 
+          ((parseFloat(row.sold_price) - parseFloat(row.cost_price)) / parseFloat(row.sold_price) * 100).toFixed(2) + '%' : 
+          null
+      }
+    }));
+
+    // Build response
+    const response = {
+      sold_stock: soldStockData,
+      summary: {
+        total_items_sold: parseInt(summary.total_items_sold),
+        total_bills: parseInt(summary.total_bills),
+        unique_parts_sold: parseInt(summary.unique_parts_sold),
+        total_quantity_sold: parseInt(summary.total_quantity_sold),
+        total_revenue: parseFloat(summary.total_revenue || 0),
+        average_selling_price: summary.average_selling_price ? parseFloat(summary.average_selling_price) : 0,
+        earliest_sale: summary.earliest_sale,
+        latest_sale: summary.latest_sale,
+        local_purchase_items: parseInt(summary.local_purchase_items),
+        container_items: parseInt(summary.container_items),
+        unique_containers: parseInt(summary.unique_containers)
+      },
+      filters_applied: {
+        container_no: container_no || null,
+        local_purchase: local_purchase !== undefined ? (local_purchase === 'true' || local_purchase === true) : null,
+        from_date: from_date || null,
+        to_date: to_date || null
+      },
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+        hasNextPage: parseInt(page) < Math.ceil(total / parseInt(limit)),
+        hasPreviousPage: parseInt(page) > 1,
+        offset
+      }
+    };
+
+    res.json(response);
+
+  } catch (err) {
+    console.error('Error fetching sold stock report:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch sold stock report',
+      details: err.message 
+    });
+  }
+});
+
+// Get sold stock summary (aggregated statistics only)
+app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      container_no, 
+      local_purchase, 
+      from_date, 
+      to_date 
+    } = req.query;
+
+    // Build dynamic WHERE conditions
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (container_no) {
+      conditions.push(`p.container_no = $${paramIndex}`);
+      params.push(container_no);
+      paramIndex++;
+    }
+
+    if (local_purchase !== undefined) {
+      const isLocal = local_purchase === 'true' || local_purchase === true;
+      conditions.push(`p.local_purchase = $${paramIndex}`);
+      params.push(isLocal);
+      paramIndex++;
+    }
+
+    if (from_date) {
+      conditions.push(`b.bill_date >= $${paramIndex}`);
+      params.push(from_date);
+      paramIndex++;
+    }
+
+    if (to_date) {
+      conditions.push(`b.bill_date <= $${paramIndex}`);
+      params.push(to_date);
+      paramIndex++;
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // Comprehensive summary query
+    const summaryQuery = `
+      SELECT 
+        COUNT(DISTINCT bi.id) as total_items_sold,
+        COUNT(DISTINCT b.id) as total_bills,
+        COUNT(DISTINCT p.id) as unique_parts_sold,
+        SUM(bi.quantity) as total_quantity_sold,
+        SUM(bi.total_price) as total_revenue,
+        AVG(bi.unit_price) as average_selling_price,
+        MIN(bi.unit_price) as min_selling_price,
+        MAX(bi.unit_price) as max_selling_price,
+        MIN(b.bill_date) as earliest_sale,
+        MAX(b.bill_date) as latest_sale,
+        COUNT(CASE WHEN p.local_purchase = true THEN 1 END) as local_purchase_items,
+        COUNT(CASE WHEN p.local_purchase = false THEN 1 END) as container_items,
+        COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers,
+        SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) as local_purchase_revenue,
+        SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) as container_revenue,
+        SUM(CASE WHEN p.cost_price IS NOT NULL THEN (bi.unit_price - p.cost_price) * bi.quantity ELSE 0 END) as estimated_profit
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN parts p ON bi.part_id = p.id
+      ${whereClause}
+    `;
+
+    const result = await pool.query(summaryQuery, params);
+    const summary = result.rows[0];
+
+    // Get top selling parts
+    const topPartsQuery = `
+      SELECT 
+        p.name,
+        p.manufacturer,
+        p.container_no,
+        p.local_purchase,
+        SUM(bi.quantity) as total_sold,
+        SUM(bi.total_price) as total_revenue,
+        COUNT(DISTINCT b.id) as times_sold,
+        AVG(bi.unit_price) as avg_price
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN parts p ON bi.part_id = p.id
+      ${whereClause}
+      GROUP BY p.id, p.name, p.manufacturer, p.container_no, p.local_purchase
+      ORDER BY total_sold DESC
+      LIMIT 10
+    `;
+
+    const topPartsResult = await pool.query(topPartsQuery, params);
+
+    const response = {
+      summary: {
+        total_items_sold: parseInt(summary.total_items_sold || 0),
+        total_bills: parseInt(summary.total_bills || 0),
+        unique_parts_sold: parseInt(summary.unique_parts_sold || 0),
+        total_quantity_sold: parseInt(summary.total_quantity_sold || 0),
+        total_revenue: parseFloat(summary.total_revenue || 0),
+        average_selling_price: summary.average_selling_price ? parseFloat(summary.average_selling_price) : 0,
+        min_selling_price: summary.min_selling_price ? parseFloat(summary.min_selling_price) : 0,
+        max_selling_price: summary.max_selling_price ? parseFloat(summary.max_selling_price) : 0,
+        earliest_sale: summary.earliest_sale,
+        latest_sale: summary.latest_sale,
+        local_purchase_items: parseInt(summary.local_purchase_items || 0),
+        container_items: parseInt(summary.container_items || 0),
+        unique_containers: parseInt(summary.unique_containers || 0),
+        local_purchase_revenue: parseFloat(summary.local_purchase_revenue || 0),
+        container_revenue: parseFloat(summary.container_revenue || 0),
+        estimated_profit: parseFloat(summary.estimated_profit || 0)
+      },
+      top_selling_parts: topPartsResult.rows.map(part => ({
+        name: part.name,
+        manufacturer: part.manufacturer,
+        container_no: part.container_no,
+        local_purchase: part.local_purchase,
+        total_sold: parseInt(part.total_sold),
+        total_revenue: parseFloat(part.total_revenue),
+        times_sold: parseInt(part.times_sold),
+        avg_price: parseFloat(part.avg_price)
+      })),
+      filters_applied: {
+        container_no: container_no || null,
+        local_purchase: local_purchase !== undefined ? (local_purchase === 'true' || local_purchase === true) : null,
+        from_date: from_date || null,
+        to_date: to_date || null
+      }
+    };
+
+    res.json(response);
+
+  } catch (err) {
+    console.error('Error fetching sold stock summary:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch sold stock summary',
+      details: err.message 
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
