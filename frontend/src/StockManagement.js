@@ -562,8 +562,8 @@ function StockManagement({ userRole }) {
                     <tr>
                       <th>ID</th>
                       <th>Name</th>
-                      <th>Part Number</th>
                       <th>Manufacturer</th>
+                      <th>Part Number</th>
                       <th>Available Qty</th>
                       <th>Reserved Qty</th>
                       <th>Total Stock</th>
@@ -577,8 +577,8 @@ function StockManagement({ userRole }) {
                       <tr key={part.id}>
                         <td>{part.id}</td>
                         <td>{part.name}</td>
-                        <td>{part.part_number || 'N/A'}</td>
                         <td>{part.manufacturer}</td>
+                        <td>{part.part_number || 'N/A'}</td>
                         <td><span className="badge bg-success">{part.available_stock || 0}</span></td>
                         <td><span className="badge bg-warning">{part.reserved_stock || 0}</span></td>
                         <td><span className="badge bg-info">{part.total_stock || 0}</span></td>
