@@ -254,7 +254,7 @@ function App() {
         } />
         <Route path="/reports" element={
           token ? (
-            <StockManagement />
+            <StockManagement userRole={userRole} />
           ) : (
             <p style={{ color: 'red' }}>Please log in to access Stock Management.</p>
           )

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sold Stock Report Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .demo-container {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    .feature-highlight {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 10px;
+      margin-bottom: 2rem;
+    }
+    .api-example {
+      background-color: #f8f9fa;
+      border-left: 4px solid #007bff;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+    .filter-demo {
+      background-color: #e3f2fd;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-container">
+    <!-- Hero Section -->
+    <div class="feature-highlight text-center">
+      <h1>🚀 Enhanced Sold Stock Report</h1>
+      <p class="lead">Powerful filtering and comprehensive reporting for your car parts business</p>
+      <div class="row mt-4">
+        <div class="col-md-4">
+          <h3>📦</h3>
+          <h5>Container Filtering</h5>
+          <p>Filter sales by specific container numbers</p>
+        </div>
+        <div class="col-md-4">
+          <h3>🏪</h3>
+          <h5>Local vs Container</h5>
+          <p>Separate local purchases from container imports</p>
+        </div>
+        <div class="col-md-4">
+          <h3>📅</h3>
+          <h5>Flexible Dates</h5>
+          <p>Optional date ranges for precise reporting</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features Overview -->
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header bg-primary text-white">
+            <h4>🎯 New Filtering Options</h4>
+          </div>
+          <div class="card-body">
+            <div class="filter-demo">
+              <h6>Container Number Filter</h6>
+              <select class="form-control mb-2" disabled>
+                <option>CNT001 - Demo Container</option>
+              </select>
+              <small>Select specific containers to analyze import performance</small>
+            </div>
+            
+            <div class="filter-demo">
+              <h6>Purchase Type Filter</h6>
+              <select class="form-control mb-2" disabled>
+                <option>Local Purchase</option>
+                <option>Container Purchase</option>
+              </select>
+              <small>Compare local sourcing vs. imported parts performance</small>
+            </div>
+            
+            <div class="filter-demo">
+              <h6>Date Range (Optional)</h6>
+              <div class="row">
+                <div class="col-6">
+                  <input type="date" class="form-control" disabled>
+                </div>
+                <div class="col-6">
+                  <input type="date" class="form-control" disabled>
+                </div>
+              </div>
+              <small>Flexible date filtering - both dates are optional</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header bg-success text-white">
+            <h4>📊 Enhanced Analytics</h4>
+          </div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-6">
+                <div class="card bg-light">
+                  <div class="card-body text-center p-2">
+                    <h5 class="mb-1">150</h5>
+                    <small>Items Sold</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="card bg-light">
+                  <div class="card-body text-center p-2">
+                    <h5 class="mb-1">Rs 45,000</h5>
+                    <small>Total Revenue</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="card bg-light">
+                  <div class="card-body text-center p-2">
+                    <h5 class="mb-1">75</h5>
+                    <small>Local Items</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="card bg-light">
+                  <div class="card-body text-center p-2">
+                    <h5 class="mb-1">75</h5>
+                    <small>Container Items</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-3">
+              <h6>Profit Margins</h6>
+              <div class="progress mb-2">
+                <div class="progress-bar bg-success" style="width: 23%">23%</div>
+              </div>
+              <small>Real-time profit calculations when cost data is available</small>
+            </div>
+            
+            <div class="mt-3">
+              <h6>Top Selling Parts</h6>
+              <ul class="list-unstyled">
+                <li class="d-flex justify-content-between">
+                  <span>Brake Pads</span>
+                  <span class="badge bg-primary">25 sold</span>
+                </li>
+                <li class="d-flex justify-content-between">
+                  <span>Oil Filters</span>
+                  <span class="badge bg-primary">18 sold</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Examples -->
+    <div class="card mt-4">
+      <div class="card-header bg-info text-white">
+        <h4>🔗 API Usage Examples</h4>
+      </div>
+      <div class="card-body">
+        <div class="api-example">
+          <h6>Get all sold stock:</h6>
+          <code>GET /sold-stock-report</code>
+        </div>
+        
+        <div class="api-example">
+          <h6>Filter by container:</h6>
+          <code>GET /sold-stock-report?container_no=CNT001</code>
+        </div>
+        
+        <div class="api-example">
+          <h6>Local purchases only:</h6>
+          <code>GET /sold-stock-report?local_purchase=true</code>
+        </div>
+        
+        <div class="api-example">
+          <h6>Date range with pagination:</h6>
+          <code>GET /sold-stock-report?from_date=2024-01-01&to_date=2024-12-31&page=1&limit=20</code>
+        </div>
+        
+        <div class="api-example">
+          <h6>Combined filters:</h6>
+          <code>GET /sold-stock-report?container_no=CNT001&local_purchase=false&from_date=2024-01-01</code>
+        </div>
+        
+        <div class="api-example">
+          <h6>Summary statistics only:</h6>
+          <code>GET /sold-stock-summary?local_purchase=true</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Implementation Status -->
+    <div class="card mt-4">
+      <div class="card-header bg-warning text-dark">
+        <h4>✅ Implementation Status</h4>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h5>Backend (Completed)</h5>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item d-flex justify-content-between">
+                <span>📡 API Endpoints</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>🔍 Filtering Logic</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>📊 Statistics Calculation</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>📄 Pagination Support</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>🔒 Authentication</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <h5>Frontend (Completed)</h5>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item d-flex justify-content-between">
+                <span>🎨 Enhanced UI</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>🔧 Filter Controls</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>📊 Summary Cards</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>📄 Pagination UI</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>🖨️ Enhanced Printing</span>
+                <span class="badge bg-success">✓ Done</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Usage Instructions -->
+    <div class="card mt-4">
+      <div class="card-header bg-dark text-white">
+        <h4>🚀 How to Use</h4>
+      </div>
+      <div class="card-body">
+        <ol>
+          <li><strong>Start the server:</strong> <code>node index.js</code></li>
+          <li><strong>Open the frontend</strong> and navigate to Stock Management</li>
+          <li><strong>Use the enhanced filters:</strong>
+            <ul>
+              <li>Select container numbers from dropdown</li>
+              <li>Choose purchase type (Local/Container/All)</li>
+              <li>Set optional date ranges</li>
+            </ul>
+          </li>
+          <li><strong>View comprehensive analytics</strong> with summary cards and detailed tables</li>
+          <li><strong>Print enhanced reports</strong> with all the new data fields</li>
+        </ol>
+        
+        <div class="alert alert-info mt-3">
+          <strong>💡 Pro Tip:</strong> All filters are optional and can be combined for precise reporting. The system now provides real-time profit margin calculations when cost price data is available.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

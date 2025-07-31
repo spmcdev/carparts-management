@@ -44,21 +44,29 @@ carparts/
 │   ├── deployment/          # Deployment guides
 │   ├── testing/            # Testing documentation
 │   ├── features/           # Feature implementation guides
-│   └── database/           # Database setup and schema
+│   ├── database/           # Database setup and schema
+│   └── summaries/          # Implementation summaries
 ├── database/               # 🗄️ Database files
 │   ├── migrations/         # Database migration files
 │   │   ├── 00-consolidated-migration.sql # ✅ Primary migration
 │   │   └── archive/        # Individual migrations (archived)
 │   └── setup/             # Database setup scripts
-├── tests/                   # Backend tests
+├── tests/                  # 🧪 All test files
+│   ├── debug/              # Debug scripts
+│   ├── staging/            # Staging validation scripts
+│   ├── archive/            # Archived test files
 │   ├── partial-refund.test.js # Working Jest tests ✅
 │   ├── test-staging-remote.js # Staging validation
-│   └── archive/            # Archived test files
+│   └── multiple-refunds-demo.js # Demo scripts
 ├── scripts/                # 🛠️ Utility scripts
 │   ├── deployment/         # Deployment automation
 │   ├── database/          # Database operations
 │   ├── monitoring/        # Health checks
+│   ├── debug/             # Debug utilities
+│   ├── staging/           # Staging scripts
 │   └── archive/           # Legacy scripts
+├── archive/                # 📁 Archived files
+│   └── demos/             # HTML demo files
 ├── index.js                # Express server
 ├── package.json            # Backend dependencies
 ├── docker-compose.yml      # Docker configuration

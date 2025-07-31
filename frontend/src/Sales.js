@@ -1,6 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from './config/api';
 
+// CSS styles for reservation search functionality
+const reservationSearchStyles = `
+  .hover-bg-light:hover {
+    background-color: #f8f9fa !important;
+    transition: background-color 0.2s ease;
+  }
+  
+  .reservation-search-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .reservation-search-item:hover {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+  }
+`;
+
+// Inject styles
+if (typeof document !== 'undefined' && !document.getElementById('reservation-search-styles')) {
+  const styleSheet = document.createElement('style');
+  styleSheet.id = 'reservation-search-styles';
+  styleSheet.innerText = reservationSearchStyles;
+  document.head.appendChild(styleSheet);
+}
+
 function Sales({ token, userRole }) {
   const [availableParts, setAvailableParts] = useState([]);
   const [bills, setBills] = useState([]);
@@ -66,6 +92,10 @@ function Sales({ token, userRole }) {
   // Multi-item reservation cart
   const [reservationCartItems, setReservationCartItems] = useState([]);
   
+  // Reservation parts search
+  const [reservationPartSearchTerm, setReservationPartSearchTerm] = useState('');
+  const [showReservationPartsList, setShowReservationPartsList] = useState(false);
+  
   // Edit reservation modal state
   const [editingReservation, setEditingReservation] = useState(null);
   const [editReservationData, setEditReservationData] = useState({});
@@ -92,6 +122,36 @@ function Sales({ token, userRole }) {
       }
       
       // Otherwise, search by all fields as before
+      // Search by name
+      if (part.name && part.name.toLowerCase().includes(term)) return true;
+      
+      // Search by manufacturer
+      if (part.manufacturer && part.manufacturer.toLowerCase().includes(term)) return true;
+      
+      // Search by part ID (exact match or starts with)
+      if (part.id && (part.id.toString() === term || part.id.toString().startsWith(term))) return true;
+      
+      // Search by part number
+      if (part.part_number && part.part_number.toLowerCase().includes(term)) return true;
+      
+      // Search by parent ID (exact match or starts with)
+      if (part.parent_id && (part.parent_id.toString() === term || part.parent_id.toString().startsWith(term))) return true;
+      
+      return false;
+    });
+  };
+
+  // Filter available parts for reservation (exclude already added parts)
+  const filterReservationParts = (parts, searchTerm) => {
+    const availableForReservation = parts.filter(part => 
+      !reservationCartItems.some(item => item.part_id === part.id)
+    );
+    
+    if (!searchTerm.trim()) return availableForReservation;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    return availableForReservation.filter(part => {
       // Search by name
       if (part.name && part.name.toLowerCase().includes(term)) return true;
       
@@ -205,6 +265,18 @@ function Sales({ token, userRole }) {
     fetchReservations();
   }, [token]);
 
+  // Auto-dismiss success and error messages after 5 seconds
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+        setError('');
+      }, 5000); // 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [success, error]);
+
   // Add item to cart
   const addToCart = (part) => {
     const existingItem = cartItems.find(item => item.part_id === part.id);
@@ -228,12 +300,25 @@ function Sales({ token, userRole }) {
 
   // Update cart item quantity
   const updateCartQuantity = (partId, quantity) => {
-    if (quantity <= 0) {
+    // Allow empty string for deletion/editing
+    if (quantity === '' || quantity === null || quantity === undefined) {
+      setCartItems(cartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, quantity: '' }
+          : item
+      ));
+      return;
+    }
+    
+    const numQuantity = parseInt(quantity);
+    if (isNaN(numQuantity)) return;
+    
+    if (numQuantity <= 0) {
       setCartItems(cartItems.filter(item => item.part_id !== partId));
     } else {
       setCartItems(cartItems.map(item => 
         item.part_id === partId 
-          ? { ...item, quantity: Math.min(quantity, item.max_available) }
+          ? { ...item, quantity: Math.min(numQuantity, item.max_available) }
           : item
       ));
     }
@@ -241,9 +326,22 @@ function Sales({ token, userRole }) {
 
   // Update cart item price
   const updateCartPrice = (partId, price) => {
+    // Allow empty string for deletion/editing
+    if (price === '' || price === null || price === undefined) {
+      setCartItems(cartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, unit_price: '' }
+          : item
+      ));
+      return;
+    }
+    
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice) || numPrice < 0) return;
+    
     setCartItems(cartItems.map(item => 
       item.part_id === partId 
-        ? { ...item, unit_price: parseFloat(price) || 0 }
+        ? { ...item, unit_price: numPrice }
         : item
     ));
   };
@@ -255,7 +353,11 @@ function Sales({ token, userRole }) {
 
   // Calculate total
   const calculateTotal = () => {
-    return cartItems.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
+    return cartItems.reduce((total, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const unitPrice = parseFloat(item.unit_price) || 0;
+      return total + (quantity * unitPrice);
+    }, 0);
   };
 
   // Enhanced reservation cart functions
@@ -280,6 +382,16 @@ function Sales({ token, userRole }) {
 
   // Update reservation cart item quantity
   const updateReservationCartQuantity = (partId, quantity) => {
+    // Allow empty string for deletion/editing
+    if (quantity === '') {
+      setReservationCartItems(reservationCartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, quantity: '' }
+          : item
+      ));
+      return;
+    }
+    
     const numQuantity = parseInt(quantity);
     if (numQuantity < 1 || isNaN(numQuantity)) return;
     
@@ -292,6 +404,16 @@ function Sales({ token, userRole }) {
 
   // Update reservation cart item price
   const updateReservationCartPrice = (partId, price) => {
+    // Allow empty string for deletion/editing
+    if (price === '') {
+      setReservationCartItems(reservationCartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, unit_price: '' }
+          : item
+      ));
+      return;
+    }
+    
     const numPrice = parseFloat(price);
     if (isNaN(numPrice) || numPrice < 0) return;
     
@@ -309,7 +431,11 @@ function Sales({ token, userRole }) {
 
   // Calculate reservation total
   const calculateReservationTotal = () => {
-    return reservationCartItems.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
+    return reservationCartItems.reduce((total, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const unitPrice = parseFloat(item.unit_price) || 0;
+      return total + (quantity * unitPrice);
+    }, 0);
   };
 
   // Create enhanced multi-item reservation
@@ -906,9 +1032,41 @@ function Sales({ token, userRole }) {
 
   // Update item quantity/price inline
   const handleItemChange = (itemId, field, value) => {
-    setEditingBillItems(editingBillItems.map(item => 
-      item.id === itemId ? { ...item, [field]: value } : item
-    ));
+    if (field === 'quantity') {
+      // Allow empty string for deletion/editing
+      if (value === '' || value === null || value === undefined) {
+        setEditingBillItems(editingBillItems.map(item => 
+          item.id === itemId ? { ...item, [field]: '' } : item
+        ));
+        return;
+      }
+      
+      const numValue = parseInt(value);
+      if (isNaN(numValue) || numValue < 1) return;
+      
+      setEditingBillItems(editingBillItems.map(item => 
+        item.id === itemId ? { ...item, [field]: numValue } : item
+      ));
+    } else if (field === 'unit_price') {
+      // Allow empty string for deletion/editing
+      if (value === '' || value === null || value === undefined) {
+        setEditingBillItems(editingBillItems.map(item => 
+          item.id === itemId ? { ...item, [field]: '' } : item
+        ));
+        return;
+      }
+      
+      const numValue = parseFloat(value);
+      if (isNaN(numValue) || numValue < 0) return;
+      
+      setEditingBillItems(editingBillItems.map(item => 
+        item.id === itemId ? { ...item, [field]: numValue } : item
+      ));
+    } else {
+      setEditingBillItems(editingBillItems.map(item => 
+        item.id === itemId ? { ...item, [field]: value } : item
+      ));
+    }
   };
 
   // Process refund
@@ -985,11 +1143,24 @@ function Sales({ token, userRole }) {
   const updateRefundItemQuantity = (itemIndex, quantity) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_quantity = Math.min(Math.max(0, quantity), item.remaining_quantity);
+        // Allow empty string for deletion/editing
+        if (quantity === '' || quantity === null || quantity === undefined) {
+          return {
+            ...item,
+            refund_quantity: '',
+            refund_total: 0,
+            selected: false
+          };
+        }
+        
+        const parsedQuantity = parseInt(quantity);
+        if (isNaN(parsedQuantity)) return item;
+        
+        const refund_quantity = Math.min(Math.max(0, parsedQuantity), item.remaining_quantity);
         return {
           ...item,
           refund_quantity,
-          refund_total: refund_quantity * item.refund_unit_price,
+          refund_total: refund_quantity * (parseFloat(item.refund_unit_price) || 0),
           selected: refund_quantity > 0
         };
       }
@@ -1003,11 +1174,23 @@ function Sales({ token, userRole }) {
   const updateRefundItemPrice = (itemIndex, price) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_unit_price = Math.max(0, parseFloat(price) || 0);
+        // Allow empty string for deletion/editing
+        if (price === '' || price === null || price === undefined) {
+          return {
+            ...item,
+            refund_unit_price: '',
+            refund_total: 0
+          };
+        }
+        
+        const parsedPrice = parseFloat(price);
+        if (isNaN(parsedPrice) || parsedPrice < 0) return item;
+        
+        const refund_unit_price = parsedPrice;
         return {
           ...item,
           refund_unit_price,
-          refund_total: item.refund_quantity * refund_unit_price
+          refund_total: (parseFloat(item.refund_quantity) || 0) * refund_unit_price
         };
       }
       return item;
@@ -1018,7 +1201,13 @@ function Sales({ token, userRole }) {
 
   // Calculate total refund amount from selected items
   const updateRefundAmount = (items) => {
-    const total = items.reduce((sum, item) => sum + (item.selected ? item.refund_total : 0), 0);
+    const total = items.reduce((sum, item) => {
+      if (item.selected) {
+        const refundTotal = parseFloat(item.refund_total) || 0;
+        return sum + refundTotal;
+      }
+      return sum;
+    }, 0);
     setRefundAmount(total.toFixed(2));
   };
 
@@ -1346,7 +1535,7 @@ function Sales({ token, userRole }) {
                                 className="form-control form-control-sm"
                                 style={{ width: '80px' }}
                                 value={item.quantity}
-                                onChange={e => updateCartQuantity(item.part_id, parseInt(e.target.value))}
+                                onChange={e => updateCartQuantity(item.part_id, e.target.value)}
                                 min="1"
                                 max={item.max_available}
                               />
@@ -1362,7 +1551,7 @@ function Sales({ token, userRole }) {
                                 step="0.01"
                               />
                             </td>
-                            <td>Rs {(item.quantity * item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                            <td>Rs {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                             <td>
                               <button
                                 type="button"
@@ -1455,7 +1644,10 @@ function Sales({ token, userRole }) {
                             {part.parent_id && <span className="badge bg-secondary ms-1">Parent: {part.parent_id}</span>}
                             <br />
                             <small className="text-muted">{part.manufacturer}</small><br />
-                            <small>Stock: {part.available_stock} | Rs {part.recommended_price || 0}</small>
+                            <small>
+                              <span className="badge bg-success me-1">Stock: {part.available_stock}</span>
+                              | Rs {part.recommended_price || 0}
+                            </small>
                           </div>
                           <div className="btn-group-vertical">
                             <button
@@ -1521,7 +1713,7 @@ function Sales({ token, userRole }) {
             ) : (
               <>
                 <div className="table-responsive">
-                  <table className="table table-striped">
+                  <table className="table table-striped bills-table">
                     <thead>
                     <tr>
                       <th>Bill #</th>
@@ -1537,7 +1729,10 @@ function Sales({ token, userRole }) {
                   <tbody>
                     {bills.map(bill => (
                     <React.Fragment key={bill.id}>
-                      <tr>
+                      <tr className={`bill-row ${expandedBills.has(bill.id) ? 'bill-expanded' : ''}`} style={{
+                        borderLeft: '4px solid #007bff',
+                        backgroundColor: expandedBills.has(bill.id) ? '#f8f9fa' : 'transparent'
+                      }}>
                         <td>{bill.bill_number || bill.id}</td>
                         <td>{new Date(bill.date).toLocaleDateString()}</td>
                         <td>{bill.customer_name}</td>
@@ -1627,7 +1822,7 @@ function Sales({ token, userRole }) {
                       {expandedBills.has(bill.id) && (
                         <tr>
                           <td colSpan="8" className="p-0">
-                            <div className="bg-light border-top">
+                            <div className="bill-details-container"  style={{ borderStyle: 'solid !important' }}>
                               <div className="p-3">
                                 <div className="d-flex justify-content-between align-items-center mb-3">
                                   <h6 className="mb-0">
@@ -1812,6 +2007,12 @@ function Sales({ token, userRole }) {
                               </div>
                             </div>
                           </td>
+                        </tr>
+                      )}
+                      {/* Add spacing between bills */}
+                      {expandedBills.has(bill.id) && (
+                        <tr className="bill-separator">
+                          <td colSpan="8" style={{ height: '10px', backgroundColor: 'transparent' }}></td>
                         </tr>
                       )}
                     </React.Fragment>
@@ -2278,7 +2479,17 @@ function Sales({ token, userRole }) {
                               className="form-control"
                               placeholder="Quantity"
                               value={newItemData.quantity}
-                              onChange={e => setNewItemData({...newItemData, quantity: parseInt(e.target.value) || 1})}
+                              onChange={e => {
+                                const value = e.target.value;
+                                if (value === '') {
+                                  setNewItemData({...newItemData, quantity: ''});
+                                } else {
+                                  const numValue = parseInt(value);
+                                  if (!isNaN(numValue) && numValue >= 1) {
+                                    setNewItemData({...newItemData, quantity: numValue});
+                                  }
+                                }
+                              }}
                               min="1"
                             />
                           </div>
@@ -2341,7 +2552,7 @@ function Sales({ token, userRole }) {
                                         type="number"
                                         className="form-control form-control-sm"
                                         value={item.quantity}
-                                        onChange={e => handleItemChange(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                        onChange={e => handleItemChange(item.id, 'quantity', e.target.value)}
                                         min="1"
                                         style={{ width: '80px' }}
                                       />
@@ -2358,7 +2569,7 @@ function Sales({ token, userRole }) {
                                       />
                                     </td>
                                     <td>
-                                      <strong>Rs. {(item.quantity * item.unit_price).toFixed(2)}</strong>
+                                      <strong>Rs. {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}</strong>
                                     </td>
                                     <td>
                                       <div className="btn-group btn-group-sm">
@@ -2392,7 +2603,7 @@ function Sales({ token, userRole }) {
                                 <tr className="table-info">
                                   <th colSpan="3">Total:</th>
                                   <th>
-                                    Rs. {editingBillItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0).toFixed(2)}
+                                    Rs. {editingBillItems.reduce((sum, item) => sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)), 0).toFixed(2)}
                                   </th>
                                   <th></th>
                                 </tr>
@@ -2555,7 +2766,7 @@ function Sales({ token, userRole }) {
                                   type="number"
                                   className="form-control form-control-sm"
                                   value={item.refund_quantity}
-                                  onChange={e => updateRefundItemQuantity(index, parseInt(e.target.value) || 0)}
+                                  onChange={e => updateRefundItemQuantity(index, e.target.value)}
                                   min="0"
                                   max={item.remaining_quantity}
                                   disabled={!item.selected || item.remaining_quantity <= 0}
@@ -2573,7 +2784,7 @@ function Sales({ token, userRole }) {
                                 />
                               </td>
                               <td>
-                                <strong>Rs {item.refund_total.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                <strong>Rs {((parseFloat(item.refund_quantity) || 0) * (parseFloat(item.refund_unit_price) || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
                               </td>
                             </tr>
                           ))}
@@ -2592,7 +2803,18 @@ function Sales({ token, userRole }) {
                     type="number"
                     className="form-control"
                     value={refundAmount}
-                    onChange={e => setRefundAmount(e.target.value)}
+                    onChange={e => {
+                      const value = e.target.value;
+                      // Allow empty string for deletion/editing
+                      if (value === '') {
+                        setRefundAmount('');
+                      } else {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue) && numValue >= 0) {
+                          setRefundAmount(value);
+                        }
+                      }
+                    }}
                     min="0"
                     max={refundingBill.total_amount}
                     step="0.01"
@@ -2690,24 +2912,106 @@ function Sales({ token, userRole }) {
                   {/* Part Selection */}
                   <div className="mb-3">
                     <label className="form-label">Add Parts to Reservation</label>
-                    <div className="input-group">
-                      <select
+                    <div className="input-group mb-2">
+                      <input
+                        type="text"
                         className="form-control"
+                        placeholder="Search parts by name, manufacturer, part number, or ID..."
+                        value={reservationPartSearchTerm}
+                        onChange={(e) => {
+                          setReservationPartSearchTerm(e.target.value);
+                          setShowReservationPartsList(e.target.value.length > 0);
+                        }}
+                        onFocus={() => setShowReservationPartsList(reservationPartSearchTerm.length > 0)}
+                      />
+                      <button 
+                        className="btn btn-outline-secondary" 
+                        type="button"
+                        onClick={() => {
+                          setReservationPartSearchTerm('');
+                          setShowReservationPartsList(false);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    
+                    {/* Search Results */}
+                    {showReservationPartsList && (
+                      <div className="border rounded" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        {reservationPartSearchTerm.length === 0 ? (
+                          <div className="p-3 text-muted text-center">
+                            <i className="fas fa-search me-2"></i>
+                            Start typing to search for parts...
+                          </div>
+                        ) : filterReservationParts(availableParts, reservationPartSearchTerm).length === 0 ? (
+                          <div className="p-3 text-muted text-center">
+                            <i className="fas fa-exclamation-circle me-2"></i>
+                            No parts found matching your search.
+                          </div>
+                        ) : (
+                          filterReservationParts(availableParts, reservationPartSearchTerm).map(part => (
+                            <div key={part.id} className="d-flex justify-content-between align-items-center p-2 border-bottom reservation-search-item">
+                              <div className="flex-grow-1">
+                                <div className="d-flex justify-content-between align-items-start">
+                                  <div>
+                                    <strong>{part.name}</strong>
+                                    <br />
+                                    <small className="text-muted">
+                                      {part.manufacturer}
+                                      {part.part_number && ` • Part #${part.part_number}`}
+                                      {part.parent_id && ` • Parent: ${part.parent_id}`}
+                                    </small>
+                                    <br />
+                                    <small>
+                                      <span className="badge bg-success">Stock: {part.available_stock}</span>
+                                      <span className="badge bg-info ms-1">ID: {part.id}</span>
+                                      {part.recommended_price && (
+                                        <span className="badge bg-warning text-dark ms-1">
+                                          Rs. {parseFloat(part.recommended_price).toFixed(2)}
+                                        </span>
+                                      )}
+                                    </small>
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm ms-2"
+                                onClick={() => {
+                                  addToReservationCart(part);
+                                  setReservationPartSearchTerm('');
+                                  setShowReservationPartsList(false);
+                                }}
+                                disabled={part.available_stock <= 0}
+                              >
+                                <i className="fas fa-plus me-1"></i>
+                                Add
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Alternative: Quick select dropdown for users who prefer it */}
+                    <div className="mt-2">
+                      <small className="text-muted">Or use quick select:</small>
+                      <select
+                        className="form-control form-control-sm"
                         onChange={e => {
                           const selectedPart = availableParts.find(part => part.id == e.target.value);
                           if (selectedPart) addToReservationCart(selectedPart);
                           e.target.value = '';
                         }}
                       >
-                        <option value="">Choose a part to add...</option>
+                        <option value="">Quick select a part...</option>
                         {availableParts
                           .filter(part => !reservationCartItems.some(item => item.part_id === part.id))
+                          .slice(0, 20) // Limit to first 20 for performance
                           .map(part => (
                             <option key={part.id} value={part.id}>
-                              ID:{part.id} - {part.name} - {part.manufacturer} 
-                              {part.part_number && ` (#${part.part_number})`}
-                              {part.parent_id && ` (Parent: ${part.parent_id})`} 
-                              (Stock: {part.available_stock})
+                              {part.name} - {part.manufacturer} (Stock: {part.available_stock})
                             </option>
                           ))}
                       </select>
@@ -2762,7 +3066,7 @@ function Sales({ token, userRole }) {
                                   />
                                 </td>
                                 <td>
-                                  <small>Rs. {(item.quantity * item.unit_price).toFixed(2)}</small>
+                                  <small>Rs. {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}</small>
                                 </td>
                                 <td>
                                   <button
@@ -2796,7 +3100,18 @@ function Sales({ token, userRole }) {
                         type="number"
                         className="form-control"
                         value={reservationData.deposit_amount}
-                        onChange={e => setReservationData({...reservationData, deposit_amount: parseFloat(e.target.value) || 0})}
+                        onChange={e => {
+                          const value = e.target.value;
+                          // Allow empty string for deletion/editing
+                          if (value === '') {
+                            setReservationData({...reservationData, deposit_amount: ''});
+                          } else {
+                            const numValue = parseFloat(value);
+                            if (!isNaN(numValue) && numValue >= 0) {
+                              setReservationData({...reservationData, deposit_amount: numValue});
+                            }
+                          }
+                        }}
                         min="0"
                         step="0.01"
                       />
@@ -2865,8 +3180,19 @@ function Sales({ token, userRole }) {
                     <input
                       type="number"
                       className="form-control"
-                      value={editReservationData.deposit_amount || 0}
-                      onChange={e => setEditReservationData({...editReservationData, deposit_amount: parseFloat(e.target.value) || 0})}
+                      value={editReservationData.deposit_amount || ''}
+                      onChange={e => {
+                        const value = e.target.value;
+                        // Allow empty string for deletion/editing
+                        if (value === '') {
+                          setEditReservationData({...editReservationData, deposit_amount: ''});
+                        } else {
+                          const numValue = parseFloat(value);
+                          if (!isNaN(numValue) && numValue >= 0) {
+                            setEditReservationData({...editReservationData, deposit_amount: numValue});
+                          }
+                        }
+                      }}
                       min="0"
                       step="0.01"
                     />
@@ -2919,9 +3245,18 @@ function Sales({ token, userRole }) {
                               className="form-control form-control-sm"
                               value={item.quantity}
                               onChange={e => {
+                                const value = e.target.value;
                                 const newItems = [...editingReservationItems];
-                                newItems[index].quantity = parseInt(e.target.value) || 1;
-                                newItems[index].total_price = newItems[index].quantity * newItems[index].unit_price;
+                                // Allow empty string for deletion/editing
+                                if (value === '') {
+                                  newItems[index].quantity = '';
+                                } else {
+                                  const numValue = parseInt(value);
+                                  if (!isNaN(numValue) && numValue >= 1) {
+                                    newItems[index].quantity = numValue;
+                                  }
+                                }
+                                newItems[index].total_price = (parseFloat(newItems[index].quantity) || 0) * (parseFloat(newItems[index].unit_price) || 0);
                                 setEditingReservationItems(newItems);
                               }}
                               min="1"
@@ -2933,9 +3268,18 @@ function Sales({ token, userRole }) {
                               className="form-control form-control-sm"
                               value={item.unit_price}
                               onChange={e => {
+                                const value = e.target.value;
                                 const newItems = [...editingReservationItems];
-                                newItems[index].unit_price = parseFloat(e.target.value) || 0;
-                                newItems[index].total_price = newItems[index].quantity * newItems[index].unit_price;
+                                // Allow empty string for deletion/editing
+                                if (value === '') {
+                                  newItems[index].unit_price = '';
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  if (!isNaN(numValue) && numValue >= 0) {
+                                    newItems[index].unit_price = numValue;
+                                  }
+                                }
+                                newItems[index].total_price = (parseFloat(newItems[index].quantity) || 0) * (parseFloat(newItems[index].unit_price) || 0);
                                 setEditingReservationItems(newItems);
                               }}
                               min="0"
@@ -2943,7 +3287,7 @@ function Sales({ token, userRole }) {
                             />
                           </td>
                           <td>
-                            <span>Rs. {(item.quantity * item.unit_price).toFixed(2)}</span>
+                            <span>Rs. {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}</span>
                           </td>
                           <td>
                             <div className="btn-group" role="group">
@@ -3017,7 +3361,17 @@ function Sales({ token, userRole }) {
                         type="number"
                         className="form-control form-control-sm"
                         value={newReservationItemData.quantity}
-                        onChange={e => setNewReservationItemData({...newReservationItemData, quantity: parseInt(e.target.value) || 1})}
+                        onChange={e => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            setNewReservationItemData({...newReservationItemData, quantity: ''});
+                          } else {
+                            const numValue = parseInt(value);
+                            if (!isNaN(numValue) && numValue >= 1) {
+                              setNewReservationItemData({...newReservationItemData, quantity: numValue});
+                            }
+                          }
+                        }}
                         min="1"
                       />
                     </div>
