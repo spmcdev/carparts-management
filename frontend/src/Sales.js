@@ -265,6 +265,18 @@ function Sales({ token, userRole }) {
     fetchReservations();
   }, [token]);
 
+  // Auto-dismiss success and error messages after 5 seconds
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+        setError('');
+      }, 5000); // 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [success, error]);
+
   // Add item to cart
   const addToCart = (part) => {
     const existingItem = cartItems.find(item => item.part_id === part.id);
@@ -1632,7 +1644,10 @@ function Sales({ token, userRole }) {
                             {part.parent_id && <span className="badge bg-secondary ms-1">Parent: {part.parent_id}</span>}
                             <br />
                             <small className="text-muted">{part.manufacturer}</small><br />
-                            <small>Stock: {part.available_stock} | Rs {part.recommended_price || 0}</small>
+                            <small>
+                              <span className="badge bg-success me-1">Stock: {part.available_stock}</span>
+                              | Rs {part.recommended_price || 0}
+                            </small>
                           </div>
                           <div className="btn-group-vertical">
                             <button
