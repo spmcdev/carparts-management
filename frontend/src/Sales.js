@@ -288,12 +288,25 @@ function Sales({ token, userRole }) {
 
   // Update cart item quantity
   const updateCartQuantity = (partId, quantity) => {
-    if (quantity <= 0) {
+    // Allow empty string for deletion/editing
+    if (quantity === '' || quantity === null || quantity === undefined) {
+      setCartItems(cartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, quantity: '' }
+          : item
+      ));
+      return;
+    }
+    
+    const numQuantity = parseInt(quantity);
+    if (isNaN(numQuantity)) return;
+    
+    if (numQuantity <= 0) {
       setCartItems(cartItems.filter(item => item.part_id !== partId));
     } else {
       setCartItems(cartItems.map(item => 
         item.part_id === partId 
-          ? { ...item, quantity: Math.min(quantity, item.max_available) }
+          ? { ...item, quantity: Math.min(numQuantity, item.max_available) }
           : item
       ));
     }
@@ -301,9 +314,22 @@ function Sales({ token, userRole }) {
 
   // Update cart item price
   const updateCartPrice = (partId, price) => {
+    // Allow empty string for deletion/editing
+    if (price === '' || price === null || price === undefined) {
+      setCartItems(cartItems.map(item => 
+        item.part_id === partId 
+          ? { ...item, unit_price: '' }
+          : item
+      ));
+      return;
+    }
+    
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice) || numPrice < 0) return;
+    
     setCartItems(cartItems.map(item => 
       item.part_id === partId 
-        ? { ...item, unit_price: parseFloat(price) || 0 }
+        ? { ...item, unit_price: numPrice }
         : item
     ));
   };
@@ -994,9 +1020,41 @@ function Sales({ token, userRole }) {
 
   // Update item quantity/price inline
   const handleItemChange = (itemId, field, value) => {
-    setEditingBillItems(editingBillItems.map(item => 
-      item.id === itemId ? { ...item, [field]: value } : item
-    ));
+    if (field === 'quantity') {
+      // Allow empty string for deletion/editing
+      if (value === '' || value === null || value === undefined) {
+        setEditingBillItems(editingBillItems.map(item => 
+          item.id === itemId ? { ...item, [field]: '' } : item
+        ));
+        return;
+      }
+      
+      const numValue = parseInt(value);
+      if (isNaN(numValue) || numValue < 1) return;
+      
+      setEditingBillItems(editingBillItems.map(item => 
+        item.id === itemId ? { ...item, [field]: numValue } : item
+      ));
+    } else if (field === 'unit_price') {
+      // Allow empty string for deletion/editing
+      if (value === '' || value === null || value === undefined) {
+        setEditingBillItems(editingBillItems.map(item => 
+          item.id === itemId ? { ...item, [field]: '' } : item
+        ));
+        return;
+      }
+      
+      const numValue = parseFloat(value);
+      if (isNaN(numValue) || numValue < 0) return;
+      
+      setEditingBillItems(editingBillItems.map(item => 
+        item.id === itemId ? { ...item, [field]: numValue } : item
+      ));
+    } else {
+      setEditingBillItems(editingBillItems.map(item => 
+        item.id === itemId ? { ...item, [field]: value } : item
+      ));
+    }
   };
 
   // Process refund
@@ -1073,11 +1131,24 @@ function Sales({ token, userRole }) {
   const updateRefundItemQuantity = (itemIndex, quantity) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_quantity = Math.min(Math.max(0, quantity), item.remaining_quantity);
+        // Allow empty string for deletion/editing
+        if (quantity === '' || quantity === null || quantity === undefined) {
+          return {
+            ...item,
+            refund_quantity: '',
+            refund_total: 0,
+            selected: false
+          };
+        }
+        
+        const parsedQuantity = parseInt(quantity);
+        if (isNaN(parsedQuantity)) return item;
+        
+        const refund_quantity = Math.min(Math.max(0, parsedQuantity), item.remaining_quantity);
         return {
           ...item,
           refund_quantity,
-          refund_total: refund_quantity * item.refund_unit_price,
+          refund_total: refund_quantity * (parseFloat(item.refund_unit_price) || 0),
           selected: refund_quantity > 0
         };
       }
@@ -1091,11 +1162,23 @@ function Sales({ token, userRole }) {
   const updateRefundItemPrice = (itemIndex, price) => {
     const updatedItems = refundItems.map((item, index) => {
       if (index === itemIndex) {
-        const refund_unit_price = Math.max(0, parseFloat(price) || 0);
+        // Allow empty string for deletion/editing
+        if (price === '' || price === null || price === undefined) {
+          return {
+            ...item,
+            refund_unit_price: '',
+            refund_total: 0
+          };
+        }
+        
+        const parsedPrice = parseFloat(price);
+        if (isNaN(parsedPrice) || parsedPrice < 0) return item;
+        
+        const refund_unit_price = parsedPrice;
         return {
           ...item,
           refund_unit_price,
-          refund_total: item.refund_quantity * refund_unit_price
+          refund_total: (parseFloat(item.refund_quantity) || 0) * refund_unit_price
         };
       }
       return item;
@@ -1106,7 +1189,13 @@ function Sales({ token, userRole }) {
 
   // Calculate total refund amount from selected items
   const updateRefundAmount = (items) => {
-    const total = items.reduce((sum, item) => sum + (item.selected ? item.refund_total : 0), 0);
+    const total = items.reduce((sum, item) => {
+      if (item.selected) {
+        const refundTotal = parseFloat(item.refund_total) || 0;
+        return sum + refundTotal;
+      }
+      return sum;
+    }, 0);
     setRefundAmount(total.toFixed(2));
   };
 
@@ -1434,7 +1523,7 @@ function Sales({ token, userRole }) {
                                 className="form-control form-control-sm"
                                 style={{ width: '80px' }}
                                 value={item.quantity}
-                                onChange={e => updateCartQuantity(item.part_id, parseInt(e.target.value))}
+                                onChange={e => updateCartQuantity(item.part_id, e.target.value)}
                                 min="1"
                                 max={item.max_available}
                               />
@@ -1450,7 +1539,7 @@ function Sales({ token, userRole }) {
                                 step="0.01"
                               />
                             </td>
-                            <td>Rs {(item.quantity * item.unit_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                            <td>Rs {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                             <td>
                               <button
                                 type="button"
@@ -2375,7 +2464,17 @@ function Sales({ token, userRole }) {
                               className="form-control"
                               placeholder="Quantity"
                               value={newItemData.quantity}
-                              onChange={e => setNewItemData({...newItemData, quantity: parseInt(e.target.value) || 1})}
+                              onChange={e => {
+                                const value = e.target.value;
+                                if (value === '') {
+                                  setNewItemData({...newItemData, quantity: ''});
+                                } else {
+                                  const numValue = parseInt(value);
+                                  if (!isNaN(numValue) && numValue >= 1) {
+                                    setNewItemData({...newItemData, quantity: numValue});
+                                  }
+                                }
+                              }}
                               min="1"
                             />
                           </div>
@@ -2438,7 +2537,7 @@ function Sales({ token, userRole }) {
                                         type="number"
                                         className="form-control form-control-sm"
                                         value={item.quantity}
-                                        onChange={e => handleItemChange(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                        onChange={e => handleItemChange(item.id, 'quantity', e.target.value)}
                                         min="1"
                                         style={{ width: '80px' }}
                                       />
@@ -2455,7 +2554,7 @@ function Sales({ token, userRole }) {
                                       />
                                     </td>
                                     <td>
-                                      <strong>Rs. {(item.quantity * item.unit_price).toFixed(2)}</strong>
+                                      <strong>Rs. {((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}</strong>
                                     </td>
                                     <td>
                                       <div className="btn-group btn-group-sm">
@@ -2489,7 +2588,7 @@ function Sales({ token, userRole }) {
                                 <tr className="table-info">
                                   <th colSpan="3">Total:</th>
                                   <th>
-                                    Rs. {editingBillItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0).toFixed(2)}
+                                    Rs. {editingBillItems.reduce((sum, item) => sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)), 0).toFixed(2)}
                                   </th>
                                   <th></th>
                                 </tr>
@@ -2652,7 +2751,7 @@ function Sales({ token, userRole }) {
                                   type="number"
                                   className="form-control form-control-sm"
                                   value={item.refund_quantity}
-                                  onChange={e => updateRefundItemQuantity(index, parseInt(e.target.value) || 0)}
+                                  onChange={e => updateRefundItemQuantity(index, e.target.value)}
                                   min="0"
                                   max={item.remaining_quantity}
                                   disabled={!item.selected || item.remaining_quantity <= 0}
@@ -2670,7 +2769,7 @@ function Sales({ token, userRole }) {
                                 />
                               </td>
                               <td>
-                                <strong>Rs {item.refund_total.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                <strong>Rs {((parseFloat(item.refund_quantity) || 0) * (parseFloat(item.refund_unit_price) || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
                               </td>
                             </tr>
                           ))}
@@ -2689,7 +2788,18 @@ function Sales({ token, userRole }) {
                     type="number"
                     className="form-control"
                     value={refundAmount}
-                    onChange={e => setRefundAmount(e.target.value)}
+                    onChange={e => {
+                      const value = e.target.value;
+                      // Allow empty string for deletion/editing
+                      if (value === '') {
+                        setRefundAmount('');
+                      } else {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue) && numValue >= 0) {
+                          setRefundAmount(value);
+                        }
+                      }
+                    }}
                     min="0"
                     max={refundingBill.total_amount}
                     step="0.01"
@@ -3236,7 +3346,17 @@ function Sales({ token, userRole }) {
                         type="number"
                         className="form-control form-control-sm"
                         value={newReservationItemData.quantity}
-                        onChange={e => setNewReservationItemData({...newReservationItemData, quantity: parseInt(e.target.value) || 1})}
+                        onChange={e => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            setNewReservationItemData({...newReservationItemData, quantity: ''});
+                          } else {
+                            const numValue = parseInt(value);
+                            if (!isNaN(numValue) && numValue >= 1) {
+                              setNewReservationItemData({...newReservationItemData, quantity: numValue});
+                            }
+                          }
+                        }}
                         min="1"
                       />
                     </div>
