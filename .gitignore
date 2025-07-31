@@ -77,8 +77,8 @@ Thumbs.db
 # Railway
 .railway/
 
-# Vercel
-.vercel
+# Railway
+.railway
 
 # Database
 *.sqlite

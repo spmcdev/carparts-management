@@ -8,7 +8,7 @@ This directory contains utility scripts organized by purpose for the Car Parts M
 scripts/
 ├── README.md                      # This file
 ├── deployment/                    # 🚀 Deployment automation
-│   ├── deploy-prep.sh            # Deployment preparation for Vercel + Railway
+│   ├── deploy-prep.sh            # Deployment preparation for Railway full-stack
 │   └── setup-railway-cicd.sh     # Railway CI/CD environment setup
 ├── database/                      # 🗄️ Database operations
 │   ├── setup-staging-db.sh       # Staging database initialization
@@ -23,7 +23,7 @@ scripts/
 ## 🚀 **Deployment Scripts**
 
 ### **`deployment/deploy-prep.sh`**
-- **Purpose**: Prepares project for Vercel + Railway deployment
+- **Purpose**: Prepares project for Railway full-stack deployment
 - **Usage**: `./scripts/deployment/deploy-prep.sh`
 - **Features**: 
   - Validates project structure

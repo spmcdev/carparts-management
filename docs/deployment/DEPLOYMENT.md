@@ -1,10 +1,9 @@
-# Deployment Guide: Vercel + Railway
+# Deployment Guide: Railway Full-Stack
 
-This guide will help you deploy your Car Parts Management System using Vercel (frontend) and Railway (backend + database).
+This guide will help you deploy your Car Parts Management System using Railway for both backend and frontend hosting.
 
 ## Prerequisites
 - Git repository (GitHub, GitLab, or Bitbucket)
-- Vercel account (free at vercel.com)
 - Railway account (free at railway.app)
 
 ## Part 1: Deploy Backend to Railway
@@ -21,7 +20,7 @@ In your Railway backend service, go to **Variables** tab and add:
 ```env
 NODE_ENV=production
 JWT_SECRET=your-super-secure-jwt-secret-key-minimum-32-characters
-FRONTEND_URL=https://your-app-name.vercel.app
+FRONTEND_URL=https://your-frontend-service.up.railway.app
 ```
 
 **Note**: Railway will automatically provide database connection variables when you add PostgreSQL:
@@ -53,31 +52,30 @@ You can use either the `DATABASE_URL` or the individual components in your app.
 3. Add this to the deploy command: `node index.js`
 4. You may need to run migrations manually through Railway's built-in terminal
 
-## Part 2: Deploy Frontend to Vercel
+## Part 2: Deploy Frontend to Railway
 
-### Step 1: Create Vercel Account and Project
-1. Go to [vercel.com](https://vercel.com) and sign up with your GitHub account
-2. Click "New Project"
-3. Select your repository
-4. Choose the `frontend` directory as the root directory
+### Step 1: Create Frontend Service
+1. In your Railway project, click "New Service"
+2. Select "GitHub Repo" and choose your repository
+3. Set the **Root Directory** to `frontend`
+4. Railway will automatically detect it's a React app
 
-### Step 2: Configure Build Settings in Vercel
-- **Framework Preset**: Create React App
-- **Root Directory**: `frontend`
+### Step 2: Configure Build Settings
+Railway should automatically detect:
+- **Framework**: React
 - **Build Command**: `npm run build`
-- **Output Directory**: `build`
+- **Start Command**: `npm start` or serve the build directory
 
-### Step 3: Configure Environment Variables in Vercel
-In your Vercel project settings → Environment Variables, add:
+### Step 3: Configure Environment Variables
+In your Railway frontend service → Variables, add:
 
 ```env
-REACT_APP_API_URL=https://your-project.up.railway.app
+REACT_APP_API_URL=https://your-backend-service.up.railway.app
 ```
 
 ### Step 4: Deploy Frontend
-1. Click "Deploy"
-2. Vercel will build and deploy your frontend
-3. Your app will be available at: `https://your-app-name.vercel.app`
+1. Railway will automatically build and deploy your frontend
+2. Your frontend will be available at: `https://your-frontend-service.up.railway.app`
 
 ## Part 3: Update CORS Settings
 
@@ -86,7 +84,7 @@ After deployment, update your backend's CORS settings to include your Vercel dom
 
 In your Railway backend environment variables, update:
 ```env
-FRONTEND_URL=https://your-app-name.vercel.app
+FRONTEND_URL=https://your-frontend-service.up.railway.app
 ```
 
 ## Part 4: SSL and Custom Domain (Optional)
@@ -134,7 +132,7 @@ railway run npm run migrate
 
 ## Testing Your Deployment
 
-1. Visit your Vercel frontend URL
+1. Visit your Railway frontend URL
 2. Try to register a new user
 3. Login and test all functionality
 4. Check Railway logs for any backend errors
@@ -142,36 +140,30 @@ railway run npm run migrate
 ## Monitoring and Logs
 
 ### Railway (Backend)
-- View logs: Railway Dashboard → Your Service → Logs tab
-- Monitor metrics: Railway Dashboard → Your Service → Metrics tab
+- View logs: Railway Dashboard → Your Backend Service → Logs tab
+- Monitor metrics: Railway Dashboard → Your Backend Service → Metrics tab
 
-### Vercel (Frontend)
-- View deployment logs: Vercel Dashboard → Your Project → Functions tab
-- Monitor analytics: Vercel Dashboard → Your Project → Analytics tab
+### Railway (Frontend)
+- View deployment logs: Railway Dashboard → Your Frontend Service → Deployments tab
+- Monitor analytics: Railway Dashboard → Your Frontend Service → Analytics tab
 
 ## Cost Estimates
 
 ### Railway (Free Plan)
 - $0/month for hobby projects
-- Includes 500 hours of usage
-- 1GB memory, 1 vCPU
-- 1GB storage
-
-### Vercel (Free Plan)
-- $0/month for personal projects
-- 100GB bandwidth
-- Unlimited static sites
-- Serverless functions included
+- Includes 500 hours of usage per service
+- 1GB memory, 1 vCPU per service
+- 1GB storage for database
+- Can host both frontend and backend
 
 ## Troubleshooting
 
 ### Common Issues:
-1. **CORS errors**: Ensure FRONTEND_URL is correctly set in Railway
-2. **API connection failed**: Check REACT_APP_API_URL in Vercel
-3. **Database connection issues**: Verify DB environment variables in Railway
-4. **Build failures**: Check build logs in respective platforms
+1. **CORS errors**: Ensure FRONTEND_URL is correctly set in Railway backend service
+2. **API connection failed**: Check REACT_APP_API_URL in Railway frontend service
+3. **Database connection issues**: Verify DB environment variables in Railway backend service
+4. **Build failures**: Check build logs in Railway dashboard
 
 ### Getting Help:
 - Railway: [docs.railway.app](https://docs.railway.app)
-- Vercel: [vercel.com/docs](https://vercel.com/docs)
-- Community support available on both platforms
+- Community support available on Railway Discord

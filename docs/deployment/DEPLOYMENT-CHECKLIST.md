@@ -21,7 +21,7 @@
 - [ ] 🔄 Configure environment variables:
   - `NODE_ENV=production`
   - `JWT_SECRET=your-super-secure-jwt-key`
-  - `FRONTEND_URL=https://your-app.vercel.app`
+  - `FRONTEND_URL=https://your-frontend-service.up.railway.app`
   - Database variables (auto-populated)
 - [ ] 🔄 Deploy and test backend
 - [ ] 🔄 Run database migrations
