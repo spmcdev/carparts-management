@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { API_ENDPOINTS } from './config/api';
 
-function StockManagement() {
+function StockManagement({ userRole }) {
   const [availableStock, setAvailableStock] = useState([]);
   const [soldStock, setSoldStock] = useState([]);
   const [parentChildRelations, setParentChildRelations] = useState([]);
@@ -25,7 +25,7 @@ function StockManagement() {
   const [availableContainers, setAvailableContainers] = useState([]);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
 
-  const printStockReport = (stockData, reportType, dateRange = null) => {
+  const printStockReport = (stockData, reportType, dateRange = null, includeProfit = false) => {
     // Base64 encoded logo SVG
     const logoSvg = `data:image/svg+xml;base64,${btoa(`
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="80" height="80">
@@ -142,7 +142,7 @@ function StockManagement() {
                   <th>Total Revenue (Rs.)</th>
                   <th>Source</th>
                   <th>Container No.</th>
-                  <th>Profit Margin</th>
+                  ${includeProfit ? '<th>Profit Margin</th>' : ''}
                 `}
                 `}
               </tr>
@@ -185,7 +185,7 @@ function StockManagement() {
                       <td>Rs. ${(parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>${item.local_purchase ? 'Local Purchase' : 'Container Purchase'}</td>
                       <td>${item.container_no || 'N/A'}</td>
-                      <td>${item.profit_margin || 'N/A'}</td>
+                      ${includeProfit ? `<td>${item.profit_margin || 'N/A'}</td>` : ''}
                     `}
                   `}
                 </tr>
@@ -609,7 +609,7 @@ function StockManagement() {
               {soldStock.length > 0 && (
                 <button 
                   className="btn btn-success" 
-                  onClick={() => printStockReport(soldStock, 'Sold Stock', startDate && endDate ? `${startDate} to ${endDate}` : 'All dates')}
+                  onClick={() => printStockReport(soldStock, 'Sold Stock', startDate && endDate ? `${startDate} to ${endDate}` : 'All dates', userRole === 'admin' || userRole === 'superadmin')}
                 >
                   Print Report
                 </button>
@@ -691,7 +691,7 @@ function StockManagement() {
                       <th>Total</th>
                       <th>Source</th>
                       <th>Container</th>
-                      <th>Profit Margin</th>
+                      {(userRole === 'admin' || userRole === 'superadmin') && <th>Profit Margin</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -713,13 +713,15 @@ function StockManagement() {
                           </span>
                         </td>
                         <td>{item.container_no || 'N/A'}</td>
-                        <td>
-                          {item.profit_margin ? (
-                            <span className="badge bg-success">{item.profit_margin}%</span>
-                          ) : (
-                            <span className="text-muted">N/A</span>
-                          )}
-                        </td>
+                        {(userRole === 'admin' || userRole === 'superadmin') && (
+                          <td>
+                            {item.profit_margin ? (
+                              <span className="badge bg-success">{item.profit_margin}%</span>
+                            ) : (
+                              <span className="text-muted">N/A</span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
