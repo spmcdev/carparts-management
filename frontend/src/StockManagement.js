@@ -300,7 +300,7 @@ function StockManagement() {
       
       setShowSoldStock(true);
       if (!isAutoRefresh) {
-        setSuccess(`Found ${reportData.summary.total_items_sold} items sold. Total revenue: Rs ${reportData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
+        setSuccess(`Found ${reportData.summary.unique_parts_sold} unique parts sold. Total revenue: Rs ${reportData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
       }
       
     } catch (err) {
