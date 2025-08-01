@@ -11,7 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
 // CORS configuration for production
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
+  origin: (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') 
     ? [
         process.env.FRONTEND_URL,
         'http://localhost:3001'
