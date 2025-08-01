@@ -50,17 +50,19 @@ CREATE TABLE users (
     username VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'general',
+    active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insert default superadmin user
 -- Password is 'admin123' hashed with bcrypt
-INSERT INTO users (username, password, role) 
-VALUES ('admin', '$2b$10$LZ1P3O6gfPmBj7SZ2tKCtuC7LCM8v9FmsMjpF.1tzuDyFsNUnx2pm', 'superadmin')
+INSERT INTO users (username, password, role, active) 
+VALUES ('admin', '$2b$10$LZ1P3O6gfPmBj7SZ2tKCtuC7LCM8v9FmsMjpF.1tzuDyFsNUnx2pm', 'superadmin', true)
 ON CONFLICT (username) DO UPDATE SET 
   password = '$2b$10$LZ1P3O6gfPmBj7SZ2tKCtuC7LCM8v9FmsMjpF.1tzuDyFsNUnx2pm',
-  role = 'superadmin';
+  role = 'superadmin',
+  active = true;
 
 -- ===========================================================================
 -- PARTS TABLE (with complete schema from all migrations)
@@ -329,6 +331,10 @@ CREATE TABLE audit_log (
 -- ===========================================================================
 -- INDEXES FOR PERFORMANCE
 -- ===========================================================================
+
+-- Users table indexes
+CREATE INDEX idx_users_active ON users(active);
+CREATE INDEX idx_users_username_active ON users(username, active);
 
 -- Parts table indexes
 CREATE INDEX idx_parts_stock_status ON parts(stock_status);
