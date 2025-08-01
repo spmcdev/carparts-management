@@ -162,6 +162,11 @@ app.post('/login', async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) return res.status(400).json({ error: 'Invalid credentials' });
 
+    // Check if user is active
+    if (user.active === false) {
+      return res.status(403).json({ error: 'Account is deactivated. Contact administrator.' });
+    }
+
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
     
     // Log successful login attempt
@@ -259,7 +264,7 @@ app.post('/register', async (req, res) => {
 // Admin-only: Get all users
 app.get('/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, username, role, created_at FROM users ORDER BY id');
+    const result = await pool.query('SELECT id, username, role, active, created_at FROM users ORDER BY id');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching users:', err);
@@ -302,7 +307,125 @@ app.patch('/users/:id/role', authenticateToken, requireAdmin, async (req, res) =
   }
 });
 
-// Admin-only: Delete user
+// Admin-only: Check user activities
+app.get('/users/:id/activities', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Check for various user activities
+    const activities = await pool.query(`
+      SELECT 
+        COUNT(CASE WHEN table_name = 'bills' AND action IN ('CREATE', 'UPDATE') THEN 1 END) as bills_count,
+        COUNT(CASE WHEN table_name = 'reservations' AND action IN ('CREATE_RESERVATION', 'UPDATE_RESERVATION') THEN 1 END) as reservations_count,
+        COUNT(CASE WHEN table_name = 'parts' AND action IN ('CREATE', 'UPDATE', 'DELETE') THEN 1 END) as parts_count,
+        COUNT(CASE WHEN table_name = 'bill_items' AND action IN ('ADD_BILL_ITEM', 'UPDATE_BILL_ITEM', 'DELETE_BILL_ITEM') THEN 1 END) as bill_items_count,
+        COUNT(*) as total_activities
+      FROM audit_log 
+      WHERE user_id = $1
+    `, [id]);
+    
+    // Also check for bills created by user
+    const billsCreated = await pool.query('SELECT COUNT(*) as count FROM bills WHERE created_by = $1', [id]);
+    
+    // Check for reservations created by user
+    const reservationsCreated = await pool.query('SELECT COUNT(*) as count FROM reservations WHERE created_by = $1', [id]);
+    
+    const hasActivities = 
+      activities.rows[0].total_activities > 0 || 
+      billsCreated.rows[0].count > 0 || 
+      reservationsCreated.rows[0].count > 0;
+    
+    res.json({
+      hasActivities,
+      activities: activities.rows[0],
+      billsCreated: billsCreated.rows[0].count,
+      reservationsCreated: reservationsCreated.rows[0].count
+    });
+  } catch (err) {
+    console.error('Error checking user activities:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin-only: Deactivate user
+app.patch('/users/:id/deactivate', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  
+  // Prevent deactivating yourself
+  if (parseInt(id) === req.user.id) {
+    return res.status(400).json({ error: 'Cannot deactivate your own account' });
+  }
+  
+  try {
+    // Get user info before update
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    const oldUser = userResult.rows[0];
+    
+    // Prevent admin from deactivating superadmin users
+    if (req.user.role === 'admin' && oldUser.role === 'superadmin') {
+      return res.status(403).json({ error: 'Cannot deactivate superadmin users' });
+    }
+    
+    const result = await pool.query(
+      'UPDATE users SET active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, username, role, active',
+      [id]
+    );
+    
+    // Log audit action
+    await logAuditAction(
+      req.user,
+      'DEACTIVATE',
+      'users',
+      parseInt(id),
+      { active: oldUser.active },
+      { active: false },
+      req
+    );
+    
+    res.json({ message: 'User deactivated successfully', user: result.rows[0] });
+  } catch (err) {
+    console.error('Error deactivating user:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin-only: Reactivate user
+app.patch('/users/:id/reactivate', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Get user info before update
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    const oldUser = userResult.rows[0];
+    
+    const result = await pool.query(
+      'UPDATE users SET active = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, username, role, active',
+      [id]
+    );
+    
+    // Log audit action
+    await logAuditAction(
+      req.user,
+      'REACTIVATE',
+      'users',
+      parseInt(id),
+      { active: oldUser.active },
+      { active: true },
+      req
+    );
+    
+    res.json({ message: 'User reactivated successfully', user: result.rows[0] });
+  } catch (err) {
+    console.error('Error reactivating user:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin-only: Delete user (only if no activities)
 app.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   
@@ -312,8 +435,40 @@ app.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
   
   try {
+    // Get user info before deletion
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    const user = userResult.rows[0];
+    
+    // Prevent admin from deleting superadmin users
+    if (req.user.role === 'admin' && user.role === 'superadmin') {
+      return res.status(403).json({ error: 'Cannot delete superadmin users' });
+    }
+    
+    // Check for user activities
+    const activities = await pool.query('SELECT COUNT(*) as count FROM audit_log WHERE user_id = $1', [id]);
+    const billsCreated = await pool.query('SELECT COUNT(*) as count FROM bills WHERE created_by = $1', [id]);
+    const reservationsCreated = await pool.query('SELECT COUNT(*) as count FROM reservations WHERE created_by = $1', [id]);
+    
+    const hasActivities = 
+      activities.rows[0].count > 0 || 
+      billsCreated.rows[0].count > 0 || 
+      reservationsCreated.rows[0].count > 0;
+    
+    if (hasActivities) {
+      return res.status(400).json({ 
+        error: 'Cannot delete user with activities. Use deactivate instead.',
+        hasActivities: true,
+        activities: {
+          auditLogs: activities.rows[0].count,
+          billsCreated: billsCreated.rows[0].count,
+          reservationsCreated: reservationsCreated.rows[0].count
+        }
+      });
+    }
+    
     const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING username', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     
     // Log audit action
     await logAuditAction(
