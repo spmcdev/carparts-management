@@ -398,7 +398,15 @@ function StockManagement({ userRole }) {
 
       return () => clearTimeout(refreshTimer);
     }
-  }, [startDate, endDate, localPurchaseFilter, containerNo, currentPage]);
+  }, [startDate, endDate, localPurchaseFilter, containerNo]);
+
+  // Handle pagination changes separately
+  React.useEffect(() => {
+    // Only refresh when page changes and we have sold stock data
+    if (soldStockData && currentPage !== soldStockData.pagination.page) {
+      handleGetSoldStock(false);
+    }
+  }, [currentPage]);
 
   // Auto-refresh available stock when filters change
   React.useEffect(() => {
@@ -711,60 +719,6 @@ function StockManagement({ userRole }) {
                 </div>
               )}
             </div>
-
-            {/* Summary Cards */}
-            {soldStockData && (
-              <div className="row g-3 mb-4">
-                <div className="col-md-2">
-                  <div className="card bg-primary text-white">
-                    <div className="card-body text-center">
-                      <h5>{soldStockData.summary.unique_parts_sold}</h5>
-                      <small>Parts Sold</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-2">
-                  <div className="card bg-info text-white">
-                    <div className="card-body text-center">
-                      <h5>{soldStockData.summary.total_quantity_sold}</h5>
-                      <small>Units Sold</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-2">
-                  <div className="card bg-warning text-dark">
-                    <div className="card-body text-center">
-                      <h5>{soldStockData.summary.local_purchase_items}</h5>
-                      <small>Local Items</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-2">
-                  <div className="card bg-secondary text-white">
-                    <div className="card-body text-center">
-                      <h5>{soldStockData.summary.container_items}</h5>
-                      <small>Container Items</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-2">
-                  <div className="card bg-dark text-white">
-                    <div className="card-body text-center">
-                      <h5>Rs {soldStockData.summary.overall_average_selling_price.toFixed(0)}</h5>
-                      <small>Avg Price</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-2">
-                  <div className="card bg-success text-white">
-                    <div className="card-body text-center">
-                      <h5>Rs {soldStockData.summary.total_revenue.toLocaleString('en-LK')}</h5>
-                      <small>Total Revenue</small>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Enhanced Table */}
             {soldStock.length > 0 && showSoldStock && (

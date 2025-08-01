@@ -419,6 +419,35 @@ app.get('/audit-logs', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Admin-only: Get unique table names and actions for filters
+app.get('/audit-logs/filters', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    // Get unique table names
+    const tableResult = await pool.query(`
+      SELECT DISTINCT table_name 
+      FROM audit_log 
+      WHERE table_name IS NOT NULL 
+      ORDER BY table_name
+    `);
+    
+    // Get unique actions
+    const actionResult = await pool.query(`
+      SELECT DISTINCT action 
+      FROM audit_log 
+      WHERE action IS NOT NULL 
+      ORDER BY action
+    `);
+    
+    res.json({
+      tables: tableResult.rows.map(row => row.table_name),
+      actions: actionResult.rows.map(row => row.action)
+    });
+  } catch (err) {
+    console.error('Error fetching audit log filters:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ====================== STOCK MOVEMENTS ROUTES ======================
 
 // Get stock movements for a specific part
