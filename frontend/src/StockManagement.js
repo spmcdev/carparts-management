@@ -398,7 +398,15 @@ function StockManagement({ userRole }) {
 
       return () => clearTimeout(refreshTimer);
     }
-  }, [startDate, endDate, localPurchaseFilter, containerNo, currentPage]);
+  }, [startDate, endDate, localPurchaseFilter, containerNo]);
+
+  // Handle pagination changes separately
+  React.useEffect(() => {
+    // Only refresh when page changes and we have sold stock data
+    if (soldStockData && currentPage !== soldStockData.pagination.page) {
+      handleGetSoldStock(false);
+    }
+  }, [currentPage]);
 
   // Auto-refresh available stock when filters change
   React.useEffect(() => {
