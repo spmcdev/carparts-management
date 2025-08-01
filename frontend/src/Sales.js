@@ -603,17 +603,18 @@ function Sales({ token, userRole }) {
   };
 
   // Cancel reservation
-  const cancelReservation = async (reservationId) => {
+  const cancelReservation = async (reservationId, reason = '') => {
     try {
       setLoading(true);
       setError('');
 
-      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${reservationId}/cancel`, {
+      const res = await fetch(`${API_ENDPOINTS.BASE}/api/reservations/${reservationId}/cancel-enhanced`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ reason })
       });
 
       if (!res.ok) {
