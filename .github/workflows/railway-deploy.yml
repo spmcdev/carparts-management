@@ -129,7 +129,7 @@ jobs:
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     environment:
       name: staging
-      url: https://carparts-backend-staging.up.railway.app
+      url: https://rasuki-carparts-staging.up.railway.app
     
     steps:
       - uses: actions/checkout@v4
