@@ -92,6 +92,21 @@ function StockManagement({ userRole }) {
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
+          ` : reportType === 'Sold Stock' ? `
+            <div class="stats">
+              <div class="stat-box">
+                <h4>Total Sold Parts</h4>
+                <p>${stockData.length} parts</p>
+              </div>
+              <div class="stat-box">
+                <h4>Total Sold Quantity</h4>
+                <p>${stockData.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</p>
+              </div>
+              <div class="stat-box">
+                <h4>Total Revenue</h4>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
           ` : ''}
           <table class="stock-table">
             <thead>
