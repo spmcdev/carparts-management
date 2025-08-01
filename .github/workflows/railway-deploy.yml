@@ -138,7 +138,6 @@ jobs:
         run: npm install -g @railway/cli
       
       - name: Deploy Backend to Staging
-        if: ${{ secrets.RAILWAY_STAGING_TOKEN }}
         run: |
           # Copy staging environment file
           cp .env.staging .env
@@ -148,7 +147,6 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
       - name: Deploy Frontend to Staging
-        if: ${{ secrets.RAILWAY_STAGING_TOKEN }}
         run: |
           cd frontend
           # Copy staging environment file
@@ -213,7 +211,6 @@ jobs:
         run: npm install -g @railway/cli
       
       - name: Deploy Backend to Production
-        if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
         run: |
           # Copy production environment file
           cp .env.production .env
@@ -223,7 +220,6 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
       - name: Deploy Frontend to Production
-        if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
         run: |
           cd frontend
           # Copy production environment file
@@ -234,7 +230,6 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
       - name: Run production health check
-        if: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
         run: |
           sleep 90  # Wait for deployment to complete
           
