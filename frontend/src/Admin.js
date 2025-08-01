@@ -5,6 +5,7 @@ function Admin({ token, userRole }) {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [userActivities, setUserActivities] = useState({});
   // New user form state
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -19,6 +20,29 @@ function Admin({ token, userRole }) {
       if (!res.ok) throw new Error('Failed to fetch users');
       const data = await res.json();
       setUsers(data);
+      
+      // Fetch activity data for each user
+      const activitiesPromises = data.map(async (user) => {
+        try {
+          const actRes = await fetch(`${API_ENDPOINTS.USERS}/${user.id}/activities`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (actRes.ok) {
+            const actData = await actRes.json();
+            return { userId: user.id, ...actData };
+          }
+        } catch (err) {
+          console.error(`Failed to fetch activities for user ${user.id}:`, err);
+        }
+        return { userId: user.id, hasActivities: false };
+      });
+      
+      const activitiesResults = await Promise.all(activitiesPromises);
+      const activitiesMap = {};
+      activitiesResults.forEach(result => {
+        activitiesMap[result.userId] = result;
+      });
+      setUserActivities(activitiesMap);
     } catch (err) {
       setError('Failed to fetch users.');
     }
@@ -77,16 +101,94 @@ function Admin({ token, userRole }) {
       return;
     }
     
+    if (!window.confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
+      return;
+    }
+    
     try {
       const res = await fetch(`${API_ENDPOINTS.USERS}/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Failed to delete user');
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        if (errorData.hasActivities) {
+          setError(`Cannot delete user with activities. Use deactivate instead. Activities: ${errorData.activities.auditLogs} audit logs, ${errorData.activities.billsCreated} bills created, ${errorData.activities.reservationsCreated} reservations created.`);
+        } else {
+          throw new Error(errorData.error || 'Failed to delete user');
+        }
+        return;
+      }
+      
       setSuccess('User deleted!');
       fetchUsers();
     } catch (err) {
-      setError('Failed to delete user.');
+      setError(err.message || 'Failed to delete user.');
+    }
+  };
+
+  const handleDeactivate = async (id) => {
+    setError(''); setSuccess('');
+    
+    const user = users.find(u => u.id === id);
+    if (!user) {
+      setError('User not found.');
+      return;
+    }
+    
+    // Prevent admin from deactivating superadmin users
+    if (userRole === 'admin' && user.role === 'superadmin') {
+      setError('Cannot deactivate superadmin users.');
+      return;
+    }
+    
+    if (!window.confirm(`Are you sure you want to deactivate user "${user.username}"? They will not be able to login.`)) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_ENDPOINTS.USERS}/${id}/deactivate`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to deactivate user');
+      }
+      setSuccess('User deactivated!');
+      fetchUsers();
+    } catch (err) {
+      setError(err.message || 'Failed to deactivate user.');
+    }
+  };
+
+  const handleReactivate = async (id) => {
+    setError(''); setSuccess('');
+    
+    const user = users.find(u => u.id === id);
+    if (!user) {
+      setError('User not found.');
+      return;
+    }
+    
+    if (!window.confirm(`Are you sure you want to reactivate user "${user.username}"?`)) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_ENDPOINTS.USERS}/${id}/reactivate`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to reactivate user');
+      }
+      setSuccess('User reactivated!');
+      fetchUsers();
+    } catch (err) {
+      setError(err.message || 'Failed to reactivate user.');
     }
   };
 
@@ -158,35 +260,85 @@ function Admin({ token, userRole }) {
                 <th>ID</th>
                 <th>Username</th>
                 <th>Role</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map(user => (
-                <tr key={user.id}>
-                  <td>{user.id}</td>
-                  <td>{user.username}</td>
-                  <td>
-                    <select
-                      className="form-select form-select-sm"
-                      value={user.role}
-                      onChange={e => handleRoleChange(user.id, e.target.value)}
-                      disabled={user.username === 'admin'}
-                    >
-                      <option value="general">General</option>
-                      <option value="admin">Admin</option>
-                      {userRole === 'superadmin' && <option value="superadmin">SuperAdmin</option>}
-                    </select>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={() => handleDelete(user.id)}
-                      disabled={user.username === 'admin'}
-                    >Delete</button>
-                  </td>
-                </tr>
-              ))}
+              {users.map(user => {
+                const activities = userActivities[user.id];
+                const hasActivities = activities?.hasActivities || false;
+                const isActive = user.active !== false; // Default to true if undefined
+                
+                return (
+                  <tr key={user.id} className={!isActive ? 'table-secondary' : ''}>
+                    <td>{user.id}</td>
+                    <td>
+                      {user.username}
+                      {!isActive && <span className="badge bg-warning ms-2">Deactivated</span>}
+                    </td>
+                    <td>
+                      <select
+                        className="form-select form-select-sm"
+                        value={user.role}
+                        onChange={e => handleRoleChange(user.id, e.target.value)}
+                        disabled={user.username === 'admin' || !isActive}
+                      >
+                        <option value="general">General</option>
+                        <option value="admin">Admin</option>
+                        {userRole === 'superadmin' && <option value="superadmin">SuperAdmin</option>}
+                      </select>
+                    </td>
+                    <td>
+                      <span className={`badge ${isActive ? 'bg-success' : 'bg-secondary'}`}>
+                        {isActive ? 'Active' : 'Deactivated'}
+                      </span>
+                      {hasActivities && (
+                        <span className="badge bg-info ms-1" title="User has activities">
+                          Has Activities
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="btn-group btn-group-sm" role="group">
+                        {isActive ? (
+                          // User is active
+                          <>
+                            {hasActivities ? (
+                              <button
+                                className="btn btn-warning"
+                                onClick={() => handleDeactivate(user.id)}
+                                disabled={user.username === 'admin'}
+                                title="User has activities - can only deactivate"
+                              >
+                                Deactivate
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-danger"
+                                onClick={() => handleDelete(user.id)}
+                                disabled={user.username === 'admin'}
+                                title="User has no activities - can delete"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          // User is deactivated
+                          <button
+                            className="btn btn-success"
+                            onClick={() => handleReactivate(user.id)}
+                            disabled={user.username === 'admin'}
+                          >
+                            Reactivate
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
