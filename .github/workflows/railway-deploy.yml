@@ -141,17 +141,17 @@ jobs:
         run: |
           # Copy staging environment file
           cp .env.staging .env
-          # Deploy backend using Railway token with staging environment
+          # Deploy backend to staging
           railway up --detach --environment staging --service Backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
       - name: Deploy Frontend to Staging
         run: |
+          # Copy staging environment file to frontend directory
+          cp .env.staging frontend/.env
+          # Change to frontend directory and deploy
           cd frontend
-          # Copy staging environment file
-          cp .env.staging .env
-          # Deploy frontend with staging environment
           railway up --detach --environment staging --service Frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
@@ -227,17 +227,17 @@ jobs:
         run: |
           # Copy production environment file
           cp .env.production .env
-          # Deploy backend using Railway token with production environment
+          # Deploy backend to production
           railway up --detach --environment production --service backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
       - name: Deploy Frontend to Production
         run: |
+          # Copy production environment file to frontend directory
+          cp .env.production frontend/.env
+          # Deploy frontend from frontend directory to production
           cd frontend
-          # Copy production environment file
-          cp .env.production .env
-          # Deploy frontend with production environment
           railway up --detach --environment production --service frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
