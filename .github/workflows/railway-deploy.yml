@@ -189,7 +189,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
-      url: https://carparts.up.railway.app
+      url: https://rasuki.up.railway.app
     
     steps:
       - uses: actions/checkout@v4
@@ -241,18 +241,18 @@ jobs:
           echo "🔍 Running production health checks..."
           
           # Basic health check
-          curl -f https://carparts.up.railway.app/health || curl -f https://carparts.up.railway.app/debug || echo "❌ Production health check failed"
+          curl -f https://carparts-backend.up.railway.app/health || curl -f https://carparts-backend.up.railway.app/debug || echo "❌ Production health check failed"
           
           # Test critical endpoints
           echo "Testing production API endpoints..."
           
           # Test authentication endpoint
-          curl -s -o /dev/null -w "%{http_code}" -X POST https://carparts.up.railway.app/login \
+          curl -s -o /dev/null -w "%{http_code}" -X POST https://carparts-backend.up.railway.app/login \
             -H "Content-Type: application/json" \
             -d '{"username":"invalid","password":"invalid"}' | grep -q "401" && echo "✅ Auth endpoint working" || echo "⚠️ Auth endpoint issue"
           
           # Test parts endpoint (should require auth)
-          curl -s -o /dev/null -w "%{http_code}" https://carparts.up.railway.app/parts | grep -q "401" && echo "✅ Parts endpoint secured" || echo "⚠️ Parts endpoint issue"
+          curl -s -o /dev/null -w "%{http_code}" https://carparts-backend.up.railway.app/parts | grep -q "401" && echo "✅ Parts endpoint secured" || echo "⚠️ Parts endpoint issue"
           
           echo "✅ Production health checks completed"
       
