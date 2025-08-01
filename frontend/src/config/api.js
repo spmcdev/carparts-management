@@ -12,6 +12,7 @@ export const API_ENDPOINTS = {
   BILLS: `${API_BASE_URL}/bills`,
   SALES: `${API_BASE_URL}/sales`,
   AUDIT_LOGS: `${API_BASE_URL}/audit-logs`,
+  AUDIT_LOGS_FILTERS: `${API_BASE_URL}/audit-logs/filters`,
   RESERVATIONS: `${API_BASE_URL}/api/reservations`,
   STOCK_MOVEMENTS: `${API_BASE_URL}/stock-movements`
 };

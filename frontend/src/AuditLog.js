@@ -14,6 +14,33 @@ function AuditLog({ token }) {
     offset: 0
   });
   const [totalCount, setTotalCount] = useState(0);
+  const [availableFilters, setAvailableFilters] = useState({
+    tables: [],
+    actions: []
+  });
+
+  // Fetch available filter options
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      const res = await fetch(API_ENDPOINTS.AUDIT_LOGS_FILTERS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableFilters(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch filter options:', err);
+      // Set fallback options if fetch fails
+      setAvailableFilters({
+        tables: ['parts', 'users', 'bills', 'reservations', 'bill_items', 'reservation_items', 'reserved_bills'],
+        actions: ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'SELL', 'CREATE_RESERVATION', 'UPDATE_RESERVATION', 'COMPLETE_RESERVATION', 'CANCEL_RESERVATION', 'ADD_BILL_ITEM', 'UPDATE_BILL_ITEM', 'DELETE_BILL_ITEM', 'ADD_RESERVATION_ITEM', 'UPDATE_RESERVATION_ITEM', 'DELETE_RESERVATION_ITEM', 'PARTIAL_REFUND', 'FULL_REFUND']
+      });
+    }
+  }, [token]);
 
   const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
@@ -48,8 +75,9 @@ function AuditLog({ token }) {
   }, [token, filters]);
 
   useEffect(() => {
+    fetchFilterOptions();
     fetchAuditLogs();
-  }, [fetchAuditLogs]);
+  }, [fetchFilterOptions, fetchAuditLogs]);
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
@@ -150,13 +178,50 @@ function AuditLog({ token }) {
     );
   };
 
+    // Helper function to format table names for display
+  const formatTableName = (tableName) => {
+    const tableDescriptions = {
+      'parts': 'Parts (Inventory)',
+      'users': 'Users (System Access)', 
+      'bills': 'Bills (Sales)',
+      'reservations': 'Reservations (Customer Holds)',
+      'bill_items': 'Bill Items (Sale Details)',
+      'reservation_items': 'Reservation Items (Hold Details)',
+      'reserved_bills': 'Reserved Bills (Hold to Sale)'
+    };
+    
+    return tableDescriptions[tableName] || tableName.charAt(0).toUpperCase() + tableName.slice(1).replace('_', ' ');
+  };
+
   const getActionBadgeClass = (action) => {
     switch (action) {
-      case 'CREATE': return 'badge bg-success';
-      case 'UPDATE': return 'badge bg-warning';
-      case 'DELETE': return 'badge bg-danger';
-      case 'SELL': return 'badge bg-info';
-      default: return 'badge bg-secondary';
+      case 'CREATE': 
+      case 'CREATE_RESERVATION':
+      case 'ADD_BILL_ITEM':
+      case 'ADD_RESERVATION_ITEM':
+        return 'badge bg-success';
+      case 'UPDATE': 
+      case 'UPDATE_RESERVATION':
+      case 'UPDATE_BILL_ITEM':
+      case 'UPDATE_RESERVATION_ITEM':
+        return 'badge bg-warning';
+      case 'DELETE': 
+      case 'DELETE_BILL_ITEM':
+      case 'DELETE_RESERVATION_ITEM':
+        return 'badge bg-danger';
+      case 'LOGIN':
+        return 'badge bg-primary';
+      case 'SELL':
+        return 'badge bg-info';
+      case 'COMPLETE_RESERVATION':
+        return 'badge bg-success';
+      case 'CANCEL_RESERVATION':
+        return 'badge bg-secondary';
+      case 'PARTIAL_REFUND':
+      case 'FULL_REFUND':
+        return 'badge bg-warning text-dark';
+      default: 
+        return 'badge bg-secondary';
     }
   };
 
@@ -180,9 +245,11 @@ function AuditLog({ token }) {
                   onChange={e => handleFilterChange('table_name', e.target.value)}
                 >
                   <option value="">All Tables</option>
-                  <option value="parts">Parts</option>
-                  <option value="users">Users</option>
-                  <option value="bills">Bills</option>
+                  {availableFilters.tables.map(table => (
+                    <option key={table} value={table}>
+                      {formatTableName(table)}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="col-md-3">
@@ -193,10 +260,11 @@ function AuditLog({ token }) {
                   onChange={e => handleFilterChange('action', e.target.value)}
                 >
                   <option value="">All Actions</option>
-                  <option value="CREATE">Create</option>
-                  <option value="UPDATE">Update</option>
-                  <option value="DELETE">Delete</option>
-                  <option value="SELL">Sell</option>
+                  {availableFilters.actions.map(action => (
+                    <option key={action} value={action}>
+                      {action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="col-md-3">
@@ -232,9 +300,46 @@ function AuditLog({ token }) {
         {/* Results Summary */}
         {!loading && !error && (
           <div className="mb-3">
-            <p className="text-muted">
-              Showing {filters.offset + 1} to {Math.min(filters.offset + filters.limit, totalCount)} of {totalCount} entries
-            </p>
+            <div className="d-flex justify-content-between align-items-center">
+              <p className="text-muted mb-0">
+                Showing {filters.offset + 1} to {Math.min(filters.offset + filters.limit, totalCount)} of {totalCount} entries
+              </p>
+              
+              {/* Active Filters Summary */}
+              {(filters.table_name || filters.action || filters.username) && (
+                <div className="d-flex align-items-center gap-2">
+                  <small className="text-muted">Active filters:</small>
+                  {filters.table_name && (
+                    <span className="badge bg-secondary">
+                      Table: {formatTableName(filters.table_name)}
+                    </span>
+                  )}
+                  {filters.action && (
+                    <span className="badge bg-info">
+                      Action: {filters.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </span>
+                  )}
+                  {filters.username && (
+                    <span className="badge bg-warning text-dark">
+                      User: {filters.username}
+                    </span>
+                  )}
+                  <button 
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => setFilters({
+                      table_name: '',
+                      action: '',
+                      username: '',
+                      limit: filters.limit,
+                      offset: 0
+                    })}
+                    title="Clear all filters"
+                  >
+                    <i className="fas fa-times"></i> Clear
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
