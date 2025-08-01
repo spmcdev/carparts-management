@@ -5,6 +5,7 @@ function AuditLog({ token }) {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [expandedRows, setExpandedRows] = useState(new Set());
   const [filters, setFilters] = useState({
     table_name: '',
     action: '',
@@ -77,6 +78,18 @@ function AuditLog({ token }) {
   };
 
   const formatValues = (values) => {
+    if (!values) return null;
+    if (typeof values === 'string') {
+      try {
+        values = JSON.parse(values);
+      } catch {
+        return values;
+      }
+    }
+    return values;
+  };
+
+  const formatValuesSummary = (values) => {
     if (!values) return 'N/A';
     if (typeof values === 'string') {
       try {
@@ -85,9 +98,56 @@ function AuditLog({ token }) {
         return values;
       }
     }
-    return Object.entries(values).map(([key, value]) => 
-      `${key}: ${value}`
-    ).join(', ');
+    const entries = Object.entries(values);
+    if (entries.length === 0) return 'N/A';
+    if (entries.length === 1) return `${entries[0][0]}: ${entries[0][1]}`;
+    return `${entries.length} field${entries.length > 1 ? 's' : ''} changed`;
+  };
+
+  const toggleRowExpansion = (logId) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(logId)) {
+        newSet.delete(logId);
+      } else {
+        newSet.add(logId);
+      }
+      return newSet;
+    });
+  };
+
+  const renderValueDetails = (values, label) => {
+    if (!values) return null;
+    
+    const parsedValues = formatValues(values);
+    if (!parsedValues || typeof parsedValues !== 'object') {
+      return (
+        <div className="mt-2">
+          <small className="text-muted fw-bold">{label}:</small>
+          <div className="ms-3">
+            <code className="text-dark">{parsedValues || 'N/A'}</code>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-2">
+        <small className="text-muted fw-bold">{label}:</small>
+        <div className="ms-3">
+          {Object.entries(parsedValues).map(([key, value]) => (
+            <div key={key} className="d-flex align-items-start mb-1">
+              <span className="badge bg-light text-dark me-2" style={{ minWidth: '80px' }}>
+                {key}
+              </span>
+              <code className="text-dark flex-grow-1">
+                {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+              </code>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const getActionBadgeClass = (action) => {
@@ -181,39 +241,150 @@ function AuditLog({ token }) {
         {/* Audit Logs Table */}
         {auditLogs.length > 0 && (
           <div className="table-responsive">
-            <table className="table table-bordered table-striped mt-3 align-middle text-nowrap">
+            <table className="table table-bordered table-striped mt-3 align-middle">
               <thead className="table-dark">
                 <tr>
-                  <th>Timestamp</th>
-                  <th>User</th>
-                  <th>Action</th>
-                  <th>Table</th>
-                  <th>Record ID</th>
-                  <th>Old Values</th>
-                  <th>New Values</th>
-                  <th>IP Address</th>
+                  <th style={{ width: '50px' }}>Details</th>
+                  <th style={{ width: '180px' }}>Timestamp</th>
+                  <th style={{ width: '120px' }}>User</th>
+                  <th style={{ width: '100px' }}>Action</th>
+                  <th style={{ width: '100px' }}>Table</th>
+                  <th style={{ width: '80px' }}>Record ID</th>
+                  <th style={{ width: '200px' }}>Changes Summary</th>
+                  <th style={{ width: '120px' }}>IP Address</th>
                 </tr>
               </thead>
               <tbody>
                 {auditLogs.map(log => (
-                  <tr key={log.id}>
-                    <td className="text-nowrap">{formatTimestamp(log.timestamp)}</td>
-                    <td>{log.username}</td>
-                    <td>
-                      <span className={getActionBadgeClass(log.action)}>
-                        {log.action}
-                      </span>
-                    </td>
-                    <td>{log.table_name}</td>
-                    <td>{log.record_id}</td>
-                    <td className="small" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {formatValues(log.old_values)}
-                    </td>
-                    <td className="small" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {formatValues(log.new_values)}
-                    </td>
-                    <td>{log.ip_address || 'N/A'}</td>
-                  </tr>
+                  <React.Fragment key={log.id}>
+                    <tr>
+                      <td className="text-center">
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => toggleRowExpansion(log.id)}
+                          title="Toggle details"
+                        >
+                          {expandedRows.has(log.id) ? (
+                            <i className="fas fa-chevron-up"></i>
+                          ) : (
+                            <i className="fas fa-chevron-down"></i>
+                          )}
+                        </button>
+                      </td>
+                      <td className="text-nowrap small">{formatTimestamp(log.timestamp)}</td>
+                      <td className="fw-bold">{log.username}</td>
+                      <td>
+                        <span className={getActionBadgeClass(log.action)}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge bg-secondary">{log.table_name}</span>
+                      </td>
+                      <td className="text-center">{log.record_id}</td>
+                      <td className="small">
+                        {log.action === 'UPDATE' ? (
+                          <div>
+                            <div className="text-muted">Old: {formatValuesSummary(log.old_values)}</div>
+                            <div className="text-success">New: {formatValuesSummary(log.new_values)}</div>
+                          </div>
+                        ) : log.action === 'CREATE' ? (
+                          <div className="text-success">
+                            Created: {formatValuesSummary(log.new_values)}
+                          </div>
+                        ) : log.action === 'DELETE' ? (
+                          <div className="text-danger">
+                            Deleted: {formatValuesSummary(log.old_values)}
+                          </div>
+                        ) : (
+                          <div>
+                            {formatValuesSummary(log.new_values) || formatValuesSummary(log.old_values)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="small">{log.ip_address || 'N/A'}</td>
+                    </tr>
+                    
+                    {/* Expanded Details Row */}
+                    {expandedRows.has(log.id) && (
+                      <tr>
+                        <td colSpan="8" className="bg-light">
+                          <div className="p-3">
+                            <div className="row">
+                              <div className="col-md-6">
+                                <h6 className="text-primary">
+                                  <i className="fas fa-info-circle me-2"></i>
+                                  Action Details
+                                </h6>
+                                <div className="mb-3">
+                                  <small className="text-muted">Action:</small>
+                                  <div className="ms-3">
+                                    <span className={getActionBadgeClass(log.action)}>{log.action}</span>
+                                  </div>
+                                </div>
+                                <div className="mb-3">
+                                  <small className="text-muted">Table:</small>
+                                  <div className="ms-3">
+                                    <span className="badge bg-secondary">{log.table_name}</span>
+                                  </div>
+                                </div>
+                                <div className="mb-3">
+                                  <small className="text-muted">Record ID:</small>
+                                  <div className="ms-3">
+                                    <code className="text-dark">{log.record_id}</code>
+                                  </div>
+                                </div>
+                                <div className="mb-3">
+                                  <small className="text-muted">Timestamp:</small>
+                                  <div className="ms-3">
+                                    <code className="text-dark">{formatTimestamp(log.timestamp)}</code>
+                                  </div>
+                                </div>
+                                <div className="mb-3">
+                                  <small className="text-muted">User:</small>
+                                  <div className="ms-3">
+                                    <span className="badge bg-info">{log.username}</span>
+                                  </div>
+                                </div>
+                                <div className="mb-3">
+                                  <small className="text-muted">IP Address:</small>
+                                  <div className="ms-3">
+                                    <code className="text-dark">{log.ip_address || 'N/A'}</code>
+                                  </div>
+                                </div>
+                                {log.user_agent && (
+                                  <div className="mb-3">
+                                    <small className="text-muted">User Agent:</small>
+                                    <div className="ms-3">
+                                      <small className="text-muted font-monospace">
+                                        {log.user_agent}
+                                      </small>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="col-md-6">
+                                <h6 className="text-primary">
+                                  <i className="fas fa-database me-2"></i>
+                                  Data Changes
+                                </h6>
+                                
+                                {log.old_values && renderValueDetails(log.old_values, "Previous Values")}
+                                {log.new_values && renderValueDetails(log.new_values, "New Values")}
+                                
+                                {!log.old_values && !log.new_values && (
+                                  <div className="alert alert-info">
+                                    <small>No detailed change information available</small>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
