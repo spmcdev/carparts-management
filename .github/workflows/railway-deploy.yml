@@ -141,8 +141,8 @@ jobs:
         run: |
           # Copy staging environment file
           cp .env.staging .env
-          # Deploy backend with explicit project and environment
-          railway up --detach -p carparts-staging -e staging -s Backend
+          # Deploy backend to staging
+          railway up --detach --environment staging --service Backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
@@ -150,9 +150,9 @@ jobs:
         run: |
           # Copy staging environment file to frontend directory
           cp .env.staging frontend/.env
-          # Deploy frontend from frontend directory with explicit project/environment
+          # Change to frontend directory and deploy
           cd frontend
-          railway up --detach -p carparts-staging -e staging -s Frontend
+          railway up --detach --environment staging --service Frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
@@ -227,8 +227,8 @@ jobs:
         run: |
           # Copy production environment file
           cp .env.production .env
-          # Deploy backend with explicit project and environment
-          railway up --detach -p carparts-production -e production -s backend
+          # Deploy backend to production
+          railway up --detach --environment production --service backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
@@ -236,9 +236,9 @@ jobs:
         run: |
           # Copy production environment file to frontend directory
           cp .env.production frontend/.env
-          # Deploy frontend from frontend directory with explicit project/environment
+          # Deploy frontend from frontend directory to production
           cd frontend
-          railway up --detach -p carparts-production -e production -s frontend
+          railway up --detach --environment production --service frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
