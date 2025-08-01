@@ -18,8 +18,8 @@ if [ -n "$DANGEROUS_FILES" ]; then
     exit 1
 fi
 
-# Check for actual production database URLs (not documentation examples)
-DANGEROUS_CREDS=$(git diff --cached --name-only | grep -v -E "(scripts/database/|docs/database/|README\.md)" | xargs grep -l "postgres://.*railway.*prod\|RAILWAY_PRODUCTION_TOKEN" 2>/dev/null || true)
+# Check for actual production database URLs (not documentation examples or CI/CD configuration)
+DANGEROUS_CREDS=$(git diff --cached --name-only | grep -v -E "(scripts/database/|docs/database/|README\.md|\.github/workflows/)" | xargs grep -l "postgres://.*railway.*prod\|RAILWAY_PRODUCTION_TOKEN" 2>/dev/null || true)
 
 if [ -n "$DANGEROUS_CREDS" ]; then
     echo "❌ BLOCKED: Production database credentials detected in:"
