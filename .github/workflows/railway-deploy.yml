@@ -150,8 +150,8 @@ jobs:
         run: |
           # Copy staging environment file to frontend directory
           cp .env.staging frontend/.env
-          # Deploy frontend from frontend directory (Railway will auto-detect the service)
-          cd frontend && railway up --detach --environment staging
+          # Deploy frontend from frontend directory
+          cd frontend && railway up --detach --environment staging --service Frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
@@ -222,8 +222,8 @@ jobs:
         run: |
           # Copy production environment file to frontend directory
           cp .env.production frontend/.env
-          # Deploy frontend from frontend directory (Railway will auto-detect the service)
-          cd frontend && railway up --detach --environment production
+          # Deploy frontend from frontend directory
+          cd frontend && railway up --detach --environment production --service frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
