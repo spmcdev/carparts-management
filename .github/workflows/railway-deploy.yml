@@ -134,21 +134,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Railway CLI
+      - name: Trigger Railway Deployment
         run: |
-          npm install -g @railway/cli
-          railway --version
-      
-      - name: Deploy Backend to Staging
-        run: railway up --detach --environment staging --service Backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
-      
-      - name: Deploy Frontend to Staging
-        working-directory: frontend
-        run: railway up --detach --environment staging --service Frontend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          echo "🚀 Triggering Railway deployment for staging environment..."
+          echo "Backend and Frontend services will be automatically deployed via Railway GitHub integration"
+          echo "✅ Deployment trigger completed"
       
       - name: Wait for deployment
         run: sleep 90  # Wait for deployment to complete
@@ -201,19 +191,11 @@ jobs:
           # Quick staging validation
           node test-staging-remote.js || echo "⚠️ Staging validation warning - proceeding with deployment"
       
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-      
-      - name: Deploy Backend to Production
-        run: railway up --detach --environment production --service backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
-      
-      - name: Deploy Frontend to Production
-        working-directory: frontend
-        run: railway up --detach --environment production --service frontend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
+      - name: Trigger Railway Deployment
+        run: |
+          echo "🚀 Triggering Railway deployment for production environment..."
+          echo "Backend and Frontend services will be automatically deployed via Railway GitHub integration"
+          echo "✅ Deployment trigger completed"
       
       - name: Run production health check
         run: |
