@@ -137,32 +137,16 @@ jobs:
       - name: Install Railway CLI
         run: |
           npm install -g @railway/cli
-          # Debug Railway CLI version and authentication
           railway --version
-          railway whoami || echo "Railway authentication check failed"
       
       - name: Deploy Backend to Staging
-        run: |
-          # Copy staging environment file
-          cp .env.staging .env
-          # Deploy backend using Railway token with staging environment
-          railway up --detach --environment staging --service Backend
+        run: railway up --detach --environment staging --service Backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
       - name: Deploy Frontend to Staging
         working-directory: frontend
-        run: |
-          # Copy staging environment file to current directory (frontend)
-          cp ../.env.staging .env
-          # Verify we're in the right directory with Railway config
-          pwd
-          ls -la railway.json
-          # Debug Railway environment and project info
-          railway environment list || echo "Could not list environments"
-          railway service list || echo "Could not list services"
-          # Try railway up with verbose output
-          railway up --detach --environment staging --service Frontend --verbose
+        run: railway up --detach --environment staging --service Frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
@@ -221,24 +205,13 @@ jobs:
         run: npm install -g @railway/cli
       
       - name: Deploy Backend to Production
-        run: |
-          # Copy production environment file
-          cp .env.production .env
-          # Deploy backend using Railway token with production environment
-          railway up --detach --environment production --service backend
+        run: railway up --detach --environment production --service backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
       - name: Deploy Frontend to Production
         working-directory: frontend
-        run: |
-          # Copy production environment file to current directory (frontend)
-          cp ../.env.production .env
-          # Verify we're in the right directory with Railway config
-          pwd
-          ls -la railway.json
-          # Try railway deploy instead of railway up
-          railway deploy --environment production --service frontend --detach
+        run: railway up --detach --environment production --service frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
