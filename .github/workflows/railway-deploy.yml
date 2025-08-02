@@ -135,7 +135,11 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Install Railway CLI
-        run: npm install -g @railway/cli
+        run: |
+          npm install -g @railway/cli
+          # Debug Railway CLI version and authentication
+          railway --version
+          railway whoami || echo "Railway authentication check failed"
       
       - name: Deploy Backend to Staging
         run: |
@@ -147,11 +151,15 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
       - name: Deploy Frontend to Staging
+        working-directory: frontend
         run: |
-          # Copy staging environment file to frontend directory
-          cp .env.staging frontend/.env
-          # Deploy frontend from frontend directory
-          cd frontend && railway up --detach --environment staging --service Frontend
+          # Copy staging environment file to current directory (frontend)
+          cp ../.env.staging .env
+          # Verify we're in the right directory with Railway config
+          pwd
+          ls -la railway.json
+          # Deploy from frontend directory
+          railway up --detach --environment staging --service Frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
