@@ -158,8 +158,11 @@ jobs:
           # Verify we're in the right directory with Railway config
           pwd
           ls -la railway.json
-          # Deploy from frontend directory
-          railway up --detach --environment staging --service Frontend
+          # Debug Railway environment and project info
+          railway environment list || echo "Could not list environments"
+          railway service list || echo "Could not list services"
+          # Try railway up with verbose output
+          railway up --detach --environment staging --service Frontend --verbose
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       
@@ -227,11 +230,15 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
       - name: Deploy Frontend to Production
+        working-directory: frontend
         run: |
-          # Copy production environment file to frontend directory
-          cp .env.production frontend/.env
-          # Deploy frontend from frontend directory
-          cd frontend && railway up --detach --environment production --service frontend
+          # Copy production environment file to current directory (frontend)
+          cp ../.env.production .env
+          # Verify we're in the right directory with Railway config
+          pwd
+          ls -la railway.json
+          # Try railway deploy instead of railway up
+          railway deploy --environment production --service frontend --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
       
