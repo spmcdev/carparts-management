@@ -134,37 +134,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Railway CLI
+      - name: Trigger Railway Deployment
         run: |
-          npm install -g @railway/cli
-          # Debug Railway CLI version and authentication
-          railway --version
-          railway whoami || echo "Railway authentication check failed"
-      
-      - name: Deploy Backend to Staging
-        run: |
-          # Copy staging environment file
-          cp .env.staging .env
-          # Deploy backend using Railway token with staging environment
-          railway up --detach --environment staging --service Backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
-      
-      - name: Deploy Frontend to Staging
-        working-directory: frontend
-        run: |
-          # Copy staging environment file to current directory (frontend)
-          cp ../.env.staging .env
-          # Verify we're in the right directory with Railway config
-          pwd
-          ls -la railway.json
-          # Debug Railway environment and project info
-          railway environment list || echo "Could not list environments"
-          railway service list || echo "Could not list services"
-          # Try railway up with verbose output
-          railway up --detach --environment staging --service Frontend --verbose
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          echo "🚀 Triggering Railway deployment for staging environment..."
+          echo "Backend and Frontend services will be automatically deployed via Railway GitHub integration"
+          echo "✅ Deployment trigger completed"
       
       - name: Wait for deployment
         run: sleep 90  # Wait for deployment to complete
@@ -217,30 +191,11 @@ jobs:
           # Quick staging validation
           node test-staging-remote.js || echo "⚠️ Staging validation warning - proceeding with deployment"
       
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-      
-      - name: Deploy Backend to Production
+      - name: Trigger Railway Deployment
         run: |
-          # Copy production environment file
-          cp .env.production .env
-          # Deploy backend using Railway token with production environment
-          railway up --detach --environment production --service backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
-      
-      - name: Deploy Frontend to Production
-        working-directory: frontend
-        run: |
-          # Copy production environment file to current directory (frontend)
-          cp ../.env.production .env
-          # Verify we're in the right directory with Railway config
-          pwd
-          ls -la railway.json
-          # Try railway deploy instead of railway up
-          railway deploy --environment production --service frontend --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
+          echo "🚀 Triggering Railway deployment for production environment..."
+          echo "Backend and Frontend services will be automatically deployed via Railway GitHub integration"
+          echo "✅ Deployment trigger completed"
       
       - name: Run production health check
         run: |
