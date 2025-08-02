@@ -1,6 +1,29 @@
 # Railway Deployment Management
 
-## 🚨 Duplicate Deployment Issue
+## 🚨 Common Frontend Deployment Issues
+
+### Issue 1: Frontend Directory Context Problem
+
+**Problem**: Railway deployments fail because GitHub Actions runs `railway up` from the wrong directory.
+
+**Symptoms**:
+- Frontend builds succeed locally
+- GitHub Actions deployments fail with "Could not find root directory: frontend"
+- Manual Railway deployments work from frontend directory
+
+**Root Cause**: In GitHub Actions, `cd frontend` and `railway up` run in separate shell contexts.
+
+**Fix Applied**:
+```yaml
+# ❌ WRONG - separate commands
+cd frontend
+railway up --detach --environment staging --service Frontend
+
+# ✅ CORRECT - single command
+cd frontend && railway up --detach --environment staging --service Frontend
+```
+
+### Issue 2: Duplicate Deployment Issue
 
 **Problem**: Both Railway's auto-deploy and GitHub Actions are triggering deployments, causing duplicate deployments and potential conflicts.
 
