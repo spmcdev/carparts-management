@@ -101,7 +101,7 @@ function Admin({ token, userRole }) {
       return;
     }
     
-    if (!window.confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
       return;
     }
     
@@ -143,7 +143,7 @@ function Admin({ token, userRole }) {
       return;
     }
     
-    if (!window.confirm(`Are you sure you want to deactivate user "${user.username}"? They will not be able to login.`)) {
+    if (!confirm(`Are you sure you want to deactivate user "${user.username}"? They will not be able to login.`)) {
       return;
     }
     
@@ -172,7 +172,7 @@ function Admin({ token, userRole }) {
       return;
     }
     
-    if (!window.confirm(`Are you sure you want to reactivate user "${user.username}"?`)) {
+    if (!confirm(`Are you sure you want to reactivate user "${user.username}"?`)) {
       return;
     }
     

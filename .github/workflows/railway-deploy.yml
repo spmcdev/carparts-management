@@ -141,7 +141,7 @@ jobs:
         run: |
           # Copy staging environment file
           cp .env.staging .env
-          # Deploy backend to staging
+          # Deploy backend using Railway token with staging environment
           railway up --detach --environment staging --service Backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
@@ -187,8 +187,6 @@ jobs:
     environment:
       name: production
       url: https://rasuki.up.railway.app
-    # Require manual approval for production deployments
-    # This adds an extra layer of protection
     
     steps:
       - uses: actions/checkout@v4
@@ -208,17 +206,6 @@ jobs:
           # Quick staging validation
           node test-staging-remote.js || echo "⚠️ Staging validation warning - proceeding with deployment"
       
-      - name: Production deployment safety check
-        run: |
-          echo "🛡️ Production Deployment Safety Check"
-          echo "====================================="
-          echo "⚠️ This deployment will affect PRODUCTION environment"
-          echo "✅ Staging validation completed"
-          echo "✅ GitHub approval required"
-          echo "✅ Protected environment configured"
-          echo ""
-          echo "🔒 Proceeding with protected production deployment..."
-      
       - name: Install Railway CLI
         run: npm install -g @railway/cli
       
@@ -226,7 +213,7 @@ jobs:
         run: |
           # Copy production environment file
           cp .env.production .env
-          # Deploy backend to production
+          # Deploy backend using Railway token with production environment
           railway up --detach --environment production --service backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
@@ -235,7 +222,7 @@ jobs:
         run: |
           # Copy production environment file to frontend directory
           cp .env.production frontend/.env
-          # Deploy frontend from frontend directory to production
+          # Deploy frontend from frontend directory
           cd frontend && railway up --detach --environment production --service frontend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
