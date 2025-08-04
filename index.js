@@ -2050,9 +2050,10 @@ app.delete('/parts/:id', authenticateToken, requireAdmin, async (req, res) => {
 app.get('/parts/available', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM parts 
-      WHERE available_stock > 0 
-      ORDER BY name, manufacturer
+      SELECT p.*
+      FROM parts p
+      WHERE p.available_stock > 0 
+      ORDER BY p.name, p.manufacturer
     `);
     res.json(result.rows);
   } catch (err) {
