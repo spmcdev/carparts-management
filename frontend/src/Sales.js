@@ -2004,7 +2004,7 @@ function Sales({ token, userRole }) {
                                   </div>
                                   <div className="col-md-6 text-end">
                                     <small className="text-muted">
-                                      <strong>Created:</strong> {new Date(bill.date).toLocaleString()}
+                                      <strong>Created:</strong> {new Date(bill.date).toLocaleDateString()}
                                     </small>
                                   </div>
                                 </div>

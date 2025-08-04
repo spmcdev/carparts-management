@@ -226,6 +226,19 @@ function StockManagement({ userRole }) {
       // Filter parts that have available stock > 0
       let available = data.filter(part => parseInt(part.available_stock || 0) > 0);
       
+      // Extract and update available containers from current available stock data
+      const availableContainerNumbers = [...new Set(
+        available
+          .filter(part => 
+            part.container_no && 
+            part.container_no.trim() !== '' &&
+            part.local_purchase === false
+          )
+          .map(part => part.container_no)
+      )].sort();
+      
+      setAvailableContainers(availableContainerNumbers);
+      
       // Apply Purchase Type filter
       if (availableLocalPurchaseFilter !== '') {
         const isLocalPurchase = availableLocalPurchaseFilter === 'true';
