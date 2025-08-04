@@ -1647,6 +1647,9 @@ function Sales({ token, userRole }) {
                             <small className="text-muted">{part.manufacturer}</small><br />
                             <small>
                               <span className="badge bg-success me-1">Stock: {part.available_stock}</span>
+                              {part.reserved_stock > 0 && (
+                                <span className="badge bg-warning text-dark me-1">Reserved: {part.reserved_stock}</span>
+                              )}
                               | Rs {part.recommended_price || 0}
                             </small>
                           </div>
@@ -2001,7 +2004,7 @@ function Sales({ token, userRole }) {
                                   </div>
                                   <div className="col-md-6 text-end">
                                     <small className="text-muted">
-                                      <strong>Created:</strong> {new Date(bill.date).toLocaleDateString()}
+                                      <strong>Created:</strong> {new Date(bill.date).toLocaleString()}
                                     </small>
                                   </div>
                                 </div>
@@ -2469,7 +2472,7 @@ function Sales({ token, userRole }) {
                               <option value="">Select Part</option>
                               {availableParts.map(part => (
                                 <option key={part.id} value={part.id}>
-                                  {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                                  {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.reserved_stock > 0 ? `, Reserved: ${part.reserved_stock}` : ''})
                                 </option>
                               ))}
                             </select>
@@ -2966,6 +2969,9 @@ function Sales({ token, userRole }) {
                                     <br />
                                     <small>
                                       <span className="badge bg-success">Stock: {part.available_stock}</span>
+                                      {part.reserved_stock > 0 && (
+                                        <span className="badge bg-warning text-dark ms-1">Reserved: {part.reserved_stock}</span>
+                                      )}
                                       <span className="badge bg-info ms-1">ID: {part.id}</span>
                                       {part.recommended_price && (
                                         <span className="badge bg-warning text-dark ms-1">
