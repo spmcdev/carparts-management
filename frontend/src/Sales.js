@@ -2567,7 +2567,12 @@ function Sales({ token, userRole }) {
                                           <br />
                                           <small className="text-muted">
                                             {part.manufacturer}
-                                            {part.part_number && ` • Part #${part.part_number}`}
+                                            {part.part_number && (
+                                              <>
+                                                {` • Part #`}
+                                                <span className="badge bg-info ms-1">{part.part_number}</span>
+                                              </>
+                                            )}
                                             {part.parent_id && ` • Parent: ${part.parent_id}`}
                                           </small>
                                           <br />
@@ -2579,7 +2584,7 @@ function Sales({ token, userRole }) {
                                             {part.sold_stock > 0 && (
                                               <span className="badge bg-danger ms-1">Sold: {part.sold_stock}</span>
                                             )}
-                                            <span className="badge bg-info ms-1">ID: {part.id}</span>
+                                            <span className="badge bg-secondary ms-1">ID: {part.id}</span>
                                             {part.recommended_price && (
                                               <span className="badge bg-warning text-dark ms-1">
                                                 Rs. {parseFloat(part.recommended_price).toFixed(2)}
