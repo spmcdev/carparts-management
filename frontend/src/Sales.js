@@ -2553,7 +2553,11 @@ function Sales({ token, userRole }) {
                                       <div 
                                         className="flex-grow-1"
                                         onClick={() => {
-                                          setNewItemData({...newItemData, part_id: part.id});
+                                          setNewItemData({
+                                            ...newItemData, 
+                                            part_id: part.id,
+                                            unit_price: part.recommended_price || ''
+                                          });
                                           setEditBillPartSearchTerm(`${part.name} - ${part.manufacturer}`);
                                           setShowEditBillPartsList(false);
                                         }}
@@ -2598,7 +2602,11 @@ function Sales({ token, userRole }) {
                                 onChange={e => {
                                   const selectedPart = availableParts.find(part => part.id == e.target.value);
                                   if (selectedPart) {
-                                    setNewItemData({...newItemData, part_id: selectedPart.id});
+                                    setNewItemData({
+                                      ...newItemData, 
+                                      part_id: selectedPart.id,
+                                      unit_price: selectedPart.recommended_price || ''
+                                    });
                                     setEditBillPartSearchTerm(`${selectedPart.name} - ${selectedPart.manufacturer}`);
                                   }
                                   e.target.value = '';
