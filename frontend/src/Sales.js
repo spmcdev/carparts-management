@@ -2616,6 +2616,7 @@ function Sales({ token, userRole }) {
                             </div>
                           </div>
                           <div className="col-md-3">
+                            <label className="form-label">Quantity</label>
                             <input
                               type="number"
                               className="form-control"
@@ -2636,6 +2637,7 @@ function Sales({ token, userRole }) {
                             />
                           </div>
                           <div className="col-md-3">
+                            <label className="form-label">Unit Price</label>
                             <input
                               type="number"
                               className="form-control"
@@ -2647,6 +2649,7 @@ function Sales({ token, userRole }) {
                             />
                           </div>
                           <div className="col-md-2">
+                            <label className="form-label">&nbsp;</label>
                             <button 
                               className="btn btn-success w-100" 
                               onClick={addBillItem}
