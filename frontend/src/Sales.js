@@ -37,6 +37,10 @@ function Sales({ token, userRole }) {
   const [searchParentIdOnly, setSearchParentIdOnly] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(true);
   
+  // Edit bill part search
+  const [editBillPartSearchTerm, setEditBillPartSearchTerm] = useState('');
+  const [showEditBillPartsList, setShowEditBillPartsList] = useState(false);
+  
   // Pagination state for bills
   const [billsSearchTerm, setBillsSearchTerm] = useState('');
   const [billsSearchInput, setBillsSearchInput] = useState(''); // For the input field
@@ -152,6 +156,32 @@ function Sales({ token, userRole }) {
     const term = searchTerm.toLowerCase().trim();
     
     return availableForReservation.filter(part => {
+      // Search by name
+      if (part.name && part.name.toLowerCase().includes(term)) return true;
+      
+      // Search by manufacturer
+      if (part.manufacturer && part.manufacturer.toLowerCase().includes(term)) return true;
+      
+      // Search by part ID (exact match or starts with)
+      if (part.id && (part.id.toString() === term || part.id.toString().startsWith(term))) return true;
+      
+      // Search by part number
+      if (part.part_number && part.part_number.toLowerCase().includes(term)) return true;
+      
+      // Search by parent ID (exact match or starts with)
+      if (part.parent_id && (part.parent_id.toString() === term || part.parent_id.toString().startsWith(term))) return true;
+      
+      return false;
+    });
+  };
+
+  // Filter available parts for edit bill (show all available parts)
+  const filterEditBillParts = (parts, searchTerm) => {
+    if (!searchTerm.trim()) return parts;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    return parts.filter(part => {
       // Search by name
       if (part.name && part.name.toLowerCase().includes(term)) return true;
       
@@ -885,6 +915,9 @@ function Sales({ token, userRole }) {
         quantity: 1,
         unit_price: ''
       });
+      // Clear edit bill part search
+      setEditBillPartSearchTerm('');
+      setShowEditBillPartsList(false);
     }
   };
 
@@ -912,6 +945,9 @@ function Sales({ token, userRole }) {
       setEditBillData({});
       setEditingBillItems([]);
       setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
+      // Clear edit bill part search
+      setEditBillPartSearchTerm('');
+      setShowEditBillPartsList(false);
       fetchBills();
     } catch (err) {
       setError(err.message);
@@ -948,6 +984,9 @@ function Sales({ token, userRole }) {
       const newItem = await res.json();
       setEditingBillItems([...editingBillItems, newItem]);
       setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
+      // Clear edit bill part search
+      setEditBillPartSearchTerm('');
+      setShowEditBillPartsList(false);
       setSuccess('Item added successfully');
       
       // Refresh the bill to update total
@@ -1649,6 +1688,9 @@ function Sales({ token, userRole }) {
                               <span className="badge bg-success me-1">Stock: {part.available_stock}</span>
                               {part.reserved_stock > 0 && (
                                 <span className="badge bg-warning text-dark me-1">Reserved: {part.reserved_stock}</span>
+                              )}
+                              {part.sold_stock > 0 && (
+                                <span className="badge bg-danger me-1">Sold: {part.sold_stock}</span>
                               )}
                               | Rs {part.recommended_price || 0}
                             </small>
@@ -2396,6 +2438,9 @@ function Sales({ token, userRole }) {
                   setEditBillData({});
                   setEditingBillItems([]);
                   setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
+                  // Clear edit bill part search
+                  setEditBillPartSearchTerm('');
+                  setShowEditBillPartsList(false);
                 }}></button>
               </div>
               <div className="modal-body">
@@ -2464,23 +2509,134 @@ function Sales({ token, userRole }) {
                       <div className="card-body">
                         <div className="row">
                           <div className="col-md-4">
-                            <select 
-                              className="form-select"
-                              value={newItemData.part_id}
-                              onChange={e => setNewItemData({...newItemData, part_id: e.target.value})}
-                            >
-                              <option value="">Select Part</option>
-                              {availableParts.map(part => (
-                                <option key={part.id} value={part.id}>
-                                  {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.reserved_stock > 0 ? `, Reserved: ${part.reserved_stock}` : ''})
-                                </option>
-                              ))}
-                            </select>
+                            <label className="form-label">Select Part</label>
+                            <div className="input-group mb-2">
+                              <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Search parts by name, manufacturer, part number, or ID..."
+                                value={editBillPartSearchTerm}
+                                onChange={(e) => {
+                                  setEditBillPartSearchTerm(e.target.value);
+                                  setShowEditBillPartsList(e.target.value.length > 0);
+                                }}
+                                onFocus={() => setShowEditBillPartsList(editBillPartSearchTerm.length > 0)}
+                              />
+                              <button 
+                                className="btn btn-outline-secondary" 
+                                type="button"
+                                onClick={() => {
+                                  setEditBillPartSearchTerm('');
+                                  setShowEditBillPartsList(false);
+                                }}
+                              >
+                                Clear
+                              </button>
+                            </div>
+                            
+                            {/* Search Results */}
+                            {showEditBillPartsList && (
+                              <div className="border rounded mb-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                {editBillPartSearchTerm.length === 0 ? (
+                                  <div className="p-3 text-muted text-center">
+                                    <i className="fas fa-search me-2"></i>
+                                    Start typing to search for parts...
+                                  </div>
+                                ) : filterEditBillParts(availableParts, editBillPartSearchTerm).length === 0 ? (
+                                  <div className="p-3 text-muted text-center">
+                                    <i className="fas fa-exclamation-circle me-2"></i>
+                                    No parts found matching your search.
+                                  </div>
+                                ) : (
+                                  filterEditBillParts(availableParts, editBillPartSearchTerm).map(part => (
+                                    <div key={part.id} className="d-flex justify-content-between align-items-center p-2 border-bottom reservation-search-item">
+                                      <div 
+                                        className="flex-grow-1"
+                                        onClick={() => {
+                                          setNewItemData({
+                                            ...newItemData, 
+                                            part_id: part.id,
+                                            unit_price: part.recommended_price || ''
+                                          });
+                                          setEditBillPartSearchTerm(`${part.name} - ${part.manufacturer}`);
+                                          setShowEditBillPartsList(false);
+                                        }}
+                                      >
+                                        <div>
+                                          <strong>{part.name}</strong>
+                                          <br />
+                                          <small className="text-muted">
+                                            {part.manufacturer}
+                                            {part.part_number && (
+                                              <>
+                                                {` • Part #`}
+                                                <span className="badge bg-info ms-1">{part.part_number}</span>
+                                              </>
+                                            )}
+                                            {part.parent_id && ` • Parent: ${part.parent_id}`}
+                                          </small>
+                                          <br />
+                                          <small>
+                                            <span className="badge bg-success">Stock: {part.available_stock}</span>
+                                            {part.reserved_stock > 0 && (
+                                              <span className="badge bg-warning text-dark ms-1">Reserved: {part.reserved_stock}</span>
+                                            )}
+                                            {part.sold_stock > 0 && (
+                                              <span className="badge bg-danger ms-1">Sold: {part.sold_stock}</span>
+                                            )}
+                                            <span className="badge bg-secondary ms-1">ID: {part.id}</span>
+                                            {part.recommended_price && (
+                                              <span className="badge bg-warning text-dark ms-1">
+                                                Rs. {parseFloat(part.recommended_price).toFixed(2)}
+                                              </span>
+                                            )}
+                                          </small>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Alternative: Quick select dropdown for users who prefer it */}
+                            <div className="mt-2">
+                              <small className="text-muted">Or use quick select:</small>
+                              <select
+                                className="form-select form-select-sm"
+                                onChange={e => {
+                                  const selectedPart = availableParts.find(part => part.id == e.target.value);
+                                  if (selectedPart) {
+                                    setNewItemData({
+                                      ...newItemData, 
+                                      part_id: selectedPart.id,
+                                      unit_price: selectedPart.recommended_price || ''
+                                    });
+                                    setEditBillPartSearchTerm(`${selectedPart.name} - ${selectedPart.manufacturer}`);
+                                  }
+                                  e.target.value = '';
+                                }}
+                              >
+                                <option value="">Quick select a part...</option>
+                                {availableParts
+                                  .slice(0, 20) // Limit to first 20 for performance
+                                  .map(part => (
+                                    <option key={part.id} value={part.id}>
+                                      {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.reserved_stock > 0 ? `, Reserved: ${part.reserved_stock}` : ''}{part.sold_stock > 0 ? `, Sold: ${part.sold_stock}` : ''})
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
                           </div>
                           <div className="col-md-3">
+                            <label className="form-label">Quantity</label>
                             <input
                               type="number"
-                              className="form-control"
+                              className={`form-control ${(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                const isOverStock = selectedPart && newItemData.quantity > selectedPart.available_stock;
+                                return isOverStock ? 'is-invalid' : '';
+                              })()}`}
                               placeholder="Quantity"
                               value={newItemData.quantity}
                               onChange={e => {
@@ -2495,9 +2651,39 @@ function Sales({ token, userRole }) {
                                 }
                               }}
                               min="1"
+                              max={(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                return selectedPart ? selectedPart.available_stock : undefined;
+                              })()}
                             />
+                            {(() => {
+                              const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                              if (selectedPart && newItemData.quantity > selectedPart.available_stock) {
+                                return (
+                                  <div className="invalid-feedback">
+                                    Only {selectedPart.available_stock} units available in stock
+                                  </div>
+                                );
+                              }
+                              if (selectedPart && selectedPart.available_stock === 0) {
+                                return (
+                                  <small className="text-danger">
+                                    Out of stock
+                                  </small>
+                                );
+                              }
+                              if (selectedPart) {
+                                return (
+                                  <small className="text-muted">
+                                    {selectedPart.available_stock} units available
+                                  </small>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                           <div className="col-md-3">
+                            <label className="form-label">Unit Price</label>
                             <input
                               type="number"
                               className="form-control"
@@ -2509,12 +2695,28 @@ function Sales({ token, userRole }) {
                             />
                           </div>
                           <div className="col-md-2">
+                            <label className="form-label">&nbsp;</label>
                             <button 
                               className="btn btn-success w-100" 
                               onClick={addBillItem}
-                              disabled={loading || !newItemData.part_id || !newItemData.quantity || !newItemData.unit_price}
+                              disabled={(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                const isOverStock = selectedPart && newItemData.quantity > selectedPart.available_stock;
+                                const isOutOfStock = selectedPart && selectedPart.available_stock === 0;
+                                return loading || !newItemData.part_id || !newItemData.quantity || !newItemData.unit_price || isOverStock || isOutOfStock;
+                              })()}
                             >
-                              <i className="fas fa-plus"></i> Add
+                              <i className="fas fa-plus"></i> 
+                              {(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                if (selectedPart && selectedPart.available_stock === 0) {
+                                  return ' Out of Stock';
+                                }
+                                if (selectedPart && newItemData.quantity > selectedPart.available_stock) {
+                                  return ' Exceeds Stock';
+                                }
+                                return ' Add';
+                              })()}
                             </button>
                           </div>
                         </div>
@@ -2626,8 +2828,11 @@ function Sales({ token, userRole }) {
                   setEditBillData({});
                   setEditingBillItems([]);
                   setNewItemData({ part_id: '', quantity: 1, unit_price: '' });
+                  // Clear edit bill part search
+                  setEditBillPartSearchTerm('');
+                  setShowEditBillPartsList(false);
                 }} disabled={loading}>
-                  Cancel
+                  OK
                 </button>
               </div>
             </div>
@@ -2972,6 +3177,9 @@ function Sales({ token, userRole }) {
                                       {part.reserved_stock > 0 && (
                                         <span className="badge bg-warning text-dark ms-1">Reserved: {part.reserved_stock}</span>
                                       )}
+                                      {part.sold_stock > 0 && (
+                                        <span className="badge bg-danger ms-1">Sold: {part.sold_stock}</span>
+                                      )}
                                       <span className="badge bg-info ms-1">ID: {part.id}</span>
                                       {part.recommended_price && (
                                         <span className="badge bg-warning text-dark ms-1">
@@ -3018,7 +3226,7 @@ function Sales({ token, userRole }) {
                           .slice(0, 20) // Limit to first 20 for performance
                           .map(part => (
                             <option key={part.id} value={part.id}>
-                              {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                              {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.sold_stock > 0 ? `, Sold: ${part.sold_stock}` : ''})
                             </option>
                           ))}
                       </select>
@@ -3357,7 +3565,7 @@ function Sales({ token, userRole }) {
                           .filter(part => !editingReservationItems.some(item => item.part_id === part.id))
                           .map(part => (
                             <option key={part.id} value={part.id}>
-                              ID:{part.id} - {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                              ID:{part.id} - {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.sold_stock > 0 ? `, Sold: ${part.sold_stock}` : ''})
                             </option>
                           ))}
                       </select>
