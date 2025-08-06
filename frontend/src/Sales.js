@@ -2827,7 +2827,7 @@ function Sales({ token, userRole }) {
                   setEditBillPartSearchTerm('');
                   setShowEditBillPartsList(false);
                 }} disabled={loading}>
-                  Ok
+                  OK
                 </button>
               </div>
             </div>
