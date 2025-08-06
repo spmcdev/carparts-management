@@ -2627,7 +2627,11 @@ function Sales({ token, userRole }) {
                             <label className="form-label">Quantity</label>
                             <input
                               type="number"
-                              className="form-control"
+                              className={`form-control ${(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                const isOverStock = selectedPart && newItemData.quantity > selectedPart.available_stock;
+                                return isOverStock ? 'is-invalid' : '';
+                              })()}`}
                               placeholder="Quantity"
                               value={newItemData.quantity}
                               onChange={e => {
@@ -2642,7 +2646,36 @@ function Sales({ token, userRole }) {
                                 }
                               }}
                               min="1"
+                              max={(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                return selectedPart ? selectedPart.available_stock : undefined;
+                              })()}
                             />
+                            {(() => {
+                              const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                              if (selectedPart && newItemData.quantity > selectedPart.available_stock) {
+                                return (
+                                  <div className="invalid-feedback">
+                                    Only {selectedPart.available_stock} units available in stock
+                                  </div>
+                                );
+                              }
+                              if (selectedPart && selectedPart.available_stock === 0) {
+                                return (
+                                  <small className="text-danger">
+                                    Out of stock
+                                  </small>
+                                );
+                              }
+                              if (selectedPart) {
+                                return (
+                                  <small className="text-muted">
+                                    {selectedPart.available_stock} units available
+                                  </small>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                           <div className="col-md-3">
                             <label className="form-label">Unit Price</label>
@@ -2661,9 +2694,24 @@ function Sales({ token, userRole }) {
                             <button 
                               className="btn btn-success w-100" 
                               onClick={addBillItem}
-                              disabled={loading || !newItemData.part_id || !newItemData.quantity || !newItemData.unit_price}
+                              disabled={(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                const isOverStock = selectedPart && newItemData.quantity > selectedPart.available_stock;
+                                const isOutOfStock = selectedPart && selectedPart.available_stock === 0;
+                                return loading || !newItemData.part_id || !newItemData.quantity || !newItemData.unit_price || isOverStock || isOutOfStock;
+                              })()}
                             >
-                              <i className="fas fa-plus"></i> Add
+                              <i className="fas fa-plus"></i> 
+                              {(() => {
+                                const selectedPart = availableParts.find(part => part.id == newItemData.part_id);
+                                if (selectedPart && selectedPart.available_stock === 0) {
+                                  return ' Out of Stock';
+                                }
+                                if (selectedPart && newItemData.quantity > selectedPart.available_stock) {
+                                  return ' Exceeds Stock';
+                                }
+                                return ' Add';
+                              })()}
                             </button>
                           </div>
                         </div>
