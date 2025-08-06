@@ -1650,6 +1650,9 @@ function Sales({ token, userRole }) {
                               {part.reserved_stock > 0 && (
                                 <span className="badge bg-warning text-dark me-1">Reserved: {part.reserved_stock}</span>
                               )}
+                              {part.sold_stock > 0 && (
+                                <span className="badge bg-danger me-1">Sold: {part.sold_stock}</span>
+                              )}
                               | Rs {part.recommended_price || 0}
                             </small>
                           </div>
@@ -2472,7 +2475,7 @@ function Sales({ token, userRole }) {
                               <option value="">Select Part</option>
                               {availableParts.map(part => (
                                 <option key={part.id} value={part.id}>
-                                  {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.reserved_stock > 0 ? `, Reserved: ${part.reserved_stock}` : ''})
+                                  {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.reserved_stock > 0 ? `, Reserved: ${part.reserved_stock}` : ''}{part.sold_stock > 0 ? `, Sold: ${part.sold_stock}` : ''})
                                 </option>
                               ))}
                             </select>
@@ -2972,6 +2975,9 @@ function Sales({ token, userRole }) {
                                       {part.reserved_stock > 0 && (
                                         <span className="badge bg-warning text-dark ms-1">Reserved: {part.reserved_stock}</span>
                                       )}
+                                      {part.sold_stock > 0 && (
+                                        <span className="badge bg-danger ms-1">Sold: {part.sold_stock}</span>
+                                      )}
                                       <span className="badge bg-info ms-1">ID: {part.id}</span>
                                       {part.recommended_price && (
                                         <span className="badge bg-warning text-dark ms-1">
@@ -3018,7 +3024,7 @@ function Sales({ token, userRole }) {
                           .slice(0, 20) // Limit to first 20 for performance
                           .map(part => (
                             <option key={part.id} value={part.id}>
-                              {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                              {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.sold_stock > 0 ? `, Sold: ${part.sold_stock}` : ''})
                             </option>
                           ))}
                       </select>
@@ -3357,7 +3363,7 @@ function Sales({ token, userRole }) {
                           .filter(part => !editingReservationItems.some(item => item.part_id === part.id))
                           .map(part => (
                             <option key={part.id} value={part.id}>
-                              ID:{part.id} - {part.name} - {part.manufacturer} (Stock: {part.available_stock})
+                              ID:{part.id} - {part.name} - {part.manufacturer} (Stock: {part.available_stock}{part.sold_stock > 0 ? `, Sold: ${part.sold_stock}` : ''})
                             </option>
                           ))}
                       </select>
