@@ -351,36 +351,23 @@ function StockManagement({ userRole }) {
   // Function to load available containers for the dropdown
   const loadAvailableContainers = async () => {
     try {
-      // Load containers that have been used in sold stock (container purchases only)
-      const res = await fetch(`${API_ENDPOINTS.BASE_URL}/sold-stock-containers`, {
+      // Load ALL containers from parts table (not just sold stock containers)
+      const res = await fetch(API_ENDPOINTS.PARTS, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` })
         }
       });
       if (res.ok) {
-        const containers = await res.json();
+        const parts = await res.json();
+        // Get all unique container numbers from all parts
+        const containers = [...new Set(parts
+          .map(part => part.container_no)
+          .filter(container => container && container.trim() !== '')
+        )].sort();
         setAvailableContainers(containers);
       }
     } catch (err) {
-      console.error('Error loading sold stock containers:', err);
-      // Fallback to loading all containers if the sold stock endpoint fails
-      try {
-        const res = await fetch(API_ENDPOINTS.PARTS, {
-          headers: {
-            ...(token && { Authorization: `Bearer ${token}` })
-          }
-        });
-        if (res.ok) {
-          const parts = await res.json();
-          const containers = [...new Set(parts
-            .map(part => part.container_no)
-            .filter(container => container && container.trim() !== '')
-          )].sort();
-          setAvailableContainers(containers);
-        }
-      } catch (fallbackErr) {
-        console.error('Error loading containers fallback:', fallbackErr);
-      }
+      console.error('Error loading containers:', err);
     }
   };
 
