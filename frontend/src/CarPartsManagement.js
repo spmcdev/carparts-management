@@ -18,6 +18,8 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const [searchTerm, setSearchTerm] = useState('');
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
   const [purchaseTypeFilter, setPurchaseTypeFilter] = useState('');
+  const [containerFilter, setContainerFilter] = useState('');
+  const [availableContainers, setAvailableContainers] = useState([]);
 
   // Filter parts based on search term, availability filter, and purchase type filter
   const filteredParts = parts.filter(part => {
@@ -42,13 +44,27 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
       true
     );
 
-    return matchesSearch && matchesAvailability && matchesPurchaseType;
+    // Container filter
+    const matchesContainer = !containerFilter || part.container_no === containerFilter;
+
+    return matchesSearch && matchesAvailability && matchesPurchaseType && matchesContainer;
   });
 
   useEffect(() => {
     fetchParts();
     // eslint-disable-next-line
   }, []);
+
+  // Load available containers when parts change
+  useEffect(() => {
+    if (parts.length > 0) {
+      const containers = [...new Set(parts
+        .map(part => part.container_no)
+        .filter(container => container && container.trim() !== '')
+      )].sort();
+      setAvailableContainers(containers);
+    }
+  }, [parts]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -164,6 +180,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
     setSearchTerm('');
     setShowAvailableOnly(false);
     setPurchaseTypeFilter('');
+    setContainerFilter('');
   };
 
   return (
@@ -282,7 +299,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
 
       {/* Search and Filters */}
       <div className="row mb-3">
-        <div className="col-12 col-md-4">
+        <div className="col-12 col-md-6">
           <div className="input-group">
             <input
               type="text"
@@ -291,25 +308,47 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
-            {(searchTerm || showAvailableOnly || purchaseTypeFilter) && (
+            {(searchTerm || showAvailableOnly || purchaseTypeFilter || containerFilter) && (
               <button className="btn btn-outline-secondary" onClick={clearSearch}>
                 Clear
               </button>
             )}
           </div>
         </div>
-        <div className="col-12 col-md-4">
+        <div className="col-12 col-md-3">
           <select
             className="form-select"
             value={purchaseTypeFilter}
-            onChange={e => setPurchaseTypeFilter(e.target.value)}
+            onChange={e => {
+              setPurchaseTypeFilter(e.target.value);
+              // Reset container filter when purchase type changes
+              if (e.target.value !== 'false') {
+                setContainerFilter('');
+              }
+            }}
           >
             <option value="">All Purchase Types</option>
             <option value="true">Local Purchase</option>
             <option value="false">Container Purchase</option>
           </select>
         </div>
-        <div className="col-12 col-md-4">
+        {/* Conditionally show Container dropdown only for Container Purchase */}
+        {purchaseTypeFilter === 'false' && (
+          <div className="col-12 col-md-3">
+            <select
+              className="form-select"
+              value={containerFilter}
+              onChange={e => setContainerFilter(e.target.value)}
+            >
+              <option value="">All Containers</option>
+              {availableContainers.map(container => (
+                <option key={container} value={container}>{container}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {/* Show available stock checkbox in remaining space */}
+        <div className={`col-12 ${purchaseTypeFilter === 'false' ? 'col-md-12 mt-2' : 'col-md-3'}`}>
           <div className="form-check d-flex align-items-center">
             <input
               className="form-check-input me-2"
@@ -467,14 +506,16 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
         </table>
       </div>
       
-      {filteredParts.length === 0 && (searchTerm || showAvailableOnly || purchaseTypeFilter) && (
+      {filteredParts.length === 0 && (searchTerm || showAvailableOnly || purchaseTypeFilter || containerFilter) && (
         <div className="alert alert-info">
           No parts found {searchTerm && `matching "${searchTerm}"`} 
-          {(searchTerm && (showAvailableOnly || purchaseTypeFilter)) && ' and '}
+          {(searchTerm && (showAvailableOnly || purchaseTypeFilter || containerFilter)) && ' and '}
           {showAvailableOnly && 'with available stock'}
-          {(showAvailableOnly && purchaseTypeFilter) && ' and '}
+          {(showAvailableOnly && (purchaseTypeFilter || containerFilter)) && ' and '}
           {purchaseTypeFilter === 'true' && 'from local purchases'}
           {purchaseTypeFilter === 'false' && 'from container purchases'}
+          {(purchaseTypeFilter && containerFilter) && ' and '}
+          {containerFilter && `in container "${containerFilter}"`}
         </div>
       )}
     </div>
