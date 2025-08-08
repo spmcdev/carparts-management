@@ -17,8 +17,9 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const [partNumber, setPartNumber] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
+  const [purchaseTypeFilter, setPurchaseTypeFilter] = useState('');
 
-  // Filter parts based on search term and availability filter
+  // Filter parts based on search term, availability filter, and purchase type filter
   const filteredParts = parts.filter(part => {
     // Search filter
     const searchLower = searchTerm.toLowerCase();
@@ -34,7 +35,14 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
     // Availability filter
     const matchesAvailability = !showAvailableOnly || (part.available_stock > 0);
 
-    return matchesSearch && matchesAvailability;
+    // Purchase type filter
+    const matchesPurchaseType = !purchaseTypeFilter || (
+      purchaseTypeFilter === 'true' ? (part.local_purchase === true || part.local_purchase === 'true') : 
+      purchaseTypeFilter === 'false' ? (part.local_purchase === false || part.local_purchase === 'false' || part.local_purchase === null) : 
+      true
+    );
+
+    return matchesSearch && matchesAvailability && matchesPurchaseType;
   });
 
   useEffect(() => {
@@ -155,6 +163,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
   const clearSearch = () => {
     setSearchTerm('');
     setShowAvailableOnly(false);
+    setPurchaseTypeFilter('');
   };
 
   return (
@@ -273,7 +282,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
 
       {/* Search and Filters */}
       <div className="row mb-3">
-        <div className="col-12 col-md-6">
+        <div className="col-12 col-md-4">
           <div className="input-group">
             <input
               type="text"
@@ -282,14 +291,25 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
-            {(searchTerm || showAvailableOnly) && (
+            {(searchTerm || showAvailableOnly || purchaseTypeFilter) && (
               <button className="btn btn-outline-secondary" onClick={clearSearch}>
                 Clear
               </button>
             )}
           </div>
         </div>
-        <div className="col-12 col-md-6">
+        <div className="col-12 col-md-4">
+          <select
+            className="form-select"
+            value={purchaseTypeFilter}
+            onChange={e => setPurchaseTypeFilter(e.target.value)}
+          >
+            <option value="">All Purchase Types</option>
+            <option value="true">Local Purchase</option>
+            <option value="false">Container Purchase</option>
+          </select>
+        </div>
+        <div className="col-12 col-md-4">
           <div className="form-check d-flex align-items-center">
             <input
               className="form-check-input me-2"
@@ -447,11 +467,14 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
         </table>
       </div>
       
-      {filteredParts.length === 0 && (searchTerm || showAvailableOnly) && (
+      {filteredParts.length === 0 && (searchTerm || showAvailableOnly || purchaseTypeFilter) && (
         <div className="alert alert-info">
           No parts found {searchTerm && `matching "${searchTerm}"`} 
-          {searchTerm && showAvailableOnly && ' and '}
+          {(searchTerm && (showAvailableOnly || purchaseTypeFilter)) && ' and '}
           {showAvailableOnly && 'with available stock'}
+          {(showAvailableOnly && purchaseTypeFilter) && ' and '}
+          {purchaseTypeFilter === 'true' && 'from local purchases'}
+          {purchaseTypeFilter === 'false' && 'from container purchases'}
         </div>
       )}
     </div>
