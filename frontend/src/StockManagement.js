@@ -810,13 +810,14 @@ function StockManagement({ userRole }) {
                     <div className="col-md-6">
                       <h5>Report Summary</h5>
                       <ul className="list-unstyled">
-                        <li><strong>Items Displayed:</strong> {soldStock.length}</li>
-                        <li><strong>Total Quantity:</strong> <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
-                        <li><strong>Total Revenue:</strong> <span className="badge bg-success">Rs {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span></li>
+                        <li><strong>Number of Parts Displayed:</strong> {soldStock.length}</li>
+                        <li><strong>Quantity Items Displayed:</strong> <span className="badge bg-danger">{soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
+                        <li><strong>Revenue of Items Displayed:</strong> <span className="badge bg-success">Rs {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span></li>
                         {soldStockData && (
                           <>
-                            <li><strong>Local Purchase Revenue:</strong> Rs {soldStockData.summary.local_purchase_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Local Purchase Revenue:</strong> Rs {soldStockData.summary.local_purchase_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                             <li><strong>Container Purchase Revenue:</strong> Rs {soldStockData.summary.container_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Revenue:</strong> Rs {soldStockData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                           </>
                         )}
                       </ul>
