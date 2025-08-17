@@ -3036,7 +3036,7 @@ app.get('/debug-refunds/:billId', authenticateToken, async (req, res) => {
 // ====================== SOLD STOCK REPORT ROUTES ======================
 
 // Get sold stock report with filtering and pagination (grouped by parts)
-app.get('/sold-stock-report', authenticateToken, async (req, res) => {
+app.get('/sold-stock-report', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { 
       container_no, 
@@ -3238,7 +3238,7 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
 });
 
 // Get sold stock summary (aggregated statistics by parts)
-app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
+app.get('/sold-stock-summary', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { 
       container_no, 
@@ -3399,7 +3399,7 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
 });
 
 // Get available container numbers for sold stock filtering
-app.get('/sold-stock-containers', authenticateToken, async (req, res) => {
+app.get('/sold-stock-containers', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT p.container_no 
