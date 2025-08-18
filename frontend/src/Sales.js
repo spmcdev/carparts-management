@@ -1559,6 +1559,7 @@ function Sales({ token, userRole }) {
                       <thead>
                         <tr>
                           <th>Item</th>
+                          <th>Part Number</th>
                           <th>Qty</th>
                           <th>Price</th>
                           <th>Total</th>
@@ -1569,6 +1570,9 @@ function Sales({ token, userRole }) {
                         {cartItems.map(item => (
                           <tr key={item.part_id}>
                             <td>{item.part_name}</td>
+                            <td>
+                              <small>{item.part_number || 'N/A'}</small>
+                            </td>
                             <td>
                               <input
                                 type="number"
@@ -1914,6 +1918,7 @@ function Sales({ token, userRole }) {
                                         <thead className="table-dark">
                                           <tr>
                                             <th>Part Name</th>
+                                            <th>Part Number</th>
                                             <th>Manufacturer</th>
                                             <th>Quantity</th>
                                             <th>Unit Price</th>
@@ -1931,6 +1936,7 @@ function Sales({ token, userRole }) {
                                                   </small>
                                                 )}
                                               </td>
+                                              <td>{item.part_number || 'N/A'}</td>
                                               <td>{item.manufacturer || 'N/A'}</td>
                                               <td>
                                                 <span className="badge bg-primary">{item.quantity}</span>
@@ -1944,7 +1950,7 @@ function Sales({ token, userRole }) {
                                         </tbody>
                                         <tfoot className="table-warning">
                                           <tr>
-                                            <td colSpan="2"><strong>Total</strong></td>
+                                            <td colSpan="3"><strong>Total</strong></td>
                                             <td><strong>{bill.total_quantity}</strong></td>
                                             <td></td>
                                             <td><strong>Rs {parseFloat(bill.total_amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
@@ -2005,6 +2011,11 @@ function Sales({ token, userRole }) {
                                                     {refund.refund_items.map((item, itemIndex) => (
                                                       <div key={`refund-${refund.id || index}-item-${itemIndex}`} className="mb-1 p-1" style={{ backgroundColor: '#f8f9fa', borderRadius: '3px' }}>
                                                         <strong>{item.part_name}</strong>
+                                                        {item.part_number && (
+                                                          <div className="text-muted" style={{ fontSize: '0.8em' }}>
+                                                            Part #: {item.part_number}
+                                                          </div>
+                                                        )}
                                                         {item.manufacturer && (
                                                           <div className="text-muted" style={{ fontSize: '0.8em' }}>
                                                             {item.manufacturer}
@@ -2316,6 +2327,7 @@ function Sales({ token, userRole }) {
                                       <thead>
                                         <tr>
                                           <th>Part</th>
+                                          <th>Part Number</th>
                                           <th>Manufacturer</th>
                                           <th>Quantity</th>
                                           <th>Unit Price</th>
@@ -2326,6 +2338,7 @@ function Sales({ token, userRole }) {
                                         {reservation.items.filter(item => item.id).map((item, idx) => (
                                           <tr key={idx}>
                                             <td><strong>{item.part_name}</strong></td>
+                                            <td>{item.part_number || 'N/A'}</td>
                                             <td>{item.manufacturer}</td>
                                             <td>{item.quantity}</td>
                                             <td>Rs. {parseFloat(item.unit_price || 0).toFixed(2)}</td>
@@ -2335,7 +2348,7 @@ function Sales({ token, userRole }) {
                                       </tbody>
                                       <tfoot>
                                         <tr>
-                                          <th colSpan="4">Total:</th>
+                                          <th colSpan="5">Total:</th>
                                           <th>Rs. {parseFloat(reservation.total_amount || 0).toFixed(2)}</th>
                                         </tr>
                                       </tfoot>
@@ -2933,6 +2946,7 @@ function Sales({ token, userRole }) {
                           <tr>
                             <th width="50">Select</th>
                             <th>Part Name</th>
+                            <th width="100">Part Number</th>
                             <th width="80">Original</th>
                             <th width="80">Refunded</th>
                             <th width="80">Remaining</th>
@@ -2958,6 +2972,9 @@ function Sales({ token, userRole }) {
                                   <strong>{item.part_name}</strong>
                                   {item.manufacturer && <><br /><small className="text-muted">{item.manufacturer}</small></>}
                                 </div>
+                              </td>
+                              <td>
+                                <small>{item.part_number || 'N/A'}</small>
                               </td>
                               <td>
                                 <span className="badge bg-info">{item.quantity}</span>
@@ -3242,6 +3259,7 @@ function Sales({ token, userRole }) {
                           <thead>
                             <tr>
                               <th>Part</th>
+                              <th>Part Number</th>
                               <th>Quantity</th>
                               <th>Unit Price (Rs)</th>
                               <th>Total (Rs)</th>
@@ -3257,6 +3275,9 @@ function Sales({ token, userRole }) {
                                     {item.manufacturer}<br/>
                                     <span className="text-muted">Available: {item.available_stock}</span>
                                   </small>
+                                </td>
+                                <td>
+                                  <small>{item.part_number || 'N/A'}</small>
                                 </td>
                                 <td>
                                   <input
@@ -3441,6 +3462,7 @@ function Sales({ token, userRole }) {
                     <thead>
                       <tr>
                         <th>Part Details</th>
+                        <th>Part Number</th>
                         <th style={{width: '100px'}}>Quantity</th>
                         <th style={{width: '120px'}}>Unit Price (Rs)</th>
                         <th style={{width: '120px'}}>Total (Rs)</th>
@@ -3453,6 +3475,9 @@ function Sales({ token, userRole }) {
                           <td>
                             <strong>{item.part_name}</strong><br/>
                             <small className="text-muted">{item.manufacturer}</small>
+                          </td>
+                          <td>
+                            <small>{item.part_number || 'N/A'}</small>
                           </td>
                           <td>
                             <input
