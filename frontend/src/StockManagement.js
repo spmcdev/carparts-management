@@ -497,6 +497,18 @@ function StockManagement({ userRole }) {
     }
   }, [availableLocalPurchaseFilter, availableContainerNo]);
 
+  // Auto-refresh parent parts when filters change
+  useEffect(() => {
+    // Only auto-refresh if we already have parent parts data and filters are applied
+    if (parentParts.length > 0 && (parentLocalPurchaseFilter !== '' || parentContainerNo)) {
+      const refreshTimer = setTimeout(() => {
+        handleGetParentParts();
+      }, 500); // Debounce to avoid too many requests
+
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [parentLocalPurchaseFilter, parentContainerNo]);
+
   const handleGetParentChildRelations = async () => {
     setLoading(true);
     setError('');
@@ -1166,7 +1178,7 @@ function StockManagement({ userRole }) {
         </div>
 
         {/* Parent Parts Report Section */}
-        <div className="card mt-5">
+        <div className="card mt-4">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h4>Parent Parts Report</h4>
             {parentParts.length > 0 && (
