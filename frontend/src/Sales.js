@@ -218,6 +218,11 @@ function Sales({ token, userRole }) {
     }
   };
 
+  // Helper function to check if a part is a parent (has children)
+  const isParentPart = (partId) => {
+    return availableParts.some(part => part.parent_id === partId);
+  };
+
   // Fetch bills with pagination
   const fetchBills = async (page = 1, search = '') => {
     try {
@@ -1685,6 +1690,7 @@ function Sales({ token, userRole }) {
                             <strong>{part.name}</strong>
                             <span className="badge bg-light text-dark ms-2">ID: {part.id}</span>
                             {part.part_number && <span className="badge bg-info ms-1">#{part.part_number}</span>}
+                            {isParentPart(part.id) && <span className="badge bg-warning text-dark ms-1"><i className="fas fa-sitemap me-1"></i>Parent</span>}
                             {part.parent_id && <span className="badge bg-secondary ms-1">Parent: {part.parent_id}</span>}
                             <br />
                             <small className="text-muted">{part.manufacturer}</small><br />
