@@ -5,6 +5,7 @@ function StockManagement({ userRole }) {
   const [availableStock, setAvailableStock] = useState([]);
   const [soldStock, setSoldStock] = useState([]);
   const [parentChildRelations, setParentChildRelations] = useState([]);
+  const [parentParts, setParentParts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -14,6 +15,7 @@ function StockManagement({ userRole }) {
   const [showSoldStock, setShowSoldStock] = useState(false);
   const [showAvailableStock, setShowAvailableStock] = useState(false);
   const [showParentChildRelations, setShowParentChildRelations] = useState(false);
+  const [showParentParts, setShowParentParts] = useState(false);
   
   // New state for enhanced sold stock report
   const [containerNo, setContainerNo] = useState('');
@@ -28,6 +30,12 @@ function StockManagement({ userRole }) {
   const [availableLocalPurchaseFilter, setAvailableLocalPurchaseFilter] = useState('');
   const [availableContainers, setAvailableContainers] = useState([]);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
+
+  // New state for parent parts filters
+  const [parentContainerNo, setParentContainerNo] = useState('');
+  const [parentLocalPurchaseFilter, setParentLocalPurchaseFilter] = useState('');
+  const [parentStartDate, setParentStartDate] = useState('');
+  const [parentEndDate, setParentEndDate] = useState('');
 
   const printStockReport = (stockData, reportType, dateRange = null, includeProfit = false) => {
     // Base64 encoded logo SVG
@@ -96,6 +104,25 @@ function StockManagement({ userRole }) {
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
+          ` : reportType === 'Parent Parts' ? `
+            <div class="stats">
+              <div class="stat-box">
+                <h4>Total Parent Parts</h4>
+                <p>${stockData.length} parts</p>
+              </div>
+              <div class="stat-box">
+                <h4>Total Children Parts</h4>
+                <p>${stockData.reduce((total, item) => total + parseInt(item.children_count || 0), 0)} parts</p>
+              </div>
+              <div class="stat-box">
+                <h4>Total Parent Inventory Cost</h4>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+              <div class="stat-box">
+                <h4>Total Parent Inventory Value</h4>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
           ` : reportType === 'Sold Stock' ? `
             <div class="stats">
               <div class="stat-box">
@@ -135,6 +162,23 @@ function StockManagement({ userRole }) {
                   <th>Child Sold Qty</th>
                   <th>Child Total Stock</th>
                   <th>Child Price (Rs.)</th>
+                ` : reportType === 'Parent Parts' ? `
+                  <th>Parent ID</th>
+                  <th>Parent Name</th>
+                  <th>Manufacturer</th>
+                  <th>Part Number</th>
+                  <th>Container No.</th>
+                  <th>Purchase Type</th>
+                  <th>Children Count</th>
+                  <th>Parent Stock</th>
+                  <th>Total Children Stock</th>
+                  <th>Children Available</th>
+                  <th>Children Reserved</th>
+                  <th>Children Sold</th>
+                  <th>Cost Price (Rs.)</th>
+                  <th>Unit Price (Rs.)</th>
+                  <th>Total Cost (Rs.)</th>
+                  <th>Total Value (Rs.)</th>
                 ` : `
                 <th>ID</th>
                 <th>Name</th>
@@ -183,6 +227,23 @@ function StockManagement({ userRole }) {
                     <td>${item.childSoldStock || 0}</td>
                     <td>${item.childTotalStock || 0}</td>
                     <td>Rs. ${parseFloat(item.childRecommendedPrice || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  ` : reportType === 'Parent Parts' ? `
+                    <td>${item.id}</td>
+                    <td>${item.name}</td>
+                    <td>${item.manufacturer || 'N/A'}</td>
+                    <td>${item.part_number || 'N/A'}</td>
+                    <td>${item.container_no || 'N/A'}</td>
+                    <td>${item.local_purchase ? 'Local Purchase' : 'Container Purchase'}</td>
+                    <td>${item.children_count || 0}</td>
+                    <td>${item.total_stock || 0}</td>
+                    <td>${item.total_children_stock || 0}</td>
+                    <td>${item.total_children_available || 0}</td>
+                    <td>${item.total_children_reserved || 0}</td>
+                    <td>${item.total_children_sold || 0}</td>
+                    <td>Rs. ${parseFloat(item.cost_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>Rs. ${(parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>Rs. ${(parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   ` : `
                     <td>${item.id}</td>
                     <td>${item.name}</td>
@@ -499,6 +560,76 @@ function StockManagement({ userRole }) {
     } catch (err) {
       console.error('Error fetching parent-child relations:', err);
       setError('Failed to retrieve parent-child relationships.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetParentParts = async () => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(API_ENDPOINTS.PARTS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      if (!res.ok) {
+        throw new Error('Failed to fetch parts');
+      }
+      const data = await res.json();
+      
+      // Filter to get only parent parts (parts that have children)
+      const allParts = data;
+      const parentIds = new Set();
+      
+      // First, identify all parent IDs
+      allParts.forEach(part => {
+        if (part.parent_id) {
+          parentIds.add(part.parent_id);
+        }
+      });
+      
+      // Then, get all parent parts and calculate their statistics
+      let parentParts = allParts.filter(part => parentIds.has(part.id));
+      
+      // Apply filters
+      if (parentContainerNo) {
+        parentParts = parentParts.filter(part => 
+          part.container_no && part.container_no.includes(parentContainerNo)
+        );
+      }
+      
+      if (parentLocalPurchaseFilter !== '') {
+        const isLocal = parentLocalPurchaseFilter === 'true';
+        parentParts = parentParts.filter(part => part.local_purchase === isLocal);
+      }
+      
+      // Add child count and statistics to each parent
+      const enhancedParentParts = parentParts.map(parent => {
+        const children = allParts.filter(part => part.parent_id === parent.id);
+        const totalChildrenStock = children.reduce((sum, child) => sum + parseInt(child.total_stock || 0), 0);
+        const totalChildrenAvailable = children.reduce((sum, child) => sum + parseInt(child.available_stock || 0), 0);
+        const totalChildrenReserved = children.reduce((sum, child) => sum + parseInt(child.reserved_stock || 0), 0);
+        const totalChildrenSold = children.reduce((sum, child) => sum + parseInt(child.sold_stock || 0), 0);
+        
+        return {
+          ...parent,
+          children_count: children.length,
+          total_children_stock: totalChildrenStock,
+          total_children_available: totalChildrenAvailable,
+          total_children_reserved: totalChildrenReserved,
+          total_children_sold: totalChildrenSold
+        };
+      });
+      
+      setParentParts(enhancedParentParts);
+      setShowParentParts(true);
+      setSuccess(`Found ${enhancedParentParts.length} parent parts with ${Array.from(parentIds).length} total children.`);
+    } catch (err) {
+      console.error('Error fetching parent parts:', err);
+      setError('Failed to retrieve parent parts.');
     } finally {
       setLoading(false);
     }
@@ -1032,6 +1163,175 @@ function StockManagement({ userRole }) {
                     <li>Total Child Reserved Quantity: <span className="badge bg-warning">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childReservedStock || 0), 0)} units</span></li>
                     <li>Total Child Sold Quantity: <span className="badge bg-danger">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childSoldStock || 0), 0)} units</span></li>
                     <li>Total Value of Child Parts: Rs. {parentChildRelations.reduce((total, relation) => total + (parseInt(relation.childAvailableStock || 0) * parseFloat(relation.childRecommendedPrice || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Parent Parts Report Section */}
+        <div className="card">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <h4>Parent Parts Report</h4>
+            {parentParts.length > 0 && (
+              <button 
+                className="btn btn-outline-secondary btn-sm" 
+                onClick={() => setShowParentParts(!showParentParts)}
+              >
+                {showParentParts ? 'Hide Report' : 'Show Report'}
+              </button>
+            )}
+          </div>
+          <div className="card-body">
+            {/* Filter Section for Parent Parts */}
+            <div className="row g-3 mb-4">
+              <div className="col-md-3">
+                <label className="form-label">Start Date:</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={parentStartDate}
+                  onChange={(e) => setParentStartDate(e.target.value)}
+                />
+                <small className="text-muted">Optional filter</small>
+              </div>
+              <div className="col-md-3">
+                <label className="form-label">End Date:</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={parentEndDate}
+                  onChange={(e) => setParentEndDate(e.target.value)}
+                />
+                <small className="text-muted">Optional filter</small>
+              </div>
+              <div className="col-md-3">
+                <label className="form-label">Container Number:</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter container number"
+                  value={parentContainerNo}
+                  onChange={(e) => setParentContainerNo(e.target.value)}
+                />
+                <small className="text-muted">Optional filter</small>
+              </div>
+              <div className="col-md-3">
+                <label className="form-label">Purchase Type:</label>
+                <select
+                  className="form-control"
+                  value={parentLocalPurchaseFilter}
+                  onChange={(e) => setParentLocalPurchaseFilter(e.target.value)}
+                >
+                  <option value="">All Types</option>
+                  <option value="true">Local Purchase</option>
+                  <option value="false">Container Purchase</option>
+                </select>
+                <small className="text-muted">Optional filter</small>
+              </div>
+            </div>
+
+            <div className="d-flex gap-2 mb-3">
+              <button 
+                className="btn btn-primary" 
+                onClick={handleGetParentParts}
+                disabled={loading}
+              >
+                Generate Parent Parts Report
+              </button>
+              {parentParts.length > 0 && (
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => printStockReport(parentParts, 'Parent Parts')}
+                >
+                  Print Report
+                </button>
+              )}
+            </div>
+            
+            {parentParts.length > 0 && showParentParts && (
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
+                  <thead className="table-dark">
+                    <tr>
+                      <th>Parent ID</th>
+                      <th>Parent Name</th>
+                      <th>Manufacturer</th>
+                      <th>Part Number</th>
+                      <th>Container No.</th>
+                      <th>Purchase Type</th>
+                      <th>Children Count</th>
+                      <th>Parent Stock</th>
+                      <th>Total Children Stock</th>
+                      <th>Children Available</th>
+                      <th>Children Reserved</th>
+                      <th>Children Sold</th>
+                      <th>Cost Price (Rs.)</th>
+                      <th>Unit Price (Rs.)</th>
+                      <th>Total Cost (Rs.)</th>
+                      <th>Total Value (Rs.)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parentParts.map(parent => (
+                      <tr key={parent.id}>
+                        <td>{parent.id}</td>
+                        <td>
+                          <div>
+                            <strong>{parent.name}</strong><br />
+                            <small className="text-muted">{parent.manufacturer}</small>
+                          </div>
+                        </td>
+                        <td>{parent.manufacturer}</td>
+                        <td>{parent.part_number || 'N/A'}</td>
+                        <td>{parent.container_no || 'N/A'}</td>
+                        <td>
+                          <span className={`badge ${parent.local_purchase ? 'bg-warning text-dark' : 'bg-info'}`}>
+                            {parent.local_purchase ? 'Local' : 'Container'}
+                          </span>
+                        </td>
+                        <td><span className="badge bg-primary">{parent.children_count}</span></td>
+                        <td><span className="badge bg-info">{parent.total_stock || 0}</span></td>
+                        <td><span className="badge bg-info">{parent.total_children_stock}</span></td>
+                        <td><span className="badge bg-success">{parent.total_children_available}</span></td>
+                        <td><span className="badge bg-warning">{parent.total_children_reserved}</span></td>
+                        <td><span className="badge bg-danger">{parent.total_children_sold}</span></td>
+                        <td>{
+                          parent.cost_price !== null && parent.cost_price !== undefined
+                            ? `Rs. ${parseFloat(parent.cost_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</td>
+                        <td>{
+                          parent.recommended_price !== null && parent.recommended_price !== undefined
+                            ? `Rs. ${parseFloat(parent.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</td>
+                        <td><strong>{
+                          parent.cost_price !== null && parent.cost_price !== undefined
+                            ? `Rs. ${(parseInt(parent.total_stock || 0) * parseFloat(parent.cost_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</strong></td>
+                        <td><strong>{
+                          parent.recommended_price !== null && parent.recommended_price !== undefined
+                            ? `Rs. ${(parseInt(parent.total_stock || 0) * parseFloat(parent.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</strong></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-3">
+                  <strong>Summary:</strong>
+                  <ul>
+                    <li>Total Parent Parts: {parentParts.length}</li>
+                    <li>Total Children Parts: {parentParts.reduce((total, parent) => total + parent.children_count, 0)}</li>
+                    <li>Parent Stock Quantity: <span className="badge bg-info">{parentParts.reduce((total, parent) => total + parseInt(parent.total_stock || 0), 0)} units</span></li>
+                    <li>Children Available Quantity: <span className="badge bg-success">{parentParts.reduce((total, parent) => total + parent.total_children_available, 0)} units</span></li>
+                    <li>Children Reserved Quantity: <span className="badge bg-warning">{parentParts.reduce((total, parent) => total + parent.total_children_reserved, 0)} units</span></li>
+                    <li>Children Sold Quantity: <span className="badge bg-danger">{parentParts.reduce((total, parent) => total + parent.total_children_sold, 0)} units</span></li>
+                    <li>Total Parent Inventory Cost: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Parent Inventory Value: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
                   </ul>
                 </div>
               </div>
