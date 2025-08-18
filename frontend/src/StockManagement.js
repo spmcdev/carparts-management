@@ -34,8 +34,6 @@ function StockManagement({ userRole }) {
   // New state for parent parts filters
   const [parentContainerNo, setParentContainerNo] = useState('');
   const [parentLocalPurchaseFilter, setParentLocalPurchaseFilter] = useState('');
-  const [parentStartDate, setParentStartDate] = useState('');
-  const [parentEndDate, setParentEndDate] = useState('');
 
   const printStockReport = (stockData, reportType, dateRange = null, includeProfit = false) => {
     // Base64 encoded logo SVG
@@ -1168,7 +1166,7 @@ function StockManagement({ userRole }) {
         </div>
 
         {/* Parent Parts Report Section */}
-        <div className="card">
+        <div className="card mt-5">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h4>Parent Parts Report</h4>
             {parentParts.length > 0 && (
@@ -1183,50 +1181,39 @@ function StockManagement({ userRole }) {
           <div className="card-body">
             {/* Filter Section for Parent Parts */}
             <div className="row g-3 mb-4">
-              <div className="col-md-3">
-                <label className="form-label">Start Date:</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={parentStartDate}
-                  onChange={(e) => setParentStartDate(e.target.value)}
-                />
-                <small className="text-muted">Optional filter</small>
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">End Date:</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={parentEndDate}
-                  onChange={(e) => setParentEndDate(e.target.value)}
-                />
-                <small className="text-muted">Optional filter</small>
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">Container Number:</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Enter container number"
-                  value={parentContainerNo}
-                  onChange={(e) => setParentContainerNo(e.target.value)}
-                />
-                <small className="text-muted">Optional filter</small>
-              </div>
-              <div className="col-md-3">
+              <div className="col-md-6">
                 <label className="form-label">Purchase Type:</label>
                 <select
                   className="form-control"
                   value={parentLocalPurchaseFilter}
-                  onChange={(e) => setParentLocalPurchaseFilter(e.target.value)}
+                  onChange={(e) => {
+                    setParentLocalPurchaseFilter(e.target.value);
+                    // Reset container filter when purchase type changes
+                    if (e.target.value !== 'false') {
+                      setParentContainerNo('');
+                    }
+                  }}
                 >
                   <option value="">All Types</option>
                   <option value="true">Local Purchase</option>
                   <option value="false">Container Purchase</option>
                 </select>
-                <small className="text-muted">Optional filter</small>
+                <small className="text-muted">Filter by source</small>
               </div>
+              {/* Conditionally show Container Number filter only for Container Purchase */}
+              {parentLocalPurchaseFilter === 'false' && (
+                <div className="col-md-6">
+                  <label className="form-label">Container Number:</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Enter container number"
+                    value={parentContainerNo}
+                    onChange={(e) => setParentContainerNo(e.target.value)}
+                  />
+                  <small className="text-muted">Optional filter</small>
+                </div>
+              )}
             </div>
 
             <div className="d-flex gap-2 mb-3">
