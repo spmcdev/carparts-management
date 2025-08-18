@@ -35,6 +35,12 @@ function StockManagement({ userRole }) {
   const [parentContainerNo, setParentContainerNo] = useState('');
   const [parentLocalPurchaseFilter, setParentLocalPurchaseFilter] = useState('');
 
+  // New state for comprehensive stock report (available + sold)
+  const [comprehensiveStock, setComprehensiveStock] = useState([]);
+  const [showComprehensiveStock, setShowComprehensiveStock] = useState(false);
+  const [comprehensiveContainerNo, setComprehensiveContainerNo] = useState('');
+  const [comprehensiveLocalPurchaseFilter, setComprehensiveLocalPurchaseFilter] = useState('');
+
   const printStockReport = (stockData, reportType, dateRange = null, includeProfit = false) => {
     // Base64 encoded logo SVG
     const logoSvg = `data:image/svg+xml;base64,${btoa(`
@@ -140,6 +146,25 @@ function StockManagement({ userRole }) {
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.sold_stock || 0) * parseFloat(item.sold_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
+          ` : reportType === 'Comprehensive Stock Report' ? `
+            <div class="stats">
+              <div class="stat-box">
+                <h4>Total Parts</h4>
+                <p>${stockData.length} parts</p>
+              </div>
+              <div class="stat-box">
+                <h4>Available Stock</h4>
+                <p>${stockData.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</p>
+              </div>
+              <div class="stat-box">
+                <h4>Sold Stock</h4>
+                <p>${stockData.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</p>
+              </div>
+              <div class="stat-box">
+                <h4>Total Value</h4>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
           ` : ''}
           <table class="stock-table">
             <thead>
@@ -191,6 +216,17 @@ function StockManagement({ userRole }) {
                   <th>Unit Price (Rs.)</th>
                   <th>Total Cost (Rs.)</th>
                   <th>Total Value (Rs.)</th>
+                ` : reportType === 'Comprehensive Stock Report' ? `
+                  <th>Part Number</th>
+                  <th>Available Qty</th>
+                  <th>Reserved Qty</th>
+                  <th>Sold Qty</th>
+                  <th>Total Stock</th>
+                  <th>Container No.</th>
+                  <th>Purchase Type</th>
+                  <th>Cost Price (Rs.)</th>
+                  <th>Unit Price (Rs.)</th>
+                  <th>Available Value (Rs.)</th>
                 ` : `
                   <th>Sold Qty</th>
                   <th>Total Stock</th>
@@ -255,6 +291,17 @@ function StockManagement({ userRole }) {
                       <td>Rs. ${parseFloat(item.cost_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    ` : reportType === 'Comprehensive Stock Report' ? `
+                      <td>${item.part_number || 'N/A'}</td>
+                      <td>${item.available_stock || 0}</td>
+                      <td>${item.reserved_stock || 0}</td>
+                      <td>${item.sold_stock || 0}</td>
+                      <td>${item.total_stock || 0}</td>
+                      <td>${item.container_no || 'N/A'}</td>
+                      <td>${item.local_purchase ? 'Local Purchase' : 'Container Purchase'}</td>
+                      <td>Rs. ${parseFloat(item.cost_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     ` : `
                       <td>${item.sold_stock || 0}</td>
@@ -509,6 +556,18 @@ function StockManagement({ userRole }) {
     }
   }, [parentLocalPurchaseFilter, parentContainerNo]);
 
+  // Auto-refresh comprehensive stock when filters change
+  useEffect(() => {
+    // Only auto-refresh if we already have comprehensive stock data and filters are applied
+    if (comprehensiveStock.length > 0 && (comprehensiveLocalPurchaseFilter !== '' || comprehensiveContainerNo)) {
+      const refreshTimer = setTimeout(() => {
+        handleGetComprehensiveStock();
+      }, 500); // Debounce to avoid too many requests
+
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [comprehensiveLocalPurchaseFilter, comprehensiveContainerNo]);
+
   const handleGetParentChildRelations = async () => {
     setLoading(true);
     setError('');
@@ -640,6 +699,46 @@ function StockManagement({ userRole }) {
     } catch (err) {
       console.error('Error fetching parent parts:', err);
       setError('Failed to retrieve parent parts.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetComprehensiveStock = async () => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(API_ENDPOINTS.PARTS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      if (!res.ok) {
+        throw new Error('Failed to fetch parts');
+      }
+      const data = await res.json();
+      
+      // Apply filters
+      let filteredData = data;
+      
+      if (comprehensiveContainerNo) {
+        filteredData = filteredData.filter(part => 
+          part.container_no && part.container_no.includes(comprehensiveContainerNo)
+        );
+      }
+      
+      if (comprehensiveLocalPurchaseFilter !== '') {
+        const isLocal = comprehensiveLocalPurchaseFilter === 'true';
+        filteredData = filteredData.filter(part => part.local_purchase === isLocal);
+      }
+      
+      setComprehensiveStock(filteredData);
+      setShowComprehensiveStock(true);
+      setSuccess(`Found ${filteredData.length} parts matching criteria.`);
+    } catch (err) {
+      console.error('Error fetching comprehensive stock:', err);
+      setError('Failed to retrieve comprehensive stock report.');
     } finally {
       setLoading(false);
     }
@@ -1328,6 +1427,145 @@ function StockManagement({ userRole }) {
                     <li>Children Sold Quantity: <span className="badge bg-danger">{parentParts.reduce((total, parent) => total + parent.total_children_sold, 0)} units</span></li>
                     <li>Total Parent Inventory Cost: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
                     <li>Total Parent Inventory Value: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Comprehensive Stock Report Section */}
+        <div className="card mt-4">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <h4>Comprehensive Stock Report</h4>
+            {comprehensiveStock.length > 0 && (
+              <button 
+                className="btn btn-outline-secondary btn-sm" 
+                onClick={() => setShowComprehensiveStock(!showComprehensiveStock)}
+              >
+                {showComprehensiveStock ? 'Hide Report' : 'Show Report'}
+              </button>
+            )}
+          </div>
+          <div className="card-body">
+            {/* Filter Section for Comprehensive Stock */}
+            <div className="row g-3 mb-4">
+              <div className="col-md-6">
+                <label className="form-label">Purchase Type:</label>
+                <select
+                  className="form-control"
+                  value={comprehensiveLocalPurchaseFilter}
+                  onChange={(e) => {
+                    setComprehensiveLocalPurchaseFilter(e.target.value);
+                    // Reset container filter when purchase type changes
+                    if (e.target.value !== 'false') {
+                      setComprehensiveContainerNo('');
+                    }
+                  }}
+                >
+                  <option value="">All Types</option>
+                  <option value="true">Local Purchase</option>
+                  <option value="false">Container Purchase</option>
+                </select>
+                <small className="text-muted">Filter by source</small>
+              </div>
+              {/* Conditionally show Container Number filter only for Container Purchase */}
+              {comprehensiveLocalPurchaseFilter === 'false' && (
+                <div className="col-md-6">
+                  <label className="form-label">Container Number:</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Enter container number"
+                    value={comprehensiveContainerNo}
+                    onChange={(e) => setComprehensiveContainerNo(e.target.value)}
+                  />
+                  <small className="text-muted">Optional filter</small>
+                </div>
+              )}
+            </div>
+
+            <div className="d-flex gap-2 mb-3">
+              <button 
+                className="btn btn-primary" 
+                onClick={handleGetComprehensiveStock}
+                disabled={loading}
+              >
+                Generate Comprehensive Stock Report
+              </button>
+              {comprehensiveStock.length > 0 && (
+                <button 
+                  className="btn btn-success" 
+                  onClick={() => printStockReport(comprehensiveStock, 'Comprehensive Stock Report')}
+                >
+                  Print Comprehensive Report
+                </button>
+              )}
+            </div>
+
+            {/* Enhanced Table */}
+            {comprehensiveStock.length > 0 && showComprehensiveStock && (
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle text-nowrap fs-6">
+                  <thead className="table-dark">
+                    <tr>
+                      <th>Part Details</th>
+                      <th>Part Number</th>
+                      <th>Available Qty</th>
+                      <th>Reserved Qty</th>
+                      <th>Sold Qty</th>
+                      <th>Total Stock</th>
+                      <th>Purchase Type</th>
+                      <th>Container</th>
+                      <th>Cost Price</th>
+                      <th>Unit Price</th>
+                      <th>Available Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comprehensiveStock.map((item, index) => (
+                      <tr key={`${item.id}-${index}`}>
+                        <td>
+                          <div>
+                            <strong>{item.name}</strong><br />
+                            <small className="text-muted">{item.manufacturer}</small>
+                          </div>
+                        </td>
+                        <td>{item.part_number || 'N/A'}</td>
+                        <td><span className="badge bg-success">{item.available_stock || 0}</span></td>
+                        <td><span className="badge bg-warning text-dark">{item.reserved_stock || 0}</span></td>
+                        <td><span className="badge bg-danger">{item.sold_stock || 0}</span></td>
+                        <td><span className="badge bg-info">{item.total_stock || 0}</span></td>
+                        <td>
+                          <span className={`badge ${item.local_purchase ? 'bg-warning text-dark' : 'bg-info'}`}>
+                            {item.local_purchase ? 'Local' : 'Container'}
+                          </span>
+                        </td>
+                        <td>{item.container_no || 'N/A'}</td>
+                        <td>
+                          {item.cost_price !== null && item.cost_price !== undefined 
+                            ? `Rs ${parseFloat(item.cost_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}` 
+                            : 'N/A'
+                          }
+                        </td>
+                        <td>Rs {parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
+                        <td><strong>Rs {((item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Summary */}
+                <div className="mt-4">
+                  <strong>Summary:</strong>
+                  <ul>
+                    <li>Total Parts: {comprehensiveStock.length}</li>
+                    <li>Available Stock Quantity: <span className="badge bg-success">{comprehensiveStock.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</span></li>
+                    <li>Reserved Stock Quantity: <span className="badge bg-warning text-dark">{comprehensiveStock.reduce((total, item) => total + parseInt(item.reserved_stock || 0), 0)} units</span></li>
+                    <li>Sold Stock Quantity: <span className="badge bg-danger">{comprehensiveStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
+                    <li>Total Available Value: <strong>Rs {comprehensiveStock.reduce((total, item) => total + ((item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong></li>
+                    <li>Local Purchase Items: <span className="badge bg-warning text-dark">{comprehensiveStock.filter(item => item.local_purchase).length}</span></li>
+                    <li>Container Purchase Items: <span className="badge bg-info">{comprehensiveStock.filter(item => !item.local_purchase).length}</span></li>
                   </ul>
                 </div>
               </div>
