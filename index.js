@@ -3296,6 +3296,9 @@ app.get('/sold-stock-summary', authenticateToken, requireAdmin, async (req, res)
         COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers,
         SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) as local_purchase_revenue,
         SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) as container_revenue,
+        SUM(CASE WHEN p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as total_cost,
+        SUM(CASE WHEN p.local_purchase = true AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as local_purchase_cost,
+        SUM(CASE WHEN p.local_purchase = false AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as container_cost,
         SUM(CASE WHEN p.cost_price IS NOT NULL THEN (bi.unit_price - p.cost_price) * bi.quantity ELSE 0 END) as estimated_profit
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
@@ -3350,6 +3353,9 @@ app.get('/sold-stock-summary', authenticateToken, requireAdmin, async (req, res)
         unique_containers: parseInt(summary.unique_containers || 0),
         local_purchase_revenue: parseFloat(summary.local_purchase_revenue || 0),
         container_revenue: parseFloat(summary.container_revenue || 0),
+        total_cost: parseFloat(summary.total_cost || 0),
+        local_purchase_cost: parseFloat(summary.local_purchase_cost || 0),
+        container_cost: parseFloat(summary.container_cost || 0),
         estimated_profit: parseFloat(summary.estimated_profit || 0)
       },
       top_selling_parts: topPartsResult.rows.map(part => {
