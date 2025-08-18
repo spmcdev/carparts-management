@@ -400,22 +400,22 @@ function StockManagement({ userRole }) {
         name: item.part_name,
         manufacturer: item.manufacturer,
         part_number: item.part_number,
-        sold_stock: item.sales_summary.total_sold_quantity,
+        sold_stock: item.sales_summary ? item.sales_summary.total_sold_quantity : 0,
         cost_price: item.cost_price,
-        sold_price: item.sales_summary.average_selling_price,
-        total_cost: item.cost_price ? (item.cost_price * item.sales_summary.total_sold_quantity) : null,
-        total_revenue: item.sales_summary.total_revenue,
-        sold_date: item.sales_summary.last_sale_date,
+        sold_price: item.sales_summary ? item.sales_summary.average_selling_price : 0,
+        total_cost: (item.cost_price && item.sales_summary) ? (item.cost_price * item.sales_summary.total_sold_quantity) : null,
+        total_revenue: item.sales_summary ? item.sales_summary.total_revenue : 0,
+        sold_date: item.sales_summary ? item.sales_summary.last_sale_date : null,
         bill_number: '', // Not available in new structure
         customer_name: '', // Not available in new structure
         container_no: item.container_no,
         local_purchase: item.local_purchase,
-        profit_margin: item.sales_summary.average_profit_margin_percent
+        profit_margin: item.sales_summary ? item.sales_summary.average_profit_margin_percent : null
       })));
       
       setShowSoldStock(true);
-      if (!isAutoRefresh) {
-        setSuccess(`Found ${reportData.summary.unique_parts_sold} unique parts sold. Total revenue: Rs ${reportData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
+      if (!isAutoRefresh && reportData.summary) {
+        setSuccess(`Found ${reportData.summary.unique_parts_sold || 0} unique parts sold. Total revenue: Rs ${(reportData.summary.total_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
       }
       
     } catch (err) {
@@ -992,15 +992,12 @@ function StockManagement({ userRole }) {
                         <li><strong>Sold Quantity Displayed on this page:</strong> {soldStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</li>
                         <li><strong>Total Cost of Items Displayed on this page:</strong> Rs {soldStock.reduce((total, item) => total + parseFloat(item.total_cost || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                         <li><strong>Revenue of Items Displayed on this page:</strong>Rs {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                        {soldStockData && (
+                        {soldStockData && soldStockData.summary && (
                           <>
-                            <li><strong>Total Local Purchase Cost of the search:</strong> Rs {soldStockData.summary.local_purchase_cost.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Total Local Purchase Revenue of the search:</strong> Rs {soldStockData.summary.local_purchase_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Total Container Purchase Cost of the search:</strong> Rs {soldStockData.summary.container_cost.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Total Container Purchase Revenue of the search:</strong> Rs {soldStockData.summary.container_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Total Cost of the search:</strong> Rs {soldStockData.summary.total_cost.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Total Revenue of the search:</strong> Rs {soldStockData.summary.total_revenue.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Total Estimated Profit of the search:</strong> Rs {soldStockData.summary.estimated_profit.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Local Purchase Revenue of the search:</strong> Rs {(soldStockData.summary.local_purchase_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Container Purchase Revenue of the search:</strong> Rs {(soldStockData.summary.container_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Revenue of the search:</strong> Rs {(soldStockData.summary.total_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Estimated Profit of the search:</strong> Rs {(soldStockData.summary.total_profit || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                           </>
                         )}
                       </ul>
