@@ -2227,6 +2227,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
                    'id', bi.id,
                    'part_id', bi.part_id,
                    'part_name', bi.part_name,
+                   'part_number', p.part_number,
                    'manufacturer', bi.manufacturer,
                    'quantity', bi.quantity,
                    'unit_price', bi.unit_price,
@@ -2234,6 +2235,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
                  ) ORDER BY bi.id
                ) as items
         FROM bill_items bi
+        LEFT JOIN parts p ON bi.part_id = p.id
         GROUP BY bi.bill_id
       ) items_agg ON b.id = items_agg.bill_id
       LEFT JOIN (
