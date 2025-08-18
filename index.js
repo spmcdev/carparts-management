@@ -2227,6 +2227,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
                    'id', bi.id,
                    'part_id', bi.part_id,
                    'part_name', bi.part_name,
+                   'part_number', p.part_number,
                    'manufacturer', bi.manufacturer,
                    'quantity', bi.quantity,
                    'unit_price', bi.unit_price,
@@ -2234,6 +2235,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
                  ) ORDER BY bi.id
                ) as items
         FROM bill_items bi
+        LEFT JOIN parts p ON bi.part_id = p.id
         GROUP BY bi.bill_id
       ) items_agg ON b.id = items_agg.bill_id
       LEFT JOIN (
@@ -3036,7 +3038,7 @@ app.get('/debug-refunds/:billId', authenticateToken, async (req, res) => {
 // ====================== SOLD STOCK REPORT ROUTES ======================
 
 // Get sold stock report with filtering and pagination (grouped by parts)
-app.get('/sold-stock-report', authenticateToken, async (req, res) => {
+app.get('/sold-stock-report', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { 
       container_no, 
@@ -3238,7 +3240,7 @@ app.get('/sold-stock-report', authenticateToken, async (req, res) => {
 });
 
 // Get sold stock summary (aggregated statistics by parts)
-app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
+app.get('/sold-stock-summary', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { 
       container_no, 
@@ -3296,6 +3298,9 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
         COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers,
         SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) as local_purchase_revenue,
         SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) as container_revenue,
+        SUM(CASE WHEN p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as total_cost,
+        SUM(CASE WHEN p.local_purchase = true AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as local_purchase_cost,
+        SUM(CASE WHEN p.local_purchase = false AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as container_cost,
         SUM(CASE WHEN p.cost_price IS NOT NULL THEN (bi.unit_price - p.cost_price) * bi.quantity ELSE 0 END) as estimated_profit
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
@@ -3350,6 +3355,9 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
         unique_containers: parseInt(summary.unique_containers || 0),
         local_purchase_revenue: parseFloat(summary.local_purchase_revenue || 0),
         container_revenue: parseFloat(summary.container_revenue || 0),
+        total_cost: parseFloat(summary.total_cost || 0),
+        local_purchase_cost: parseFloat(summary.local_purchase_cost || 0),
+        container_cost: parseFloat(summary.container_cost || 0),
         estimated_profit: parseFloat(summary.estimated_profit || 0)
       },
       top_selling_parts: topPartsResult.rows.map(part => {
@@ -3399,7 +3407,7 @@ app.get('/sold-stock-summary', authenticateToken, async (req, res) => {
 });
 
 // Get available container numbers for sold stock filtering
-app.get('/sold-stock-containers', authenticateToken, async (req, res) => {
+app.get('/sold-stock-containers', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT p.container_no 
