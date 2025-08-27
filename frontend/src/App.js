@@ -29,7 +29,7 @@ function App() {
   const [error, setError] = useState('');
 
   // User role state
-  const [userRole, setUserRole] = useState('');
+  const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || '');
 
   const navigate = useNavigate();
 
@@ -91,6 +91,7 @@ function App() {
         setToken(data.token);
         localStorage.setItem('token', data.token);
         setUserRole(data.role || '');
+        localStorage.setItem('userRole', data.role || '');
         // Redirect based on user role
         if (data.role === 'superadmin') {
           navigate('/reports');
@@ -113,18 +114,29 @@ function App() {
       if (!userRole) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
-          setUserRole(payload.role || '');
-        } catch {}
+          const role = payload.role || '';
+          setUserRole(role);
+          localStorage.setItem('userRole', role);
+        } catch (error) {
+          console.error('Error decoding token:', error);
+          // If token is invalid, clear it
+          setToken('');
+          localStorage.removeItem('token');
+          localStorage.removeItem('userRole');
+        }
       }
       fetchParts();
     } else {
       setUserRole('');
+      localStorage.removeItem('userRole');
     }
   }, [token, userRole, fetchParts]);
 
   const handleLogout = () => {
     setToken('');
+    setUserRole('');
     localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
     setParts([]);
     navigate('/');
   };
@@ -190,19 +202,22 @@ function App() {
                   <Link className="nav-link" to="/sales" onClick={collapseNavbar}><b>Sales</b></Link>
                 </li>
               )}
-              {userRole === 'superadmin' && (
+              {token && userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/admin" onClick={collapseNavbar}>Admin</Link>
                 </li>
               )}
-              {userRole === 'superadmin' && (
+              {token && userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/audit-log" onClick={collapseNavbar}><b>Audit Log</b></Link>
                 </li>
               )}
             </ul>
             {token && (
-              <div className="d-flex">
+              <div className="d-flex align-items-center">
+                <span className="badge bg-info me-2 text-capitalize">
+                  {userRole || 'Loading...'}
+                </span>
                 <button
                   onClick={() => {
                     collapseNavbar();
