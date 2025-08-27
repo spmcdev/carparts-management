@@ -488,6 +488,65 @@ app.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// SuperAdmin-only: Update user password
+app.patch('/users/:id/password', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+  
+  // Prevent changing your own password through this endpoint
+  if (parseInt(id) === req.user.id) {
+    return res.status(400).json({ error: 'Use the profile settings to change your own password' });
+  }
+  
+  // Validate input
+  if (!newPassword || newPassword.trim().length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+  }
+  
+  try {
+    // Get user info before update
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Prevent updating the default admin account password
+    if (user.username === 'admin') {
+      return res.status(403).json({ error: 'Cannot update default admin account password' });
+    }
+    
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
+    
+    // Update password
+    const result = await pool.query(
+      'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2 RETURNING id, username, role',
+      [hashedPassword, id]
+    );
+    
+    // Log audit action
+    await logAuditAction(
+      req.user,
+      'UPDATE',
+      'users',
+      parseInt(id),
+      { username: user.username, action: 'password_reset' },
+      null,
+      req
+    );
+    
+    res.json({ 
+      message: 'Password updated successfully', 
+      user: result.rows[0] 
+    });
+  } catch (err) {
+    console.error('Error updating user password:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ====================== AUDIT LOG ROUTES (ADMIN) ======================
 
 // Admin-only: Get audit logs

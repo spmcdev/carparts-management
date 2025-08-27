@@ -10,6 +10,12 @@ function Admin({ token, userRole }) {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('general');
+  
+  // Password update state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordUpdateUserId, setPasswordUpdateUserId] = useState(null);
+  const [passwordUpdateUsername, setPasswordUpdateUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
 
   const fetchUsers = useCallback(async () => {
     setError('');
@@ -221,6 +227,54 @@ function Admin({ token, userRole }) {
     }
   };
 
+  // SuperAdmin-only: Update user password
+  const handlePasswordUpdate = async () => {
+    setError(''); setSuccess('');
+    
+    if (!newUserPassword || newUserPassword.trim().length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_ENDPOINTS.USERS}/${passwordUpdateUserId}/password`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword: newUserPassword })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update password');
+      
+      setSuccess(`Password updated for user "${passwordUpdateUsername}"!`);
+      setShowPasswordModal(false);
+      setPasswordUpdateUserId(null);
+      setPasswordUpdateUsername('');
+      setNewUserPassword('');
+    } catch (err) {
+      setError(err.message || 'Failed to update password.');
+    }
+  };
+
+  const openPasswordModal = (userId, username) => {
+    setPasswordUpdateUserId(userId);
+    setPasswordUpdateUsername(username);
+    setNewUserPassword('');
+    setShowPasswordModal(true);
+    setError('');
+    setSuccess('');
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPasswordUpdateUserId(null);
+    setPasswordUpdateUsername('');
+    setNewUserPassword('');
+  };
+
   if (userRole !== 'admin' && userRole !== 'superadmin') {
     return (
       <div className="container"><div className="alert alert-danger mt-4">Access denied. Admins only.</div></div>
@@ -261,7 +315,7 @@ function Admin({ token, userRole }) {
                 <th>Username</th>
                 <th>Role</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th style={{minWidth: '180px'}}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -299,14 +353,25 @@ function Admin({ token, userRole }) {
                         </span>
                       )}
                     </td>
-                    <td>
-                      <div className="btn-group btn-group-sm" role="group">
+                    <td style={{minWidth: '180px'}}>
+                      <div className="d-flex flex-wrap gap-1">
                         {isActive ? (
                           // User is active
                           <>
+                            {/* Password Update Button - SuperAdmin Only */}
+                            {userRole === 'superadmin' && user.username !== 'admin' && (
+                              <button
+                                className="btn btn-info btn-sm"
+                                onClick={() => openPasswordModal(user.id, user.username)}
+                                title="Update user password"
+                                style={{minWidth: '80px'}}
+                              >
+                                <i className="fas fa-key me-1"></i>Password
+                              </button>
+                            )}
                             {hasActivities ? (
                               <button
-                                className="btn btn-warning"
+                                className="btn btn-warning btn-sm"
                                 onClick={() => handleDeactivate(user.id)}
                                 disabled={user.username === 'admin'}
                                 title="User has activities - can only deactivate"
@@ -315,7 +380,7 @@ function Admin({ token, userRole }) {
                               </button>
                             ) : (
                               <button
-                                className="btn btn-danger"
+                                className="btn btn-danger btn-sm"
                                 onClick={() => handleDelete(user.id)}
                                 disabled={user.username === 'admin'}
                                 title="User has no activities - can delete"
@@ -326,13 +391,26 @@ function Admin({ token, userRole }) {
                           </>
                         ) : (
                           // User is deactivated
-                          <button
-                            className="btn btn-success"
-                            onClick={() => handleReactivate(user.id)}
-                            disabled={user.username === 'admin'}
-                          >
-                            Reactivate
-                          </button>
+                          <>
+                            {/* Password Update Button - SuperAdmin Only (for deactivated users too) */}
+                            {userRole === 'superadmin' && user.username !== 'admin' && (
+                              <button
+                                className="btn btn-info btn-sm"
+                                onClick={() => openPasswordModal(user.id, user.username)}
+                                title="Update user password"
+                                style={{minWidth: '80px'}}
+                              >
+                                <i className="fas fa-key me-1"></i>Password
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-success btn-sm"
+                              onClick={() => handleReactivate(user.id)}
+                              disabled={user.username === 'admin'}
+                            >
+                              Reactivate
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -343,6 +421,50 @@ function Admin({ token, userRole }) {
           </table>
         </div>
       </div>
+      
+      {/* Password Update Modal - SuperAdmin Only */}
+      {showPasswordModal && (
+        <div className="modal show d-block" tabIndex="-1" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Update Password for {passwordUpdateUsername}</h5>
+                <button type="button" className="btn-close" onClick={closePasswordModal}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label htmlFor="newUserPassword" className="form-label">New Password</label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    id="newUserPassword"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="Enter new password (minimum 6 characters)"
+                    minLength="6"
+                  />
+                  <div className="form-text">
+                    Password must be at least 6 characters long.
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={closePasswordModal}>
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  onClick={handlePasswordUpdate}
+                  disabled={!newUserPassword || newUserPassword.length < 6}
+                >
+                  Update Password
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
