@@ -72,6 +72,9 @@ function Reservations({ token, userRole }) {
   };
 
   useEffect(() => {
+    console.log('Reservations component mounted, fetching data...');
+    console.log('Token:', token ? 'Present' : 'Missing');
+    console.log('User Role:', userRole);
     fetchAvailableParts();
     fetchReservations();
   }, []);
@@ -120,6 +123,7 @@ function Reservations({ token, userRole }) {
 
   // Fetch reservations
   const fetchReservations = async (page = 1) => {
+    console.log('🔍 fetchReservations called with page:', page);
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -131,15 +135,36 @@ function Reservations({ token, userRole }) {
         params.append('status', 'active');
       }
       
-      const res = await fetch(`${API_ENDPOINTS.RESERVATIONS}?${params}`, {
+      const url = `${API_ENDPOINTS.RESERVATIONS}?${params}`;
+      console.log('📡 Making API call to:', url);
+      console.log('🔐 Token present:', !!token);
+      
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Failed to fetch reservations');
+      
+      console.log('📊 Response status:', res.status);
+      console.log('✅ Response ok:', res.ok);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('❌ API Error:', errorText);
+        throw new Error('Failed to fetch reservations');
+      }
+      
       const data = await res.json();
+      console.log('📦 Raw response data:', data);
+      console.log('📋 Reservations array:', data.reservations);
+      console.log('📄 Pagination:', data.pagination);
+      console.log('🔢 Reservations count:', data.reservations ? data.reservations.length : 'undefined');
+      
       setReservations(data.reservations || []);
       setReservationPagination(data.pagination || {});
       setError('');
+      
+      console.log('✅ State updated - reservations:', data.reservations?.length || 0);
     } catch (err) {
+      console.error('💥 Error in fetchReservations:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -505,6 +530,8 @@ function Reservations({ token, userRole }) {
                       </tr>
                     </thead>
                     <tbody>
+                      {console.log('🎨 Rendering tbody - reservations.length:', reservations.length)}
+                      {console.log('🎨 Current reservations state:', reservations)}
                       {reservations.length > 0 ? (
                         reservations.map((reservation) => (
                           <tr key={reservation.id}>
