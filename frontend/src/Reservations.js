@@ -66,9 +66,9 @@ function Reservations({ token, userRole }) {
     hasPreviousPage: false
   });
 
-  // Check if part is a parent part
-  const isParentPart = (part) => {
-    return part && (part.is_parent === true || part.is_parent === 1);
+  // Check if part is a parent part (same logic as Sales.js)
+  const isParentPart = (partId) => {
+    return availableParts.some(part => part.parent_id === partId);
   };
 
   useEffect(() => {
@@ -411,7 +411,7 @@ function Reservations({ token, userRole }) {
                             <td>
                               <div>
                                 <strong>{part.name}</strong>
-                                {isParentPart(part) && (
+                                {isParentPart(part.id) && (
                                   <span className="badge bg-warning text-dark ms-2">Parent Part</span>
                                 )}
                                 <br />
@@ -666,7 +666,7 @@ function Reservations({ token, userRole }) {
                               <div className="d-flex justify-content-between align-items-start">
                                 <div>
                                   <strong>{part.name}</strong>
-                                  {isParentPart(part) && (
+                                  {isParentPart(part.id) && (
                                     <span className="badge bg-warning text-dark ms-2">Parent</span>
                                   )}
                                   <br />
