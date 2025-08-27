@@ -315,7 +315,7 @@ function Admin({ token, userRole }) {
                 <th>Username</th>
                 <th>Role</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th style={{minWidth: '140px'}}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -353,24 +353,25 @@ function Admin({ token, userRole }) {
                         </span>
                       )}
                     </td>
-                    <td>
-                      <div className="btn-group btn-group-sm" role="group">
+                    <td style={{minWidth: '140px'}}>
+                      <div className="d-flex flex-wrap gap-1">
                         {isActive ? (
                           // User is active
                           <>
                             {/* Password Update Button - SuperAdmin Only */}
                             {userRole === 'superadmin' && user.username !== 'admin' && (
                               <button
-                                className="btn btn-info"
+                                className="btn btn-info btn-sm"
                                 onClick={() => openPasswordModal(user.id, user.username)}
                                 title="Update user password"
+                                style={{minWidth: '32px'}}
                               >
                                 <i className="fas fa-key"></i>
                               </button>
                             )}
                             {hasActivities ? (
                               <button
-                                className="btn btn-warning"
+                                className="btn btn-warning btn-sm"
                                 onClick={() => handleDeactivate(user.id)}
                                 disabled={user.username === 'admin'}
                                 title="User has activities - can only deactivate"
@@ -379,7 +380,7 @@ function Admin({ token, userRole }) {
                               </button>
                             ) : (
                               <button
-                                className="btn btn-danger"
+                                className="btn btn-danger btn-sm"
                                 onClick={() => handleDelete(user.id)}
                                 disabled={user.username === 'admin'}
                                 title="User has no activities - can delete"
@@ -394,15 +395,16 @@ function Admin({ token, userRole }) {
                             {/* Password Update Button - SuperAdmin Only (for deactivated users too) */}
                             {userRole === 'superadmin' && user.username !== 'admin' && (
                               <button
-                                className="btn btn-info"
+                                className="btn btn-info btn-sm"
                                 onClick={() => openPasswordModal(user.id, user.username)}
                                 title="Update user password"
+                                style={{minWidth: '32px'}}
                               >
                                 <i className="fas fa-key"></i>
                               </button>
                             )}
                             <button
-                              className="btn btn-success"
+                              className="btn btn-success btn-sm"
                               onClick={() => handleReactivate(user.id)}
                               disabled={user.username === 'admin'}
                             >
