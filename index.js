@@ -1466,85 +1466,96 @@ app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) =
 
 // Cancel reservation
 app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  
   try {
-    const { id } = req.params;
-    const client = await pool.connect();
+    await pool.query('BEGIN');
     
-    try {
-      await client.query('BEGIN');
+    // Get reservation with items
+    const reservationResult = await pool.query(`
+      SELECT r.*, 
+             json_agg(
+               json_build_object(
+                 'id', ri.id,
+                 'part_id', ri.part_id,
+                 'part_name', ri.part_name,
+                 'quantity', ri.quantity
+               )
+             ) as items
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+      WHERE r.id = $1 AND r.status = 'reserved'
+      GROUP BY r.id
+    `, [id]);
+    
+    if (reservationResult.rows.length === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reservation not found or already processed' });
+    }
+    
+    const reservation = reservationResult.rows[0];
+    const items = reservation.items.filter(item => item.id !== null);
+    
+    // Restore stock for all items
+    for (const item of items) {
+      // Get current part stock
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+      if (partResult.rows.length === 0) continue;
       
-      // Get reservation details
-      const reservationResult = await client.query(`
-        SELECT rb.*, p.available_stock, p.reserved_stock
-        FROM reserved_bills rb
-        JOIN parts p ON rb.part_id = p.id
-        WHERE rb.id = $1 AND rb.status = 'reserved'
-      `, [id]);
+      const part = partResult.rows[0];
+      const newReserved = Math.max(0, part.reserved_stock - item.quantity);
+      const newAvailable = part.available_stock + item.quantity;
       
-      if (reservationResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Reservation not found or already processed' });
-      }
-      
-      const reservation = reservationResult.rows[0];
-      
-      // Update stock - move from reserved back to available
-      const newReserved = reservation.reserved_stock - reservation.quantity;
-      const newAvailable = reservation.available_stock + reservation.quantity;
-      
-      await client.query(`
+      await pool.query(`
         UPDATE parts 
-        SET reserved_stock = $1, available_stock = $2, updated_at = CURRENT_TIMESTAMP
+        SET available_stock = $1, reserved_stock = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $3
-      `, [newReserved, newAvailable, reservation.part_id]);
+      `, [newAvailable, newReserved, item.part_id]);
       
-      // Update reservation status
-      await client.query(`
-        UPDATE reserved_bills 
-        SET status = 'cancelled'
-        WHERE id = $1
-      `, [id]);
-      
-      // Log stock movement
-      await client.query(`
+      // Log stock movement for each item
+      await pool.query(`
         INSERT INTO stock_movements (part_id, movement_type, quantity, previous_available, new_available, reference_type, reference_id, notes, created_by)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [
-        reservation.part_id,
-        'return',
-        reservation.quantity,
-        reservation.available_stock,
+        item.part_id,
+        'reservation_cancel',
+        item.quantity,
+        part.available_stock,
         newAvailable,
         'reservation_cancellation',
         id,
-        `Reservation ${reservation.reservation_number} cancelled`,
+        reason || `Reservation ${reservation.reservation_number} cancelled`,
         req.user.id
       ]);
-      
-      // Log audit action
-      await logAuditAction(
-        req.user,
-        'cancel',
-        'reserved_bills',
-        id,
-        { status: 'reserved' },
-        { status: 'cancelled' },
-        req
-      );
-      
-      await client.query('COMMIT');
-      res.json({ 
-        message: 'Reservation cancelled successfully',
-        reservation_number: reservation.reservation_number
-      });
-      
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
     }
+    
+    // Update reservation status
+    await pool.query(`
+      UPDATE reservations 
+      SET status = 'cancelled', cancelled_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [id]);
+    
+    // Log audit action
+    await logAuditAction(
+      req.user,
+      'cancel',
+      'reservations',
+      id,
+      { status: 'reserved' },
+      { status: 'cancelled', reason: reason || 'User cancellation' },
+      req
+    );
+    
+    await pool.query('COMMIT');
+    res.json({ 
+      message: 'Reservation cancelled successfully',
+      reservation_id: id 
+    });
+    
   } catch (err) {
+    await pool.query('ROLLBACK');
     console.error('Error cancelling reservation:', err);
     res.status(500).json({ error: err.message });
   }
