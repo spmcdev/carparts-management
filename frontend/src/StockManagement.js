@@ -294,9 +294,9 @@ function StockManagement({ userRole }) {
                       <td>${item.total_stock || 0}</td>
                       <td>${item.container_no || 'N/A'}</td>
                       <td>Rs. ${parseFloat(item.cost_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.cost_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     ` : reportType === 'Comprehensive Stock Report' ? `
                       <td>${item.part_number || 'N/A'}</td>
                       <td>${item.available_stock || 0}</td>
@@ -864,7 +864,7 @@ function StockManagement({ userRole }) {
                         }</td>
                         <td><strong>{
                           part.cost_price !== null && part.cost_price !== undefined
-                            ? `Rs. ${(parseInt(part.available_stock || 0) * parseFloat(part.cost_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            ? `Rs. ${((parseInt(part.available_stock || 0) + parseInt(part.reserved_stock || 0)) * parseFloat(part.cost_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</strong></td>
                         <td>{
@@ -874,7 +874,7 @@ function StockManagement({ userRole }) {
                         }</td>
                         <td><strong>{
                           part.recommended_price !== null && part.recommended_price !== undefined
-                            ? `Rs. ${(parseInt(part.available_stock || 0) * parseFloat(part.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            ? `Rs. ${((parseInt(part.available_stock || 0) + parseInt(part.reserved_stock || 0)) * parseFloat(part.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</strong></td>
                       </tr>
@@ -888,8 +888,8 @@ function StockManagement({ userRole }) {
                     <li>Total Available Quantity: <span className="badge bg-success">{availableStock.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</span></li>
                     <li>Total Reserved Quantity: <span className="badge bg-warning">{availableStock.reduce((total, item) => total + parseInt(item.reserved_stock || 0), 0)} units</span></li>
                     <li>Total Stock Quantity: <span className="badge bg-info">{availableStock.reduce((total, item) => total + parseInt(item.total_stock || 0), 0)} units</span></li>
-                    <li>Total Inventory Cost: <strong>Rs. {availableStock.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Total Inventory Value: <strong>Rs. {availableStock.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Inventory Cost: <strong>Rs. {availableStock.reduce((total, item) => total + ((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Inventory Value: <strong>Rs. {availableStock.reduce((total, item) => total + ((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
                   </ul>
                 </div>
               </div>
