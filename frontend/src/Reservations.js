@@ -567,12 +567,6 @@ function Reservations({ token, userRole }) {
                                   </button>
                                 </div>
                               )}
-                              {reservation.status === 'reserved' && userRole !== 'superadmin' && (
-                                <span className="text-muted small d-block mt-1">
-                                  <i className="fas fa-info-circle me-1"></i>
-                                  Complete: SuperAdmin Only
-                                </span>
-                              )}
                             </td>
                           </tr>
                         ))
