@@ -647,7 +647,7 @@ app.get('/stock-movements', authenticateToken, requireAdmin, async (req, res) =>
 // ====================== ENHANCED RESERVATION ROUTES ======================
 
 // Get all reservations (enhanced multi-item support)
-app.get('/api/reservations', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.get('/api/reservations', authenticateToken, async (req, res) => {
   try {
     const { search } = req.query;
     let query = `
@@ -690,7 +690,7 @@ app.get('/api/reservations', authenticateToken, requireSuperAdmin, async (req, r
 });
 
 // Create a new reservation (enhanced multi-item support)
-app.post('/api/reservations', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post('/api/reservations', authenticateToken, async (req, res) => {
   const { 
     customer_name, 
     customer_phone, 
@@ -1197,7 +1197,7 @@ app.delete('/api/reservations/:reservationId/items/:itemId', authenticateToken, 
 });
 
 // Update reservation status
-app.patch('/api/reservations/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.patch('/api/reservations/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { status, notes } = req.body;
   
@@ -1304,7 +1304,7 @@ app.patch('/api/reservations/:id', authenticateToken, requireSuperAdmin, async (
 });
 
 // Complete reservation (convert to sale)
-app.post('/api/reservations/:id/complete', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const client = await pool.connect();
@@ -1420,7 +1420,7 @@ app.post('/api/reservations/:id/complete', authenticateToken, requireSuperAdmin,
 });
 
 // Cancel reservation
-app.post('/api/reservations/:id/cancel', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const client = await pool.connect();
@@ -1506,7 +1506,7 @@ app.post('/api/reservations/:id/cancel', authenticateToken, requireSuperAdmin, a
 });
 
 // Complete a reservation (convert to bill) - Enhanced multi-item version
-app.post('/api/reservations/:id/complete-enhanced', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post('/api/reservations/:id/complete-enhanced', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { additional_amount = 0 } = req.body;
   
@@ -1725,7 +1725,7 @@ app.post('/api/reservations/:id/cancel-enhanced', authenticateToken, requireAdmi
 });
 
 // Get reservation details by ID - Enhanced version
-app.get('/api/reservations/:id/enhanced', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.get('/api/reservations/:id/enhanced', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     

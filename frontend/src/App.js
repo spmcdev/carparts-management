@@ -3,6 +3,7 @@ import './App.css';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import StockManagement from './StockManagement';
 import Sales from './Sales';
+import Reservations from './Reservations';
 import Admin from './Admin';
 import CarPartsManagement from './CarPartsManagement';
 import AuditLog from './AuditLog';
@@ -94,7 +95,7 @@ function App() {
         if (data.role === 'superadmin') {
           navigate('/reports');
         } else {
-          navigate('/parts-management');
+          navigate('/reservations');
         }
       } else {
         setAuthMode('login');
@@ -177,6 +178,11 @@ function App() {
               {token && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/parts-management" onClick={collapseNavbar}><b>Stock Management</b></Link>
+                </li>
+              )}
+              {token && (
+                <li className="nav-item">
+                  <Link className="nav-link" to="/reservations" onClick={collapseNavbar}><b>Reservations</b></Link>
                 </li>
               )}
               {token && userRole === 'superadmin' && (
@@ -272,6 +278,13 @@ function App() {
             />
           ) : (
             <p style={{ color: 'red' }}>Please log in to access Stock Management.</p>
+          )
+        } />
+        <Route path="/reservations" element={
+          token ? (
+            <Reservations token={token} userRole={userRole} />
+          ) : (
+            <p style={{ color: 'red' }}>Please log in to access Reservations.</p>
           )
         } />
         <Route path="/sales" element={
