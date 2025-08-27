@@ -72,9 +72,6 @@ function Reservations({ token, userRole }) {
   };
 
   useEffect(() => {
-    console.log('Reservations component mounted, fetching data...');
-    console.log('Token:', token ? 'Present' : 'Missing');
-    console.log('User Role:', userRole);
     fetchAvailableParts();
     fetchReservations();
   }, []);
@@ -123,7 +120,6 @@ function Reservations({ token, userRole }) {
 
   // Fetch reservations
   const fetchReservations = async (page = 1) => {
-    console.log('🔍 fetchReservations called with page:', page);
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -132,39 +128,18 @@ function Reservations({ token, userRole }) {
       });
       
       if (showActiveOnly) {
-        params.append('status', 'active');
+        params.append('status', 'reserved');
       }
       
-      const url = `${API_ENDPOINTS.RESERVATIONS}?${params}`;
-      console.log('📡 Making API call to:', url);
-      console.log('🔐 Token present:', !!token);
-      
-      const res = await fetch(url, {
+      const res = await fetch(`${API_ENDPOINTS.RESERVATIONS}?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      console.log('📊 Response status:', res.status);
-      console.log('✅ Response ok:', res.ok);
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('❌ API Error:', errorText);
-        throw new Error('Failed to fetch reservations');
-      }
-      
+      if (!res.ok) throw new Error('Failed to fetch reservations');
       const data = await res.json();
-      console.log('📦 Raw response data:', data);
-      console.log('📋 Reservations array:', data.reservations);
-      console.log('📄 Pagination:', data.pagination);
-      console.log('🔢 Reservations count:', data.reservations ? data.reservations.length : 'undefined');
-      
       setReservations(data.reservations || []);
       setReservationPagination(data.pagination || {});
       setError('');
-      
-      console.log('✅ State updated - reservations:', data.reservations?.length || 0);
     } catch (err) {
-      console.error('💥 Error in fetchReservations:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -530,8 +505,6 @@ function Reservations({ token, userRole }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {console.log('🎨 Rendering tbody - reservations.length:', reservations.length)}
-                      {console.log('🎨 Current reservations state:', reservations)}
                       {reservations.length > 0 ? (
                         reservations.map((reservation) => (
                           <tr key={reservation.id}>
@@ -563,7 +536,7 @@ function Reservations({ token, userRole }) {
                             <td>Rs {parseFloat(reservation.deposit_amount || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</td>
                             <td>
                               <span className={`badge ${
-                                reservation.status === 'active' ? 'bg-success' :
+                                reservation.status === 'reserved' ? 'bg-success' :
                                 reservation.status === 'completed' ? 'bg-primary' :
                                 reservation.status === 'cancelled' ? 'bg-danger' : 'bg-secondary'
                               }`}>
@@ -572,7 +545,7 @@ function Reservations({ token, userRole }) {
                             </td>
                             <td>{new Date(reservation.created_at).toLocaleDateString()}</td>
                             <td>
-                              {reservation.status === 'active' && (
+                              {reservation.status === 'reserved' && (
                                 <div className="btn-group btn-group-sm">
                                   {userRole === 'superadmin' && (
                                     <button 
@@ -594,7 +567,7 @@ function Reservations({ token, userRole }) {
                                   </button>
                                 </div>
                               )}
-                              {reservation.status === 'active' && userRole !== 'superadmin' && (
+                              {reservation.status === 'reserved' && userRole !== 'superadmin' && (
                                 <span className="text-muted small d-block mt-1">
                                   <i className="fas fa-info-circle me-1"></i>
                                   Complete: SuperAdmin Only
