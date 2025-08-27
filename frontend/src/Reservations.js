@@ -545,7 +545,7 @@ function Reservations({ token, userRole }) {
                             </td>
                             <td>{new Date(reservation.created_at).toLocaleDateString()}</td>
                             <td>
-                              {reservation.status === 'active' && (
+                              {reservation.status === 'active' && userRole === 'superadmin' && (
                                 <div className="btn-group btn-group-sm">
                                   <button 
                                     className="btn btn-success"
@@ -564,6 +564,12 @@ function Reservations({ token, userRole }) {
                                     Cancel
                                   </button>
                                 </div>
+                              )}
+                              {reservation.status === 'active' && userRole !== 'superadmin' && (
+                                <span className="text-muted small">
+                                  <i className="fas fa-lock me-1"></i>
+                                  SuperAdmin Only
+                                </span>
                               )}
                             </td>
                           </tr>
