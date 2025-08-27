@@ -647,7 +647,7 @@ app.get('/stock-movements', authenticateToken, requireAdmin, async (req, res) =>
 // ====================== ENHANCED RESERVATION ROUTES ======================
 
 // Get all reservations (enhanced multi-item support)
-app.get('/api/reservations', authenticateToken, async (req, res) => {
+app.get('/api/reservations', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { search } = req.query;
     let query = `
@@ -690,7 +690,7 @@ app.get('/api/reservations', authenticateToken, async (req, res) => {
 });
 
 // Create a new reservation (enhanced multi-item support)
-app.post('/api/reservations', authenticateToken, async (req, res) => {
+app.post('/api/reservations', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { 
     customer_name, 
     customer_phone, 
@@ -1197,7 +1197,7 @@ app.delete('/api/reservations/:reservationId/items/:itemId', authenticateToken, 
 });
 
 // Update reservation status
-app.patch('/api/reservations/:id', authenticateToken, async (req, res) => {
+app.patch('/api/reservations/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   const { status, notes } = req.body;
   
@@ -1304,7 +1304,7 @@ app.patch('/api/reservations/:id', authenticateToken, async (req, res) => {
 });
 
 // Complete reservation (convert to sale)
-app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) => {
+app.post('/api/reservations/:id/complete', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const client = await pool.connect();
@@ -1420,7 +1420,7 @@ app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) =
 });
 
 // Cancel reservation
-app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => {
+app.post('/api/reservations/:id/cancel', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const client = await pool.connect();
@@ -1506,7 +1506,7 @@ app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => 
 });
 
 // Complete a reservation (convert to bill) - Enhanced multi-item version
-app.post('/api/reservations/:id/complete-enhanced', authenticateToken, async (req, res) => {
+app.post('/api/reservations/:id/complete-enhanced', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   const { additional_amount = 0 } = req.body;
   
@@ -1725,7 +1725,7 @@ app.post('/api/reservations/:id/cancel-enhanced', authenticateToken, requireAdmi
 });
 
 // Get reservation details by ID - Enhanced version
-app.get('/api/reservations/:id/enhanced', authenticateToken, async (req, res) => {
+app.get('/api/reservations/:id/enhanced', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -2063,7 +2063,7 @@ app.get('/parts/available', authenticateToken, async (req, res) => {
 });
 
 // Sell parts - create bill with multiple items and quantities
-app.post('/sales/sell', authenticateToken, async (req, res) => {
+app.post('/sales/sell', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { customer_name, customer_phone, bill_number, items } = req.body;
   
   try {
@@ -2207,7 +2207,7 @@ app.post('/sales/sell', authenticateToken, async (req, res) => {
 // ====================== BILLS MANAGEMENT ROUTES ======================
 
 // Get all bills with search support and pagination
-app.get('/bills', authenticateToken, async (req, res) => {
+app.get('/bills', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { search, page = 1, limit = 20 } = req.query;
   
   try {
@@ -2356,7 +2356,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
 });
 
 // Update bill (edit functionality)
-app.put('/bills/:id', authenticateToken, requireAdmin, async (req, res) => {
+app.put('/bills/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   const { bill_number, customer_name, customer_phone } = req.body;
   
@@ -2685,7 +2685,7 @@ app.delete('/bills/:billId/items/:itemId', authenticateToken, requireSuperAdmin,
 });
 
 // Get bill refund details (for continuing partial refunds)
-app.get('/bills/:id/refund-details', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/bills/:id/refund-details', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   
   try {
@@ -2786,7 +2786,7 @@ app.get('/bills/:id/refund-details', authenticateToken, requireAdmin, async (req
 });
 
 // Process refund
-app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/bills/:id/refund', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   const { refund_amount, refund_reason, refund_type, refund_items } = req.body;
   

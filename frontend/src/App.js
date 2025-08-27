@@ -94,7 +94,7 @@ function App() {
         if (data.role === 'superadmin') {
           navigate('/reports');
         } else {
-          navigate('/sales');
+          navigate('/parts-management');
         }
       } else {
         setAuthMode('login');
@@ -179,7 +179,7 @@ function App() {
                   <Link className="nav-link" to="/parts-management" onClick={collapseNavbar}><b>Stock Management</b></Link>
                 </li>
               )}
-              {token && (
+              {token && userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/sales" onClick={collapseNavbar}><b>Sales</b></Link>
                 </li>
@@ -275,10 +275,10 @@ function App() {
           )
         } />
         <Route path="/sales" element={
-          token ? (
+          token && userRole === 'superadmin' ? (
             <Sales token={token} userRole={userRole} />
           ) : (
-            <p style={{ color: 'red' }}>Please log in to access Sales.</p>
+            <p style={{ color: 'red' }}>SuperAdmin access required to access Sales.</p>
           )
         } />
         <Route path="/admin" element={
