@@ -68,7 +68,7 @@ function Reservations({ token, userRole }) {
 
   // Check if part is a parent part
   const isParentPart = (part) => {
-    return part && (part.is_parent === true || part.is_parent === 1 || part.parent_id === null);
+    return part && (part.is_parent === true || part.is_parent === 1);
   };
 
   useEffect(() => {
