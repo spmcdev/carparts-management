@@ -162,11 +162,11 @@ function StockManagement({ userRole }) {
               </div>
               <div class="stat-box">
                 <h4>Total Inventory Cost</h4>
-                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
               <div class="stat-box">
                 <h4>Total Inventory Value</h4>
-                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
           ` : ''}
@@ -306,9 +306,9 @@ function StockManagement({ userRole }) {
                       <td>${item.container_no || 'N/A'}</td>
                       <td>${item.local_purchase ? 'Local Purchase' : 'Container Purchase'}</td>
                       <td>Rs. ${parseFloat(item.cost_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${(parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${(parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     ` : `
                       <td>${item.sold_stock || 0}</td>
                       <td>${item.total_stock || 0}</td>
@@ -1557,7 +1557,7 @@ function StockManagement({ userRole }) {
                         </td>
                         <td><strong>
                           {item.cost_price !== null && item.cost_price !== undefined 
-                            ? `Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.cost_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}` 
+                            ? `Rs. ${(parseInt(item.total_stock || 0) * parseFloat(item.cost_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}` 
                             : 'N/A'
                           }
                         </strong></td>
@@ -1569,7 +1569,7 @@ function StockManagement({ userRole }) {
                         </td>
                         <td><strong>
                           {item.recommended_price !== null && item.recommended_price !== undefined
-                            ? `Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            ? `Rs. ${(parseInt(item.total_stock || 0) * parseFloat(item.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                           }
                         </strong></td>
@@ -1586,8 +1586,8 @@ function StockManagement({ userRole }) {
                     <li>Available Stock Quantity: <span className="badge bg-success">{comprehensiveStock.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</span></li>
                     <li>Reserved Stock Quantity: <span className="badge bg-warning text-dark">{comprehensiveStock.reduce((total, item) => total + parseInt(item.reserved_stock || 0), 0)} units</span></li>
                     <li>Sold Stock Quantity: <span className="badge bg-danger">{comprehensiveStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
-                    <li>Total Inventory Cost: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Total Inventory Value: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Inventory Cost: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Inventory Value: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
                     <li>Local Purchase Items: <span className="badge bg-warning text-dark">{comprehensiveStock.filter(item => item.local_purchase).length}</span></li>
                     <li>Container Purchase Items: <span className="badge bg-info">{comprehensiveStock.filter(item => !item.local_purchase).length}</span></li>
                   </ul>
