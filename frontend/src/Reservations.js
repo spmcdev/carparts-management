@@ -345,11 +345,16 @@ function Reservations({ token, userRole }) {
                 Available Parts
               </h4>
               <button 
-                className="btn btn-primary"
+                className="btn btn-primary position-relative"
                 onClick={() => setShowReservationModal(true)}
               >
                 <i className="fas fa-plus me-2"></i>
                 Create Reservation
+                {reservationCartItems.length > 0 && (
+                  <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    {reservationCartItems.length}
+                  </span>
+                )}
               </button>
             </div>
             <div className="card-body">
