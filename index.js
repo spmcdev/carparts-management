@@ -3202,7 +3202,7 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
     // Build the WHERE clause
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-    // Simplified main query for sold stock data - grouped by part
+    // Enhanced query for sold stock data with net revenue (gross sales minus refunds)
     const query = `
       SELECT 
         p.id as part_id,
@@ -3215,7 +3215,9 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         p.recommended_price,
         SUM(bi.quantity) as total_sold_quantity,
         COUNT(DISTINCT b.id) as times_sold,
-        SUM(bi.total_price) as total_revenue,
+        SUM(bi.total_price) as gross_revenue,
+        COALESCE(SUM(bri.total_price), 0) as total_refunded,
+        (SUM(bi.total_price) - COALESCE(SUM(bri.total_price), 0)) as total_revenue,
         AVG(bi.unit_price) as average_selling_price,
         MIN(bi.unit_price) as min_selling_price,
         MAX(bi.unit_price) as max_selling_price,
@@ -3224,6 +3226,8 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
+      LEFT JOIN bill_refunds br ON b.id = br.bill_id
+      LEFT JOIN bill_refund_items bri ON br.id = bri.refund_id AND bri.part_id = p.id
       ${whereClause}
       GROUP BY p.id, p.name, p.manufacturer, p.part_number, p.container_no, p.local_purchase, p.cost_price, p.recommended_price
       ORDER BY total_sold_quantity DESC, total_revenue DESC
@@ -3234,12 +3238,14 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
 
     const result = await pool.query(query, params);
 
-    // Get total count for pagination
+    // Get total count for pagination with refunds consideration
     const countQuery = `
       SELECT COUNT(DISTINCT p.id) as total
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
+      LEFT JOIN bill_refunds br ON b.id = br.bill_id
+      LEFT JOIN bill_refund_items bri ON br.id = bri.refund_id AND bri.part_id = p.id
       ${whereClause}
     `;
 
@@ -3247,12 +3253,14 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
     const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].total);
 
-    // Calculate summary statistics
+    // Calculate summary statistics with net revenue
     const summaryQuery = `
       SELECT 
         COUNT(DISTINCT p.id) as unique_parts_sold,
         SUM(bi.quantity) as total_quantity_sold,
-        SUM(bi.total_price) as total_revenue,
+        SUM(bi.total_price) as gross_revenue,
+        COALESCE(SUM(bri.total_price), 0) as total_refunded,
+        (SUM(bi.total_price) - COALESCE(SUM(bri.total_price), 0)) as total_revenue,
         AVG(bi.unit_price) as overall_average_selling_price,
         COUNT(DISTINCT b.id) as total_transactions,
         MIN(DATE(b.created_at)) as earliest_sale,
@@ -3260,11 +3268,15 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         COUNT(CASE WHEN p.local_purchase = true THEN bi.id END) as local_purchase_items,
         COUNT(CASE WHEN p.local_purchase = false THEN bi.id END) as container_items,
         COUNT(DISTINCT CASE WHEN p.container_no IS NOT NULL THEN p.container_no END) as unique_containers,
-        SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) as local_purchase_revenue,
-        SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) as container_revenue
+        (SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) - 
+         COALESCE(SUM(CASE WHEN p.local_purchase = true THEN bri.total_price ELSE 0 END), 0)) as local_purchase_revenue,
+        (SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) - 
+         COALESCE(SUM(CASE WHEN p.local_purchase = false THEN bri.total_price ELSE 0 END), 0)) as container_revenue
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
+      LEFT JOIN bill_refunds br ON b.id = br.bill_id
+      LEFT JOIN bill_refund_items bri ON br.id = bri.refund_id AND bri.part_id = p.id
       ${whereClause}
     `;
 
@@ -3396,13 +3408,15 @@ app.get('/sold-stock-summary', authenticateToken, requireSuperAdmin, async (req,
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-    // Comprehensive summary query
+    // Comprehensive summary query with net revenue
     const summaryQuery = `
       SELECT 
         COUNT(DISTINCT p.id) as unique_parts_sold,
         COUNT(DISTINCT b.id) as total_transactions,
         SUM(bi.quantity) as total_quantity_sold,
-        SUM(bi.total_price) as total_revenue,
+        SUM(bi.total_price) as gross_revenue,
+        COALESCE(SUM(bri.total_price), 0) as total_refunded,
+        (SUM(bi.total_price) - COALESCE(SUM(bri.total_price), 0)) as total_revenue,
         AVG(bi.unit_price) as average_selling_price,
         MIN(bi.unit_price) as min_selling_price,
         MAX(bi.unit_price) as max_selling_price,
@@ -3411,8 +3425,10 @@ app.get('/sold-stock-summary', authenticateToken, requireSuperAdmin, async (req,
         COUNT(CASE WHEN p.local_purchase = true THEN bi.id END) as local_purchase_items,
         COUNT(CASE WHEN p.local_purchase = false THEN bi.id END) as container_items,
         COUNT(DISTINCT p.container_no) FILTER (WHERE p.container_no IS NOT NULL) as unique_containers,
-        SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) as local_purchase_revenue,
-        SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) as container_revenue,
+        (SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) - 
+         COALESCE(SUM(CASE WHEN p.local_purchase = true THEN bri.total_price ELSE 0 END), 0)) as local_purchase_revenue,
+        (SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) - 
+         COALESCE(SUM(CASE WHEN p.local_purchase = false THEN bri.total_price ELSE 0 END), 0)) as container_revenue,
         SUM(CASE WHEN p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as total_cost,
         SUM(CASE WHEN p.local_purchase = true AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as local_purchase_cost,
         SUM(CASE WHEN p.local_purchase = false AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as container_cost,
@@ -3420,6 +3436,8 @@ app.get('/sold-stock-summary', authenticateToken, requireSuperAdmin, async (req,
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
+      LEFT JOIN bill_refunds br ON b.id = br.bill_id
+      LEFT JOIN bill_refund_items bri ON br.id = bri.refund_id AND bri.part_id = p.id
       ${whereClause}
     `;
 
