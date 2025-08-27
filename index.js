@@ -649,7 +649,9 @@ app.get('/stock-movements', authenticateToken, requireAdmin, async (req, res) =>
 // Get all reservations (enhanced multi-item support)
 app.get('/api/reservations', authenticateToken, async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, page = 1, limit = 20, status } = req.query;
+    const offset = (page - 1) * limit;
+    
     let query = `
       SELECT r.*, 
              json_agg(
@@ -674,15 +676,58 @@ app.get('/api/reservations', authenticateToken, async (req, res) => {
     `;
     
     const params = [];
+    const conditions = [];
+    
     if (search) {
-      query += ` WHERE r.customer_name ILIKE $1 OR r.customer_phone ILIKE $1 OR r.reservation_number ILIKE $1 OR ri.part_name ILIKE $1 OR ri.manufacturer ILIKE $1`;
+      conditions.push(`(r.customer_name ILIKE $${params.length + 1} OR r.customer_phone ILIKE $${params.length + 1} OR r.reservation_number ILIKE $${params.length + 1} OR ri.part_name ILIKE $${params.length + 1} OR ri.manufacturer ILIKE $${params.length + 1})`);
       params.push(`%${search}%`);
+    }
+    
+    if (status) {
+      conditions.push(`r.status = $${params.length + 1}`);
+      params.push(status);
+    }
+    
+    if (conditions.length > 0) {
+      query += ` WHERE ` + conditions.join(' AND ');
     }
     
     query += ` GROUP BY r.id, u1.username, u2.username ORDER BY r.reserved_date DESC`;
     
+    // Add pagination
+    query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+    
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    
+    // Get total count for pagination
+    let countQuery = `
+      SELECT COUNT(DISTINCT r.id) as total
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+    `;
+    
+    const countParams = [];
+    if (conditions.length > 0) {
+      countQuery += ` WHERE ` + conditions.join(' AND ');
+      // Add the same search parameters (excluding limit/offset)
+      if (search) countParams.push(`%${search}%`);
+      if (status) countParams.push(status);
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+    
+    res.json({
+      reservations: result.rows,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      }
+    });
   } catch (err) {
     console.error('Error fetching reservations:', err);
     res.status(500).json({ error: err.message });
@@ -1421,85 +1466,96 @@ app.post('/api/reservations/:id/complete', authenticateToken, async (req, res) =
 
 // Cancel reservation
 app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  
   try {
-    const { id } = req.params;
-    const client = await pool.connect();
+    await pool.query('BEGIN');
     
-    try {
-      await client.query('BEGIN');
+    // Get reservation with items
+    const reservationResult = await pool.query(`
+      SELECT r.*, 
+             json_agg(
+               json_build_object(
+                 'id', ri.id,
+                 'part_id', ri.part_id,
+                 'part_name', ri.part_name,
+                 'quantity', ri.quantity
+               )
+             ) as items
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+      WHERE r.id = $1 AND r.status = 'reserved'
+      GROUP BY r.id
+    `, [id]);
+    
+    if (reservationResult.rows.length === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reservation not found or already processed' });
+    }
+    
+    const reservation = reservationResult.rows[0];
+    const items = reservation.items.filter(item => item.id !== null);
+    
+    // Restore stock for all items
+    for (const item of items) {
+      // Get current part stock
+      const partResult = await pool.query('SELECT * FROM parts WHERE id = $1', [item.part_id]);
+      if (partResult.rows.length === 0) continue;
       
-      // Get reservation details
-      const reservationResult = await client.query(`
-        SELECT rb.*, p.available_stock, p.reserved_stock
-        FROM reserved_bills rb
-        JOIN parts p ON rb.part_id = p.id
-        WHERE rb.id = $1 AND rb.status = 'reserved'
-      `, [id]);
+      const part = partResult.rows[0];
+      const newReserved = Math.max(0, part.reserved_stock - item.quantity);
+      const newAvailable = part.available_stock + item.quantity;
       
-      if (reservationResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Reservation not found or already processed' });
-      }
-      
-      const reservation = reservationResult.rows[0];
-      
-      // Update stock - move from reserved back to available
-      const newReserved = reservation.reserved_stock - reservation.quantity;
-      const newAvailable = reservation.available_stock + reservation.quantity;
-      
-      await client.query(`
+      await pool.query(`
         UPDATE parts 
-        SET reserved_stock = $1, available_stock = $2, updated_at = CURRENT_TIMESTAMP
+        SET available_stock = $1, reserved_stock = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $3
-      `, [newReserved, newAvailable, reservation.part_id]);
+      `, [newAvailable, newReserved, item.part_id]);
       
-      // Update reservation status
-      await client.query(`
-        UPDATE reserved_bills 
-        SET status = 'cancelled'
-        WHERE id = $1
-      `, [id]);
-      
-      // Log stock movement
-      await client.query(`
+      // Log stock movement for each item
+      await pool.query(`
         INSERT INTO stock_movements (part_id, movement_type, quantity, previous_available, new_available, reference_type, reference_id, notes, created_by)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [
-        reservation.part_id,
-        'return',
-        reservation.quantity,
-        reservation.available_stock,
+        item.part_id,
+        'reservation_cancel',
+        item.quantity,
+        part.available_stock,
         newAvailable,
         'reservation_cancellation',
         id,
-        `Reservation ${reservation.reservation_number} cancelled`,
+        reason || `Reservation ${reservation.reservation_number} cancelled`,
         req.user.id
       ]);
-      
-      // Log audit action
-      await logAuditAction(
-        req.user,
-        'cancel',
-        'reserved_bills',
-        id,
-        { status: 'reserved' },
-        { status: 'cancelled' },
-        req
-      );
-      
-      await client.query('COMMIT');
-      res.json({ 
-        message: 'Reservation cancelled successfully',
-        reservation_number: reservation.reservation_number
-      });
-      
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
     }
+    
+    // Update reservation status
+    await pool.query(`
+      UPDATE reservations 
+      SET status = 'cancelled', cancelled_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [id]);
+    
+    // Log audit action
+    await logAuditAction(
+      req.user,
+      'cancel',
+      'reservations',
+      id,
+      { status: 'reserved' },
+      { status: 'cancelled', reason: reason || 'User cancellation' },
+      req
+    );
+    
+    await pool.query('COMMIT');
+    res.json({ 
+      message: 'Reservation cancelled successfully',
+      reservation_id: id 
+    });
+    
   } catch (err) {
+    await pool.query('ROLLBACK');
     console.error('Error cancelling reservation:', err);
     res.status(500).json({ error: err.message });
   }
@@ -2063,7 +2119,7 @@ app.get('/parts/available', authenticateToken, async (req, res) => {
 });
 
 // Sell parts - create bill with multiple items and quantities
-app.post('/sales/sell', authenticateToken, async (req, res) => {
+app.post('/sales/sell', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { customer_name, customer_phone, bill_number, items } = req.body;
   
   try {
@@ -2207,7 +2263,7 @@ app.post('/sales/sell', authenticateToken, async (req, res) => {
 // ====================== BILLS MANAGEMENT ROUTES ======================
 
 // Get all bills with search support and pagination
-app.get('/bills', authenticateToken, async (req, res) => {
+app.get('/bills', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { search, page = 1, limit = 20 } = req.query;
   
   try {
@@ -2356,7 +2412,7 @@ app.get('/bills', authenticateToken, async (req, res) => {
 });
 
 // Update bill (edit functionality)
-app.put('/bills/:id', authenticateToken, requireAdmin, async (req, res) => {
+app.put('/bills/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   const { bill_number, customer_name, customer_phone } = req.body;
   
@@ -2685,7 +2741,7 @@ app.delete('/bills/:billId/items/:itemId', authenticateToken, requireSuperAdmin,
 });
 
 // Get bill refund details (for continuing partial refunds)
-app.get('/bills/:id/refund-details', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/bills/:id/refund-details', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   
   try {
@@ -2786,7 +2842,7 @@ app.get('/bills/:id/refund-details', authenticateToken, requireAdmin, async (req
 });
 
 // Process refund
-app.post('/bills/:id/refund', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/bills/:id/refund', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   const { refund_amount, refund_reason, refund_type, refund_items } = req.body;
   
@@ -3038,7 +3094,7 @@ app.get('/debug-refunds/:billId', authenticateToken, async (req, res) => {
 // ====================== SOLD STOCK REPORT ROUTES ======================
 
 // Get sold stock report with filtering and pagination (grouped by parts)
-app.get('/sold-stock-report', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { 
       container_no, 
@@ -3240,7 +3296,7 @@ app.get('/sold-stock-report', authenticateToken, requireAdmin, async (req, res) 
 });
 
 // Get sold stock summary (aggregated statistics by parts)
-app.get('/sold-stock-summary', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/sold-stock-summary', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { 
       container_no, 
@@ -3407,7 +3463,7 @@ app.get('/sold-stock-summary', authenticateToken, requireAdmin, async (req, res)
 });
 
 // Get available container numbers for sold stock filtering
-app.get('/sold-stock-containers', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/sold-stock-containers', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT p.container_no 
@@ -3437,3 +3493,4 @@ app.listen(PORT, () => {
 });
 
 export default app;
+

@@ -2,6 +2,8 @@
 
 This guide will help you deploy your Car Parts Management System using Railway for both backend and frontend hosting.
 
+> **📍 Environment URLs**: For current staging and production URLs, see [ENVIRONMENT-URLS.md](./ENVIRONMENT-URLS.md)
+
 ## Prerequisites
 - Git repository (GitHub, GitLab, or Bitbucket)
 - Railway account (free at railway.app)

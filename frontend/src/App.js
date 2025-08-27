@@ -3,6 +3,7 @@ import './App.css';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import StockManagement from './StockManagement';
 import Sales from './Sales';
+import Reservations from './Reservations';
 import Admin from './Admin';
 import CarPartsManagement from './CarPartsManagement';
 import AuditLog from './AuditLog';
@@ -28,7 +29,7 @@ function App() {
   const [error, setError] = useState('');
 
   // User role state
-  const [userRole, setUserRole] = useState('');
+  const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || '');
 
   const navigate = useNavigate();
 
@@ -90,11 +91,12 @@ function App() {
         setToken(data.token);
         localStorage.setItem('token', data.token);
         setUserRole(data.role || '');
+        localStorage.setItem('userRole', data.role || '');
         // Redirect based on user role
-        if (data.role === 'general') {
-          navigate('/sales');
-        } else {
+        if (data.role === 'superadmin') {
           navigate('/reports');
+        } else {
+          navigate('/reservations');
         }
       } else {
         setAuthMode('login');
@@ -112,18 +114,29 @@ function App() {
       if (!userRole) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
-          setUserRole(payload.role || '');
-        } catch {}
+          const role = payload.role || '';
+          setUserRole(role);
+          localStorage.setItem('userRole', role);
+        } catch (error) {
+          console.error('Error decoding token:', error);
+          // If token is invalid, clear it
+          setToken('');
+          localStorage.removeItem('token');
+          localStorage.removeItem('userRole');
+        }
       }
       fetchParts();
     } else {
       setUserRole('');
+      localStorage.removeItem('userRole');
     }
   }, [token, userRole, fetchParts]);
 
   const handleLogout = () => {
     setToken('');
+    setUserRole('');
     localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
     setParts([]);
     navigate('/');
   };
@@ -169,7 +182,7 @@ function App() {
           </button>
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-              {token && (userRole === 'admin' || userRole === 'superadmin') && (
+              {token && userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/reports" onClick={collapseNavbar}><b>Reports</b></Link>
                 </li>
@@ -181,22 +194,30 @@ function App() {
               )}
               {token && (
                 <li className="nav-item">
+                  <Link className="nav-link" to="/reservations" onClick={collapseNavbar}><b>Reservations</b></Link>
+                </li>
+              )}
+              {token && userRole === 'superadmin' && (
+                <li className="nav-item">
                   <Link className="nav-link" to="/sales" onClick={collapseNavbar}><b>Sales</b></Link>
                 </li>
               )}
-              {userRole === 'superadmin' && (
+              {token && userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/admin" onClick={collapseNavbar}>Admin</Link>
                 </li>
               )}
-              {userRole === 'superadmin' && (
+              {token && userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/audit-log" onClick={collapseNavbar}><b>Audit Log</b></Link>
                 </li>
               )}
             </ul>
             {token && (
-              <div className="d-flex">
+              <div className="d-flex align-items-center">
+                <span className="badge bg-info me-2 text-capitalize">
+                  {userRole || 'Loading...'}
+                </span>
                 <button
                   onClick={() => {
                     collapseNavbar();
@@ -253,10 +274,10 @@ function App() {
           </div>
         } />
         <Route path="/reports" element={
-          token && (userRole === 'admin' || userRole === 'superadmin') ? (
+          token && userRole === 'superadmin' ? (
             <StockManagement userRole={userRole} />
           ) : (
-            <p style={{ color: 'red' }}>Admin access required to view Reports.</p>
+            <p style={{ color: 'red' }}>SuperAdmin access required to view Reports.</p>
           )
         } />
         <Route path="/parts-management" element={
@@ -274,11 +295,18 @@ function App() {
             <p style={{ color: 'red' }}>Please log in to access Stock Management.</p>
           )
         } />
-        <Route path="/sales" element={
+        <Route path="/reservations" element={
           token ? (
+            <Reservations token={token} userRole={userRole} />
+          ) : (
+            <p style={{ color: 'red' }}>Please log in to access Reservations.</p>
+          )
+        } />
+        <Route path="/sales" element={
+          token && userRole === 'superadmin' ? (
             <Sales token={token} userRole={userRole} />
           ) : (
-            <p style={{ color: 'red' }}>Please log in to access Sales.</p>
+            <p style={{ color: 'red' }}>SuperAdmin access required to access Sales.</p>
           )
         } />
         <Route path="/admin" element={
