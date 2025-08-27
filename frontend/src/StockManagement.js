@@ -213,8 +213,8 @@ function StockManagement({ userRole }) {
                   <th>Total Stock</th>
                   <th>Container No.</th>
                   <th>Cost Price (Rs.)</th>
-                  <th>Unit Price (Rs.)</th>
                   <th>Total Cost (Rs.)</th>
+                  <th>Unit Price (Rs.)</th>
                   <th>Total Value (Rs.)</th>
                 ` : reportType === 'Comprehensive Stock Report' ? `
                   <th>Part Number</th>
@@ -289,8 +289,8 @@ function StockManagement({ userRole }) {
                       <td>${item.total_stock || 0}</td>
                       <td>${item.container_no || 'N/A'}</td>
                       <td>Rs. ${parseFloat(item.cost_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>Rs. ${parseFloat(item.recommended_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td>Rs. ${(parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     ` : reportType === 'Comprehensive Stock Report' ? `
                       <td>${item.part_number || 'N/A'}</td>
@@ -835,8 +835,8 @@ function StockManagement({ userRole }) {
                       <th>Total Stock</th>
                       <th>Container No.</th>
                       <th>Cost Price (Rs.)</th>
-                      <th>Unit Price (Rs.)</th>
                       <th>Total Cost (Rs.)</th>
+                      <th>Unit Price (Rs.)</th>
                       <th>Total Value (Rs.)</th>
                     </tr>
                   </thead>
@@ -856,16 +856,16 @@ function StockManagement({ userRole }) {
                             ? `Rs. ${parseFloat(part.cost_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</td>
-                        <td>{
-                          part.recommended_price !== null && part.recommended_price !== undefined
-                            ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
-                            : 'N/A'
-                        }</td>
                         <td><strong>{
                           part.cost_price !== null && part.cost_price !== undefined
                             ? `Rs. ${(parseInt(part.available_stock || 0) * parseFloat(part.cost_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
                             : 'N/A'
                         }</strong></td>
+                        <td>{
+                          part.recommended_price !== null && part.recommended_price !== undefined
+                            ? `Rs. ${parseFloat(part.recommended_price).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
+                            : 'N/A'
+                        }</td>
                         <td><strong>{
                           part.recommended_price !== null && part.recommended_price !== undefined
                             ? `Rs. ${(parseInt(part.available_stock || 0) * parseFloat(part.recommended_price)).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}`
