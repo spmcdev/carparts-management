@@ -315,7 +315,7 @@ function Admin({ token, userRole }) {
                 <th>Username</th>
                 <th>Role</th>
                 <th>Status</th>
-                <th style={{minWidth: '140px'}}>Actions</th>
+                <th style={{minWidth: '180px'}}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -353,7 +353,7 @@ function Admin({ token, userRole }) {
                         </span>
                       )}
                     </td>
-                    <td style={{minWidth: '140px'}}>
+                    <td style={{minWidth: '180px'}}>
                       <div className="d-flex flex-wrap gap-1">
                         {isActive ? (
                           // User is active
@@ -364,9 +364,9 @@ function Admin({ token, userRole }) {
                                 className="btn btn-info btn-sm"
                                 onClick={() => openPasswordModal(user.id, user.username)}
                                 title="Update user password"
-                                style={{minWidth: '32px'}}
+                                style={{minWidth: '80px'}}
                               >
-                                <i className="fas fa-key"></i>
+                                <i className="fas fa-key me-1"></i>Password
                               </button>
                             )}
                             {hasActivities ? (
@@ -398,9 +398,9 @@ function Admin({ token, userRole }) {
                                 className="btn btn-info btn-sm"
                                 onClick={() => openPasswordModal(user.id, user.username)}
                                 title="Update user password"
-                                style={{minWidth: '32px'}}
+                                style={{minWidth: '80px'}}
                               >
-                                <i className="fas fa-key"></i>
+                                <i className="fas fa-key me-1"></i>Password
                               </button>
                             )}
                             <button
