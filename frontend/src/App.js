@@ -91,10 +91,10 @@ function App() {
         localStorage.setItem('token', data.token);
         setUserRole(data.role || '');
         // Redirect based on user role
-        if (data.role === 'general') {
-          navigate('/sales');
-        } else {
+        if (data.role === 'superadmin') {
           navigate('/reports');
+        } else {
+          navigate('/sales');
         }
       } else {
         setAuthMode('login');
@@ -169,7 +169,7 @@ function App() {
           </button>
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-              {token && (userRole === 'admin' || userRole === 'superadmin') && (
+              {token && userRole === 'superadmin' && (
                 <li className="nav-item">
                   <Link className="nav-link" to="/reports" onClick={collapseNavbar}><b>Reports</b></Link>
                 </li>
@@ -253,10 +253,10 @@ function App() {
           </div>
         } />
         <Route path="/reports" element={
-          token && (userRole === 'admin' || userRole === 'superadmin') ? (
+          token && userRole === 'superadmin' ? (
             <StockManagement userRole={userRole} />
           ) : (
-            <p style={{ color: 'red' }}>Admin access required to view Reports.</p>
+            <p style={{ color: 'red' }}>SuperAdmin access required to view Reports.</p>
           )
         } />
         <Route path="/parts-management" element={
