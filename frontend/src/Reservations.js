@@ -264,7 +264,7 @@ function Reservations({ token, userRole }) {
 
   // Complete reservation
   const completeReservation = async (reservationId) => {
-    if (!confirm('Are you sure you want to complete this reservation? This will create a sale.')) {
+    if (!window.confirm('Are you sure you want to complete this reservation? This will create a sale.')) {
       return;
     }
 
@@ -289,7 +289,7 @@ function Reservations({ token, userRole }) {
 
   // Cancel reservation
   const cancelReservation = async (reservationId) => {
-    if (!confirm('Are you sure you want to cancel this reservation?')) {
+    if (!window.confirm('Are you sure you want to cancel this reservation?')) {
       return;
     }
 
