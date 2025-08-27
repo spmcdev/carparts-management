@@ -295,7 +295,7 @@ function Reservations({ token, userRole }) {
 
     try {
       setProcessingReservation(reservationId);
-      const res = await fetch(`${API_ENDPOINTS.RESERVATIONS}/${reservationId}/cancel-enhanced`, {
+      const res = await fetch(`${API_ENDPOINTS.RESERVATIONS}/${reservationId}/cancel`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -545,16 +545,18 @@ function Reservations({ token, userRole }) {
                             </td>
                             <td>{new Date(reservation.created_at).toLocaleDateString()}</td>
                             <td>
-                              {reservation.status === 'active' && userRole === 'superadmin' && (
+                              {reservation.status === 'active' && (
                                 <div className="btn-group btn-group-sm">
-                                  <button 
-                                    className="btn btn-success"
-                                    onClick={() => completeReservation(reservation.id)}
-                                    disabled={processingReservation === reservation.id}
-                                  >
-                                    <i className="fas fa-check me-1"></i>
-                                    Complete
-                                  </button>
+                                  {userRole === 'superadmin' && (
+                                    <button 
+                                      className="btn btn-success"
+                                      onClick={() => completeReservation(reservation.id)}
+                                      disabled={processingReservation === reservation.id}
+                                    >
+                                      <i className="fas fa-check me-1"></i>
+                                      Complete
+                                    </button>
+                                  )}
                                   <button 
                                     className="btn btn-danger"
                                     onClick={() => cancelReservation(reservation.id)}
@@ -566,9 +568,9 @@ function Reservations({ token, userRole }) {
                                 </div>
                               )}
                               {reservation.status === 'active' && userRole !== 'superadmin' && (
-                                <span className="text-muted small">
-                                  <i className="fas fa-lock me-1"></i>
-                                  SuperAdmin Only
+                                <span className="text-muted small d-block mt-1">
+                                  <i className="fas fa-info-circle me-1"></i>
+                                  Complete: SuperAdmin Only
                                 </span>
                               )}
                             </td>

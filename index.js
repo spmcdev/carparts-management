@@ -649,7 +649,9 @@ app.get('/stock-movements', authenticateToken, requireAdmin, async (req, res) =>
 // Get all reservations (enhanced multi-item support)
 app.get('/api/reservations', authenticateToken, async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, page = 1, limit = 20, status } = req.query;
+    const offset = (page - 1) * limit;
+    
     let query = `
       SELECT r.*, 
              json_agg(
@@ -674,15 +676,58 @@ app.get('/api/reservations', authenticateToken, async (req, res) => {
     `;
     
     const params = [];
+    const conditions = [];
+    
     if (search) {
-      query += ` WHERE r.customer_name ILIKE $1 OR r.customer_phone ILIKE $1 OR r.reservation_number ILIKE $1 OR ri.part_name ILIKE $1 OR ri.manufacturer ILIKE $1`;
+      conditions.push(`(r.customer_name ILIKE $${params.length + 1} OR r.customer_phone ILIKE $${params.length + 1} OR r.reservation_number ILIKE $${params.length + 1} OR ri.part_name ILIKE $${params.length + 1} OR ri.manufacturer ILIKE $${params.length + 1})`);
       params.push(`%${search}%`);
+    }
+    
+    if (status) {
+      conditions.push(`r.status = $${params.length + 1}`);
+      params.push(status);
+    }
+    
+    if (conditions.length > 0) {
+      query += ` WHERE ` + conditions.join(' AND ');
     }
     
     query += ` GROUP BY r.id, u1.username, u2.username ORDER BY r.reserved_date DESC`;
     
+    // Add pagination
+    query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+    
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    
+    // Get total count for pagination
+    let countQuery = `
+      SELECT COUNT(DISTINCT r.id) as total
+      FROM reservations r
+      LEFT JOIN reservation_items ri ON r.id = ri.reservation_id
+    `;
+    
+    const countParams = [];
+    if (conditions.length > 0) {
+      countQuery += ` WHERE ` + conditions.join(' AND ');
+      // Add the same search parameters (excluding limit/offset)
+      if (search) countParams.push(`%${search}%`);
+      if (status) countParams.push(status);
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+    
+    res.json({
+      reservations: result.rows,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      }
+    });
   } catch (err) {
     console.error('Error fetching reservations:', err);
     res.status(500).json({ error: err.message });
