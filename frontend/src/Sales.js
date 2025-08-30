@@ -287,7 +287,7 @@ function Sales({ token, userRole }) {
       });
       if (!res.ok) throw new Error('Failed to fetch reservations');
       const data = await res.json();
-      setReservations(data);
+      setReservations(data.reservations || []); // Fix: Extract reservations array from response
     } catch (err) {
       setError(err.message);
     }
