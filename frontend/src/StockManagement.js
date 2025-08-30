@@ -102,10 +102,16 @@ function StockManagement({ userRole }) {
               <div class="stat-box">
                 <h4>Total Inventory Cost</h4>
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                ${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length > 0 ? 
+                  `<p style="color: #ff6b6b; font-size: 12px; margin-top: 5px;">⚠️ ${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length} part${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length > 1 ? 's' : ''} missing cost price</p>` : ''
+                }
               </div>
               <div class="stat-box">
                 <h4>Total Inventory Value</h4>
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.available_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                ${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length > 0 ? 
+                  `<p style="color: #ff6b6b; font-size: 12px; margin-top: 5px;">⚠️ ${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length} part${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length > 1 ? 's' : ''} missing recommended price</p>` : ''
+                }
               </div>
             </div>
           ` : reportType === 'Parent Parts' ? `
@@ -121,10 +127,16 @@ function StockManagement({ userRole }) {
               <div class="stat-box">
                 <h4>Total Parent Inventory Cost</h4>
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                ${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length > 0 ? 
+                  `<p style="color: #ff6b6b; font-size: 12px; margin-top: 5px;">⚠️ ${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length} parent part${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length > 1 ? 's' : ''} missing cost price</p>` : ''
+                }
               </div>
               <div class="stat-box">
                 <h4>Total Parent Inventory Value</h4>
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                ${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length > 0 ? 
+                  `<p style="color: #ff6b6b; font-size: 12px; margin-top: 5px;">⚠️ ${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length} parent part${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length > 1 ? 's' : ''} missing recommended price</p>` : ''
+                }
               </div>
             </div>
           ` : reportType === 'Sold Stock' ? `
@@ -163,10 +175,16 @@ function StockManagement({ userRole }) {
               <div class="stat-box">
                 <h4>Total Inventory Cost</h4>
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                ${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length > 0 ? 
+                  `<p style="color: #ff6b6b; font-size: 12px; margin-top: 5px;">⚠️ ${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length} part${stockData.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length > 1 ? 's' : ''} missing cost price</p>` : ''
+                }
               </div>
               <div class="stat-box">
                 <h4>Total Inventory Value</h4>
                 <p>Rs. ${stockData.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                ${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length > 0 ? 
+                  `<p style="color: #ff6b6b; font-size: 12px; margin-top: 5px;">⚠️ ${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length} part${stockData.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length > 1 ? 's' : ''} missing recommended price</p>` : ''
+                }
               </div>
             </div>
           ` : ''}
@@ -894,8 +912,18 @@ function StockManagement({ userRole }) {
                     <li>Total Available Quantity: <span className="badge bg-success">{availableStock.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</span></li>
                     <li>Total Reserved Quantity: <span className="badge bg-warning">{availableStock.reduce((total, item) => total + parseInt(item.reserved_stock || 0), 0)} units</span></li>
                     <li>Total Stock Quantity: <span className="badge bg-info">{availableStock.reduce((total, item) => total + parseInt(item.total_stock || 0), 0)} units</span></li>
-                    <li>Total Inventory Cost: <strong>Rs. {availableStock.reduce((total, item) => total + ((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Total Inventory Value: <strong>Rs. {availableStock.reduce((total, item) => total + ((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Inventory Cost: <strong>Rs. {availableStock.reduce((total, item) => total + ((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
+                      {(() => {
+                        const itemsMissingCostPrice = availableStock.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length;
+                        return itemsMissingCostPrice > 0 ? <span style={{ color: '#ff6b6b', marginLeft: '10px' }}>⚠️ {itemsMissingCostPrice} part{itemsMissingCostPrice > 1 ? 's' : ''} missing cost price</span> : null;
+                      })()}
+                    </li>
+                    <li>Total Inventory Value: <strong>Rs. {availableStock.reduce((total, item) => total + ((parseInt(item.available_stock || 0) + parseInt(item.reserved_stock || 0)) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
+                      {(() => {
+                        const itemsMissingPrice = availableStock.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length;
+                        return itemsMissingPrice > 0 ? <span style={{ color: '#ff6b6b', marginLeft: '10px' }}>⚠️ {itemsMissingPrice} part{itemsMissingPrice > 1 ? 's' : ''} missing recommended price</span> : null;
+                      })()}
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -1301,7 +1329,12 @@ function StockManagement({ userRole }) {
                     <li>Total Child Available Quantity: <span className="badge bg-success">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childAvailableStock || 0), 0)} units</span></li>
                     <li>Total Child Reserved Quantity: <span className="badge bg-warning">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childReservedStock || 0), 0)} units</span></li>
                     <li>Total Child Sold Quantity: <span className="badge bg-danger">{parentChildRelations.reduce((total, relation) => total + parseInt(relation.childSoldStock || 0), 0)} units</span></li>
-                    <li>Total Value of Child Parts: Rs. {parentChildRelations.reduce((total, relation) => total + (parseInt(relation.childAvailableStock || 0) * parseFloat(relation.childRecommendedPrice || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</li>
+                    <li>Total Value of Child Parts: Rs. {parentChildRelations.reduce((total, relation) => total + (parseInt(relation.childAvailableStock || 0) * parseFloat(relation.childRecommendedPrice || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}
+                      {(() => {
+                        const childrenMissingPrice = parentChildRelations.filter(relation => !relation.childRecommendedPrice || parseFloat(relation.childRecommendedPrice) === 0).length;
+                        return childrenMissingPrice > 0 ? <span style={{ color: '#ff6b6b', marginLeft: '10px' }}>⚠️ {childrenMissingPrice} child part{childrenMissingPrice > 1 ? 's' : ''} missing recommended price</span> : null;
+                      })()}
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -1458,8 +1491,18 @@ function StockManagement({ userRole }) {
                     <li>Children Available Quantity: <span className="badge bg-success">{parentParts.reduce((total, parent) => total + parent.total_children_available, 0)} units</span></li>
                     <li>Children Reserved Quantity: <span className="badge bg-warning">{parentParts.reduce((total, parent) => total + parent.total_children_reserved, 0)} units</span></li>
                     <li>Children Sold Quantity: <span className="badge bg-danger">{parentParts.reduce((total, parent) => total + parent.total_children_sold, 0)} units</span></li>
-                    <li>Total Parent Inventory Cost: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Total Parent Inventory Value: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Parent Inventory Cost: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
+                      {(() => {
+                        const parentsMissingCostPrice = parentParts.filter(parent => !parent.cost_price || parseFloat(parent.cost_price) === 0).length;
+                        return parentsMissingCostPrice > 0 ? <span style={{ color: '#ff6b6b', marginLeft: '10px' }}>⚠️ {parentsMissingCostPrice} parent part{parentsMissingCostPrice > 1 ? 's' : ''} missing cost price</span> : null;
+                      })()}
+                    </li>
+                    <li>Total Parent Inventory Value: <strong>Rs. {parentParts.reduce((total, parent) => total + (parseInt(parent.total_stock || 0) * parseFloat(parent.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
+                      {(() => {
+                        const parentsMissingPrice = parentParts.filter(parent => !parent.recommended_price || parseFloat(parent.recommended_price) === 0).length;
+                        return parentsMissingPrice > 0 ? <span style={{ color: '#ff6b6b', marginLeft: '10px' }}>⚠️ {parentsMissingPrice} parent part{parentsMissingPrice > 1 ? 's' : ''} missing recommended price</span> : null;
+                      })()}
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -1613,8 +1656,18 @@ function StockManagement({ userRole }) {
                     <li>Available Stock Quantity: <span className="badge bg-success">{comprehensiveStock.reduce((total, item) => total + parseInt(item.available_stock || 0), 0)} units</span></li>
                     <li>Reserved Stock Quantity: <span className="badge bg-warning text-dark">{comprehensiveStock.reduce((total, item) => total + parseInt(item.reserved_stock || 0), 0)} units</span></li>
                     <li>Sold Stock Quantity: <span className="badge bg-danger">{comprehensiveStock.reduce((total, item) => total + parseInt(item.sold_stock || 0), 0)} units</span></li>
-                    <li>Total Inventory Cost: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
-                    <li>Total Inventory Value: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong></li>
+                    <li>Total Inventory Cost: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.cost_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
+                      {(() => {
+                        const itemsMissingCostPrice = comprehensiveStock.filter(item => !item.cost_price || parseFloat(item.cost_price) === 0).length;
+                        return itemsMissingCostPrice > 0 ? <span style={{ color: '#ff6b6b', marginLeft: '10px' }}>⚠️ {itemsMissingCostPrice} part{itemsMissingCostPrice > 1 ? 's' : ''} missing cost price</span> : null;
+                      })()}
+                    </li>
+                    <li>Total Inventory Value: <strong>Rs. {comprehensiveStock.reduce((total, item) => total + (parseInt(item.total_stock || 0) * parseFloat(item.recommended_price || 0)), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })}</strong>
+                      {(() => {
+                        const itemsMissingPrice = comprehensiveStock.filter(item => !item.recommended_price || parseFloat(item.recommended_price) === 0).length;
+                        return itemsMissingPrice > 0 ? <span style={{ color: '#ff6b6b', marginLeft: '10px' }}>⚠️ {itemsMissingPrice} part{itemsMissingPrice > 1 ? 's' : ''} missing recommended price</span> : null;
+                      })()}
+                    </li>
                     <li>Local Purchase Items: <span className="badge bg-warning text-dark">{comprehensiveStock.filter(item => item.local_purchase).length}</span></li>
                     <li>Container Purchase Items: <span className="badge bg-info">{comprehensiveStock.filter(item => !item.local_purchase).length}</span></li>
                   </ul>
