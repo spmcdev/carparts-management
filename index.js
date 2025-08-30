@@ -3254,7 +3254,7 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
     const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].total);
 
-    // Calculate summary statistics with net revenue
+    // Calculate summary statistics with net revenue and total cost
     const summaryQuery = `
       SELECT 
         COUNT(DISTINCT p.id) as unique_parts_sold,
@@ -3262,6 +3262,7 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         SUM(bi.total_price) as gross_revenue,
         COALESCE(SUM(bri.total_price), 0) as total_refunded,
         (SUM(bi.total_price) - COALESCE(SUM(bri.total_price), 0)) as total_revenue,
+        SUM(CASE WHEN p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as total_cost,
         AVG(bi.unit_price) as overall_average_selling_price,
         COUNT(DISTINCT b.id) as total_transactions,
         MIN(DATE(b.created_at)) as earliest_sale,
@@ -3272,7 +3273,9 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         (SUM(CASE WHEN p.local_purchase = true THEN bi.total_price ELSE 0 END) - 
          COALESCE(SUM(CASE WHEN p.local_purchase = true THEN bri.total_price ELSE 0 END), 0)) as local_purchase_revenue,
         (SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) - 
-         COALESCE(SUM(CASE WHEN p.local_purchase = false THEN bri.total_price ELSE 0 END), 0)) as container_revenue
+         COALESCE(SUM(CASE WHEN p.local_purchase = false THEN bri.total_price ELSE 0 END), 0)) as container_revenue,
+        SUM(CASE WHEN p.local_purchase = true AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as local_purchase_cost,
+        SUM(CASE WHEN p.local_purchase = false AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as container_cost
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
@@ -3327,7 +3330,9 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
       summary: {
         unique_parts_sold: parseInt(summary.unique_parts_sold),
         total_quantity_sold: parseInt(summary.total_quantity_sold),
-        total_revenue: parseFloat(summary.total_revenue || 0),
+        total_revenue: parseFloat(summary.total_revenue || 0), // Net revenue (gross - refunds)
+        total_cost: parseFloat(summary.total_cost || 0), // Total cost based on cost_price * quantity
+        total_profit: parseFloat(summary.total_revenue || 0) - parseFloat(summary.total_cost || 0), // Net profit (net revenue - total cost)
         overall_average_selling_price: summary.overall_average_selling_price ? parseFloat(summary.overall_average_selling_price) : 0,
         total_transactions: parseInt(summary.total_transactions),
         earliest_sale: summary.earliest_sale,
@@ -3337,7 +3342,8 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         unique_containers: parseInt(summary.unique_containers),
         local_purchase_revenue: parseFloat(summary.local_purchase_revenue || 0),
         container_revenue: parseFloat(summary.container_revenue || 0),
-        total_profit: soldStockData.reduce((sum, part) => sum + (part.sales_summary.total_profit || 0), 0)
+        local_purchase_cost: parseFloat(summary.local_purchase_cost || 0),
+        container_cost: parseFloat(summary.container_cost || 0)
       },
       filters_applied: {
         container_no: container_no || null,
