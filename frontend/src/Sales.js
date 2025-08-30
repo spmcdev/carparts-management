@@ -1748,7 +1748,7 @@ function Sales({ token, userRole }) {
               <input
                 type="text"
                 className="form-control"
-                placeholder="Search bills by number, customer name, phone, or part name"
+                placeholder="Search bills by number, customer name, phone, part name, part number, or manufacturer"
                 value={billsSearchInput}
                 onChange={e => handleBillsSearchInput(e.target.value)}
               />

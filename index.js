@@ -2401,8 +2401,9 @@ app.get('/bills', authenticateToken, requireSuperAdmin, async (req, res) => {
         b.customer_phone ILIKE $${paramIndex} OR
         EXISTS (
           SELECT 1 FROM bill_items bi2 
+          LEFT JOIN parts p2 ON bi2.part_id = p2.id
           WHERE bi2.bill_id = b.id 
-          AND (bi2.part_name ILIKE $${paramIndex} OR bi2.manufacturer ILIKE $${paramIndex})
+          AND (bi2.part_name ILIKE $${paramIndex} OR bi2.manufacturer ILIKE $${paramIndex} OR p2.part_number ILIKE $${paramIndex})
         )
       )`;
       queryParams.push(`%${search}%`);
