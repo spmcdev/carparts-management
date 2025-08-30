@@ -287,7 +287,7 @@ function Sales({ token, userRole }) {
       });
       if (!res.ok) throw new Error('Failed to fetch reservations');
       const data = await res.json();
-      setReservations(data);
+      setReservations(data.reservations || []); // Fix: Extract reservations array from response
     } catch (err) {
       setError(err.message);
     }
@@ -1748,7 +1748,7 @@ function Sales({ token, userRole }) {
               <input
                 type="text"
                 className="form-control"
-                placeholder="Search bills by number, customer name, phone, or part name"
+                placeholder="Search bills by number, customer name, phone, part name, part number, or manufacturer"
                 value={billsSearchInput}
                 onChange={e => handleBillsSearchInput(e.target.value)}
               />
