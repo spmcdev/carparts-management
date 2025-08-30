@@ -466,7 +466,13 @@ function StockManagement({ userRole }) {
       
       setShowSoldStock(true);
       if (!isAutoRefresh && reportData.summary) {
-        setSuccess(`Found ${reportData.summary.unique_parts_sold || 0} unique parts sold. Total net revenue: Rs ${(reportData.summary.total_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`);
+        let successMessage = `Found ${reportData.summary.unique_parts_sold || 0} unique parts sold. Total net revenue: Rs ${(reportData.summary.total_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
+        
+        if (reportData.summary.data_completeness && reportData.summary.data_completeness.parts_missing_cost_price > 0) {
+          successMessage += ` (Note: ${reportData.summary.data_completeness.parts_missing_cost_price} parts missing cost price data)`;
+        }
+        
+        setSuccess(successMessage);
       }
       
     } catch (err) {
@@ -1109,11 +1115,31 @@ function StockManagement({ userRole }) {
                         <li><strong>Revenue of Items Displayed on this page:</strong>Rs {soldStock.reduce((total, item) => total + parseFloat(item.total_revenue || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                         {soldStockData && soldStockData.summary && (
                           <>
-                            <li><strong>Total Cost of the search:</strong> Rs {(soldStockData.summary.total_cost || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Cost of the search:</strong> Rs {(soldStockData.summary.total_cost || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                              {soldStockData.summary.data_completeness && soldStockData.summary.data_completeness.parts_missing_cost_price > 0 && (
+                                <span className="text-warning ms-2">
+                                  <i className="fas fa-exclamation-triangle"></i> 
+                                  ({soldStockData.summary.data_completeness.parts_missing_cost_price} parts missing cost price)
+                                </span>
+                              )}
+                            </li>
                             <li><strong>Total Local Purchase Revenue of the search:</strong> Rs {(soldStockData.summary.local_purchase_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                             <li><strong>Total Container Purchase Revenue of the search:</strong> Rs {(soldStockData.summary.container_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
                             <li><strong>Total Net Revenue of the search:</strong> Rs {(soldStockData.summary.total_revenue || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
-                            <li><strong>Total Net Profit of the search:</strong> Rs {(soldStockData.summary.total_profit || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</li>
+                            <li><strong>Total Net Profit of the search:</strong> Rs {(soldStockData.summary.total_profit || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                              {soldStockData.summary.data_completeness && soldStockData.summary.data_completeness.parts_missing_cost_price > 0 && (
+                                <span className="text-warning ms-2">
+                                  <i className="fas fa-exclamation-triangle"></i> 
+                                  (Profit calculation excludes {soldStockData.summary.data_completeness.parts_missing_cost_price} parts with missing cost price)
+                                </span>
+                              )}
+                            </li>
+                            {soldStockData.summary.data_completeness && soldStockData.summary.data_completeness.cost_data_coverage_percentage < 100 && (
+                              <li className="text-info">
+                                <i className="fas fa-info-circle"></i> 
+                                <strong>Data Completeness:</strong> Cost price available for {soldStockData.summary.data_completeness.cost_data_coverage_percentage}% of parts
+                              </li>
+                            )}
                           </>
                         )}
                       </ul>
