@@ -3254,7 +3254,7 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
     const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].total);
 
-    // Calculate summary statistics with net revenue and total cost
+    // Calculate summary statistics with net revenue, total cost, and missing data indicators
     const summaryQuery = `
       SELECT 
         COUNT(DISTINCT p.id) as unique_parts_sold,
@@ -3263,6 +3263,9 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         COALESCE(SUM(bri.total_price), 0) as total_refunded,
         (SUM(bi.total_price) - COALESCE(SUM(bri.total_price), 0)) as total_revenue,
         SUM(CASE WHEN p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as total_cost,
+        COUNT(CASE WHEN p.cost_price IS NULL THEN bi.id END) as items_missing_cost_price,
+        COUNT(DISTINCT CASE WHEN p.cost_price IS NULL THEN p.id END) as parts_missing_cost_price,
+        SUM(CASE WHEN p.cost_price IS NULL THEN bi.quantity ELSE 0 END) as quantity_missing_cost_price,
         AVG(bi.unit_price) as overall_average_selling_price,
         COUNT(DISTINCT b.id) as total_transactions,
         MIN(DATE(b.created_at)) as earliest_sale,
@@ -3275,7 +3278,9 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         (SUM(CASE WHEN p.local_purchase = false THEN bi.total_price ELSE 0 END) - 
          COALESCE(SUM(CASE WHEN p.local_purchase = false THEN bri.total_price ELSE 0 END), 0)) as container_revenue,
         SUM(CASE WHEN p.local_purchase = true AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as local_purchase_cost,
-        SUM(CASE WHEN p.local_purchase = false AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as container_cost
+        SUM(CASE WHEN p.local_purchase = false AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as container_cost,
+        COUNT(CASE WHEN p.local_purchase = true AND p.cost_price IS NULL THEN bi.id END) as local_purchase_items_missing_cost,
+        COUNT(CASE WHEN p.local_purchase = false AND p.cost_price IS NULL THEN bi.id END) as container_items_missing_cost
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
@@ -3343,7 +3348,17 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
         local_purchase_revenue: parseFloat(summary.local_purchase_revenue || 0),
         container_revenue: parseFloat(summary.container_revenue || 0),
         local_purchase_cost: parseFloat(summary.local_purchase_cost || 0),
-        container_cost: parseFloat(summary.container_cost || 0)
+        container_cost: parseFloat(summary.container_cost || 0),
+        // Missing data indicators
+        data_completeness: {
+          items_missing_cost_price: parseInt(summary.items_missing_cost_price || 0),
+          parts_missing_cost_price: parseInt(summary.parts_missing_cost_price || 0),
+          quantity_missing_cost_price: parseInt(summary.quantity_missing_cost_price || 0),
+          local_purchase_items_missing_cost: parseInt(summary.local_purchase_items_missing_cost || 0),
+          container_items_missing_cost: parseInt(summary.container_items_missing_cost || 0),
+          cost_data_coverage_percentage: summary.unique_parts_sold > 0 ? 
+            Math.round(((parseInt(summary.unique_parts_sold) - parseInt(summary.parts_missing_cost_price || 0)) / parseInt(summary.unique_parts_sold)) * 100) : 100
+        }
       },
       filters_applied: {
         container_no: container_no || null,
@@ -3415,7 +3430,7 @@ app.get('/sold-stock-summary', authenticateToken, requireSuperAdmin, async (req,
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-    // Comprehensive summary query with net revenue
+    // Comprehensive summary query with net revenue and missing data indicators
     const summaryQuery = `
       SELECT 
         COUNT(DISTINCT p.id) as unique_parts_sold,
@@ -3439,7 +3454,12 @@ app.get('/sold-stock-summary', authenticateToken, requireSuperAdmin, async (req,
         SUM(CASE WHEN p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as total_cost,
         SUM(CASE WHEN p.local_purchase = true AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as local_purchase_cost,
         SUM(CASE WHEN p.local_purchase = false AND p.cost_price IS NOT NULL THEN p.cost_price * bi.quantity ELSE 0 END) as container_cost,
-        SUM(CASE WHEN p.cost_price IS NOT NULL THEN (bi.unit_price - p.cost_price) * bi.quantity ELSE 0 END) as estimated_profit
+        SUM(CASE WHEN p.cost_price IS NOT NULL THEN (bi.unit_price - p.cost_price) * bi.quantity ELSE 0 END) as estimated_profit,
+        COUNT(CASE WHEN p.cost_price IS NULL THEN bi.id END) as items_missing_cost_price,
+        COUNT(DISTINCT CASE WHEN p.cost_price IS NULL THEN p.id END) as parts_missing_cost_price,
+        SUM(CASE WHEN p.cost_price IS NULL THEN bi.quantity ELSE 0 END) as quantity_missing_cost_price,
+        COUNT(CASE WHEN p.local_purchase = true AND p.cost_price IS NULL THEN bi.id END) as local_purchase_items_missing_cost,
+        COUNT(CASE WHEN p.local_purchase = false AND p.cost_price IS NULL THEN bi.id END) as container_items_missing_cost
       FROM bill_items bi
       JOIN bills b ON bi.bill_id = b.id
       JOIN parts p ON bi.part_id = p.id
