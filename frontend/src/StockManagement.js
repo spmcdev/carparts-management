@@ -212,7 +212,7 @@ function StockManagement({ userRole }) {
                   <th>Parent Name</th>
                   <th>Manufacturer</th>
                   <th>Part Number</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   <th>Purchase Type</th>
                   <th>Children Count</th>
                   <th>Parent Stock</th>
@@ -233,7 +233,7 @@ function StockManagement({ userRole }) {
                   <th>Available Qty</th>
                   <th>Reserved Qty</th>
                   <th>Total Stock</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   <th>Cost Price (Rs.)</th>
                   <th>Total Cost (Rs.)</th>
                   <th>Unit Price (Rs.)</th>
@@ -244,7 +244,7 @@ function StockManagement({ userRole }) {
                   <th>Reserved Qty</th>
                   <th>Sold Qty</th>
                   <th>Total Stock</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   <th>Purchase Type</th>
                   <th>Cost Price (Rs.)</th>
                   <th>Total Cost (Rs.)</th>
@@ -259,7 +259,7 @@ function StockManagement({ userRole }) {
                   <th>Total Cost (Rs.)</th>
                   <th>Total Revenue (Rs.)</th>
                   <th>Source</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   ${includeProfit ? '<th>Profit Margin</th>' : ''}
                 `}
                 `}
@@ -372,13 +372,12 @@ function StockManagement({ userRole }) {
       // Filter parts that have available stock > 0
       let available = data.filter(part => parseInt(part.available_stock || 0) > 0);
       
-      // Extract and update available containers from current available stock data
+      // Extract and update available containers/batches from current available stock data
       const availableContainerNumbers = [...new Set(
         available
           .filter(part => 
             part.container_no && 
-            part.container_no.trim() !== '' &&
-            part.local_purchase === false
+            part.container_no.trim() !== ''
           )
           .map(part => part.container_no)
       )].sort();
@@ -394,7 +393,7 @@ function StockManagement({ userRole }) {
         });
       }
       
-      // Apply Container Number filter
+      // Apply Container/Batch filter
       if (availableContainerNo) {
         available = available.filter(part => part.container_no === availableContainerNo);
       }
@@ -513,7 +512,7 @@ function StockManagement({ userRole }) {
       });
       if (res.ok) {
         const parts = await res.json();
-        // Get all unique container numbers from all parts
+        // Get all unique container/batch numbers from all parts
         const containers = [...new Set(parts
           .map(part => part.container_no)
           .filter(container => container && container.trim() !== '')
@@ -818,23 +817,21 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {availableLocalPurchaseFilter === 'false' && (
-                <div className="col-md-6">
-                  <label className="form-label">Container Number:</label>
-                  <select
-                    className="form-control"
-                    value={availableContainerNo}
-                    onChange={(e) => setAvailableContainerNo(e.target.value)}
-                  >
-                    <option value="">All Containers</option>
-                    {availableContainers.map(container => (
-                      <option key={container} value={container}>{container}</option>
-                    ))}
-                  </select>
-                  <small className="text-muted">Filter by container</small>
-                </div>
-              )}
+              {/* Container/Batch filter for both Container and Local Purchases */}
+              <div className="col-md-6">
+                <label className="form-label">Container/Batch:</label>
+                <select
+                  className="form-control"
+                  value={availableContainerNo}
+                  onChange={(e) => setAvailableContainerNo(e.target.value)}
+                >
+                  <option value="">All Containers/Batches</option>
+                  {availableContainers.map(container => (
+                    <option key={container} value={container}>{container}</option>
+                  ))}
+                </select>
+                <small className="text-muted">Filter by container number or local purchase batch</small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3">
@@ -863,7 +860,7 @@ function StockManagement({ userRole }) {
                       <th>Available Qty</th>
                       <th>Reserved Qty</th>
                       <th>Total Stock</th>
-                      <th>Container No.</th>
+                      <th>Container/Batch</th>
                       <th>Cost Price (Rs.)</th>
                       <th>Total Cost (Rs.)</th>
                       <th>Unit Price (Rs.)</th>
@@ -986,23 +983,21 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {localPurchaseFilter === 'false' && (
-                <div className="col-md-3">
-                  <label className="form-label">Container Number:</label>
-                  <select
-                    className="form-control"
-                    value={containerNo}
-                    onChange={(e) => setContainerNo(e.target.value)}
-                  >
-                    <option value="">All Containers</option>
-                    {availableContainers.map(container => (
-                      <option key={container} value={container}>{container}</option>
-                    ))}
-                  </select>
-                  <small className="text-muted">Filter by container</small>
-                </div>
-              )}
+              {/* Container/Batch filter for both Container and Local Purchases */}
+              <div className="col-md-3">
+                <label className="form-label">Container/Batch:</label>
+                <select
+                  className="form-control"
+                  value={containerNo}
+                  onChange={(e) => setContainerNo(e.target.value)}
+                >
+                  <option value="">All Containers/Batches</option>
+                  {availableContainers.map(container => (
+                    <option key={container} value={container}>{container}</option>
+                  ))}
+                </select>
+                <small className="text-muted">Filter by container number or local purchase batch</small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3 align-items-center">
@@ -1377,20 +1372,18 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {parentLocalPurchaseFilter === 'false' && (
-                <div className="col-md-6">
-                  <label className="form-label">Container Number:</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Enter container number"
-                    value={parentContainerNo}
-                    onChange={(e) => setParentContainerNo(e.target.value)}
-                  />
-                  <small className="text-muted">Optional filter</small>
-                </div>
-              )}
+              {/* Container/Batch filter for both Container and Local Purchases */}
+              <div className="col-md-6">
+                <label className="form-label">Container/Batch:</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter container number or batch name"
+                  value={parentContainerNo}
+                  onChange={(e) => setParentContainerNo(e.target.value)}
+                />
+                <small className="text-muted">Optional filter for container number or local purchase batch</small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3">
@@ -1420,7 +1413,7 @@ function StockManagement({ userRole }) {
                       <th>Parent Name</th>
                       <th>Manufacturer</th>
                       <th>Part Number</th>
-                      <th>Container No.</th>
+                      <th>Container/Batch</th>
                       <th>Purchase Type</th>
                       <th>Children Count</th>
                       <th>Parent Stock</th>
@@ -1545,20 +1538,18 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {comprehensiveLocalPurchaseFilter === 'false' && (
-                <div className="col-md-6">
-                  <label className="form-label">Container Number:</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Enter container number"
-                    value={comprehensiveContainerNo}
-                    onChange={(e) => setComprehensiveContainerNo(e.target.value)}
-                  />
-                  <small className="text-muted">Optional filter</small>
-                </div>
-              )}
+              {/* Container/Batch filter for both Container and Local Purchases */}
+              <div className="col-md-6">
+                <label className="form-label">Container/Batch:</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter container number or batch name"
+                  value={comprehensiveContainerNo}
+                  onChange={(e) => setComprehensiveContainerNo(e.target.value)}
+                />
+                <small className="text-muted">Optional filter for container number or local purchase batch</small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3">

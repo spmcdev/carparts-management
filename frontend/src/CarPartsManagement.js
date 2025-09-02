@@ -44,7 +44,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
       true
     );
 
-    // Container filter
+    // Container/Batch filter
     const matchesContainer = !containerFilter || part.container_no === containerFilter;
 
     return matchesSearch && matchesAvailability && matchesPurchaseType && matchesContainer;
@@ -277,7 +277,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
           <input 
             type="text" 
             className="form-control" 
-            placeholder="Container" 
+            placeholder="Container/Batch" 
             value={containerNo} 
             onChange={e => setContainerNo(e.target.value)} 
           />
@@ -319,34 +319,26 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
           <select
             className="form-select"
             value={purchaseTypeFilter}
-            onChange={e => {
-              setPurchaseTypeFilter(e.target.value);
-              // Reset container filter when purchase type changes
-              if (e.target.value !== 'false') {
-                setContainerFilter('');
-              }
-            }}
+            onChange={e => setPurchaseTypeFilter(e.target.value)}
           >
             <option value="">All Purchase Types</option>
             <option value="true">Local Purchase</option>
             <option value="false">Container Purchase</option>
           </select>
         </div>
-        {/* Conditionally show Container dropdown only for Container Purchase */}
-        {purchaseTypeFilter === 'false' && (
-          <div className="col-12 col-md-3">
-            <select
-              className="form-select"
-              value={containerFilter}
-              onChange={e => setContainerFilter(e.target.value)}
-            >
-              <option value="">All Containers</option>
-              {availableContainers.map(container => (
-                <option key={container} value={container}>{container}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* Container/Batch filter for both purchase types */}
+        <div className="col-12 col-md-3">
+          <select
+            className="form-select"
+            value={containerFilter}
+            onChange={e => setContainerFilter(e.target.value)}
+          >
+            <option value="">All Containers/Batches</option>
+            {availableContainers.map(container => (
+              <option key={container} value={container}>{container}</option>
+            ))}
+          </select>
+        </div>
         {/* Show available stock checkbox in remaining space */}
         <div className={`col-12 ${purchaseTypeFilter === 'false' ? 'col-md-12 mt-2' : 'col-md-3'}`}>
           <div className="form-check d-flex align-items-center">
@@ -385,7 +377,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
               <th>Available From</th>
               <th>Parent ID</th>
               <th>Recommended Price</th>
-              <th>Container</th>
+              <th>Container/Batch</th>
               <th>Local Purchase</th>
               {userRole === 'superadmin' && <th>Cost Price</th>}
               {(userRole === 'admin' || userRole === 'superadmin') && <th>Stock Actions</th>}
@@ -515,7 +507,7 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
           {purchaseTypeFilter === 'true' && 'from local purchases'}
           {purchaseTypeFilter === 'false' && 'from container purchases'}
           {(purchaseTypeFilter && containerFilter) && ' and '}
-          {containerFilter && `in container "${containerFilter}"`}
+          {containerFilter && `in container/batch "${containerFilter}"`}
         </div>
       )}
     </div>
