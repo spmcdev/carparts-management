@@ -622,53 +622,135 @@ function StockManagement({ userRole }) {
 
   // Update available containers when purchase type filter changes
   useEffect(() => {
-    if (availableStock.length > 0) {
-      const filteredContainers = getFilteredContainers(availableStock, availableLocalPurchaseFilter);
-      setAvailableContainers(filteredContainers);
-      // Reset container filter if it's no longer valid
-      if (availableContainerNo && !filteredContainers.includes(availableContainerNo)) {
-        setAvailableContainerNo('');
+    // Re-fetch parts data to ensure fresh container list
+    const updateAvailableContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const availableParts = data.filter(part => parseInt(part.available_stock || 0) > 0);
+          const filteredContainers = getFilteredContainers(availableParts, availableLocalPurchaseFilter);
+          setAvailableContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (availableContainerNo && !filteredContainers.includes(availableContainerNo)) {
+            setAvailableContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating available containers:', err);
       }
-    }
-  }, [availableLocalPurchaseFilter, availableStock]);
+    };
+    
+    updateAvailableContainers();
+  }, [availableLocalPurchaseFilter, token]);
 
   // Update parent containers when purchase type filter changes
   useEffect(() => {
-    if (parentParts.length > 0) {
-      // Get all parts to extract containers from
-      const allParentParts = parentParts;
-      const filteredContainers = getFilteredContainers(allParentParts, parentLocalPurchaseFilter);
-      setParentContainers(filteredContainers);
-      // Reset container filter if it's no longer valid
-      if (parentContainerNo && !filteredContainers.includes(parentContainerNo)) {
-        setParentContainerNo('');
+    // Re-fetch parts data to get proper parent-child relationships for container filtering
+    const updateParentContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          
+          // Use same logic as handleGetParentParts for consistency
+          const parentIdsSet = new Set();
+          data.forEach(part => {
+            if (part.parent_id) {
+              parentIdsSet.add(part.parent_id);
+            }
+          });
+          const parentAndChildParts = data.filter(part => 
+            parentIdsSet.has(part.id) || part.parent_id
+          );
+          const filteredContainers = getFilteredContainers(parentAndChildParts, parentLocalPurchaseFilter);
+          setParentContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (parentContainerNo && !filteredContainers.includes(parentContainerNo)) {
+            setParentContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating parent containers:', err);
       }
-    }
-  }, [parentLocalPurchaseFilter, parentParts]);
+    };
+    
+    updateParentContainers();
+  }, [parentLocalPurchaseFilter, token]);
 
   // Update comprehensive containers when purchase type filter changes
   useEffect(() => {
-    if (comprehensiveStock.length > 0) {
-      const filteredContainers = getFilteredContainers(comprehensiveStock, comprehensiveLocalPurchaseFilter);
-      setComprehensiveContainers(filteredContainers);
-      // Reset container filter if it's no longer valid
-      if (comprehensiveContainerNo && !filteredContainers.includes(comprehensiveContainerNo)) {
-        setComprehensiveContainerNo('');
+    // Re-fetch parts data to ensure fresh container list
+    const updateComprehensiveContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const filteredContainers = getFilteredContainers(data, comprehensiveLocalPurchaseFilter);
+          setComprehensiveContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (comprehensiveContainerNo && !filteredContainers.includes(comprehensiveContainerNo)) {
+            setComprehensiveContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating comprehensive containers:', err);
       }
-    }
-  }, [comprehensiveLocalPurchaseFilter, comprehensiveStock]);
+    };
+    
+    updateComprehensiveContainers();
+  }, [comprehensiveLocalPurchaseFilter, token]);
 
   // Update sold containers when purchase type filter changes
   useEffect(() => {
-    if (soldStock.length > 0) {
-      const filteredContainers = getFilteredContainers(soldStock, localPurchaseFilter);
-      setSoldContainers(filteredContainers);
-      // Reset container filter if it's no longer valid
-      if (containerNo && !filteredContainers.includes(containerNo)) {
-        setContainerNo('');
+    // Re-fetch parts data to ensure fresh container list
+    const updateSoldContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const filteredContainers = getFilteredContainers(data, localPurchaseFilter);
+          setSoldContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (containerNo && !filteredContainers.includes(containerNo)) {
+            setContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating sold containers:', err);
       }
-    }
-  }, [localPurchaseFilter, soldStock]);
+    };
+    
+    updateSoldContainers();
+  }, [localPurchaseFilter, token]);
 
   // Auto-refresh parent parts when filters change
   useEffect(() => {
