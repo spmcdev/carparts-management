@@ -24,6 +24,7 @@ function StockManagement({ userRole }) {
   const [soldStockSummary, setSoldStockSummary] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
+  const [soldContainers, setSoldContainers] = useState([]);
   
   // New state for available stock filters
   const [availableContainerNo, setAvailableContainerNo] = useState('');
@@ -481,7 +482,7 @@ function StockManagement({ userRole }) {
       }
       
       // Update legacy soldStock for compatibility with existing print function
-      setSoldStock(reportData.sold_parts.map(item => ({
+      const soldStockArray = reportData.sold_parts.map(item => ({
         id: item.part_id,
         name: item.part_name,
         manufacturer: item.manufacturer,
@@ -497,7 +498,13 @@ function StockManagement({ userRole }) {
         container_no: item.container_no,
         local_purchase: item.local_purchase,
         profit_margin: item.sales_summary ? item.sales_summary.average_profit_margin_percent : null
-      })));
+      }));
+      
+      setSoldStock(soldStockArray);
+      
+      // Initialize sold containers based on current filter
+      const soldContainerNumbers = getFilteredContainers(soldStockArray, localPurchaseFilter);
+      setSoldContainers(soldContainerNumbers);
       
       setShowSoldStock(true);
       if (!isAutoRefresh && reportData.summary) {
@@ -629,6 +636,18 @@ function StockManagement({ userRole }) {
     }
   }, [comprehensiveLocalPurchaseFilter, comprehensiveStock]);
 
+  // Update sold containers when purchase type filter changes
+  useEffect(() => {
+    if (soldStock.length > 0) {
+      const filteredContainers = getFilteredContainers(soldStock, localPurchaseFilter);
+      setSoldContainers(filteredContainers);
+      // Reset container filter if it's no longer valid
+      if (containerNo && !filteredContainers.includes(containerNo)) {
+        setContainerNo('');
+      }
+    }
+  }, [localPurchaseFilter, soldStock]);
+
   // Auto-refresh parent parts when filters change
   useEffect(() => {
     // Only auto-refresh if we already have parent parts data and filters are applied
@@ -640,6 +659,18 @@ function StockManagement({ userRole }) {
       return () => clearTimeout(refreshTimer);
     }
   }, [parentLocalPurchaseFilter, parentContainerNo]);
+
+  // Auto-refresh sold stock when filters change
+  useEffect(() => {
+    // Only auto-refresh if we already have sold stock data and filters are applied
+    if (soldStock.length > 0 && (localPurchaseFilter !== '' || containerNo)) {
+      const refreshTimer = setTimeout(() => {
+        handleGetSoldStock(true); // Pass true to indicate auto-refresh
+      }, 500); // Debounce to avoid too many requests
+
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [localPurchaseFilter, containerNo]);
 
   // Auto-refresh comprehensive stock when filters change
   useEffect(() => {
@@ -1031,13 +1062,7 @@ function StockManagement({ userRole }) {
                 <select
                   className="form-control"
                   value={localPurchaseFilter}
-                  onChange={(e) => {
-                    setLocalPurchaseFilter(e.target.value);
-                    // Reset container filter when purchase type changes
-                    if (e.target.value !== 'false') {
-                      setContainerNo('');
-                    }
-                  }}
+                  onChange={(e) => setLocalPurchaseFilter(e.target.value)}
                 >
                   <option value="">All Types</option>
                   <option value="true">Local Purchase</option>
@@ -1054,7 +1079,7 @@ function StockManagement({ userRole }) {
                   onChange={(e) => setContainerNo(e.target.value)}
                 >
                   <option value="">All Containers/Batches</option>
-                  {availableContainers.map(container => (
+                  {soldContainers.map(container => (
                     <option key={container} value={container}>{container}</option>
                   ))}
                 </select>
