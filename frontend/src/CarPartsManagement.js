@@ -55,16 +55,42 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
     // eslint-disable-next-line
   }, []);
 
-  // Load available containers when parts change
+  // Helper function to get filtered containers based on purchase type
+  const getFilteredContainers = (parts, purchaseTypeFilter) => {
+    let filteredParts = parts;
+    
+    // Filter by purchase type if specified
+    if (purchaseTypeFilter !== '') {
+      const isLocalPurchase = purchaseTypeFilter === 'true';
+      filteredParts = parts.filter(part => {
+        const partIsLocal = part.local_purchase === true || part.local_purchase === 'true';
+        return partIsLocal === isLocalPurchase;
+      });
+    }
+    
+    // Extract unique container/batch numbers
+    return [...new Set(
+      filteredParts
+        .filter(part => 
+          part.container_no && 
+          part.container_no.trim() !== ''
+        )
+        .map(part => part.container_no)
+    )].sort();
+  };
+
+  // Load available containers when parts change or purchase type filter changes
   useEffect(() => {
     if (parts.length > 0) {
-      const containers = [...new Set(parts
-        .map(part => part.container_no)
-        .filter(container => container && container.trim() !== '')
-      )].sort();
+      const containers = getFilteredContainers(parts, purchaseTypeFilter);
       setAvailableContainers(containers);
+      
+      // Reset container filter if it's no longer valid
+      if (containerFilter && !containers.includes(containerFilter)) {
+        setContainerFilter('');
+      }
     }
-  }, [parts]);
+  }, [parts, purchaseTypeFilter]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -338,6 +364,11 @@ function CarPartsManagement({ token, parts, fetchParts, loading, error, handleAd
               <option key={container} value={container}>{container}</option>
             ))}
           </select>
+          <small className="text-muted">
+            {purchaseTypeFilter === 'true' ? 'Filter by local purchase batch' : 
+             purchaseTypeFilter === 'false' ? 'Filter by container number' : 
+             'Filter by container number or local purchase batch'}
+          </small>
         </div>
         {/* Show available stock checkbox in remaining space */}
         <div className={`col-12 ${purchaseTypeFilter === 'false' ? 'col-md-12 mt-2' : 'col-md-3'}`}>
