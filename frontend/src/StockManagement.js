@@ -381,6 +381,48 @@ function StockManagement({ userRole }) {
     )].sort();
   };
 
+  // Load initial containers for all report types
+  const loadInitialContainers = async () => {
+    try {
+      const res = await fetch(API_ENDPOINTS.PARTS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      if (res.ok) {
+        const parts = await res.json();
+        
+        // Set initial containers for each report type based on their current filters
+        const availableContainerNumbers = getFilteredContainers(
+          parts.filter(part => parseInt(part.available_stock || 0) > 0), 
+          availableLocalPurchaseFilter
+        );
+        setAvailableContainers(availableContainerNumbers);
+        
+        const soldContainerNumbers = getFilteredContainers(parts, localPurchaseFilter);
+        setSoldContainers(soldContainerNumbers);
+        
+        const parentContainerNumbers = getFilteredContainers(
+          parts.filter(part => parts.some(p => p.parent_id === part.id)), 
+          parentLocalPurchaseFilter
+        );
+        setParentContainers(parentContainerNumbers);
+        
+        const comprehensiveContainerNumbers = getFilteredContainers(parts, comprehensiveLocalPurchaseFilter);
+        setComprehensiveContainers(comprehensiveContainerNumbers);
+      }
+    } catch (err) {
+      console.error('Error loading initial containers:', err);
+    }
+  };
+
+  // Load initial containers on component mount
+  useEffect(() => {
+    if (token) {
+      loadInitialContainers();
+    }
+  }, [token]);
+
   const handleGetAvailableStock = async () => {
     setLoading(true);
     setError('');
