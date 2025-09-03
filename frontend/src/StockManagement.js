@@ -402,10 +402,17 @@ function StockManagement({ userRole }) {
         const soldContainerNumbers = getFilteredContainers(parts, localPurchaseFilter);
         setSoldContainers(soldContainerNumbers);
         
-        const parentContainerNumbers = getFilteredContainers(
-          parts.filter(part => parts.some(p => p.parent_id === part.id)), 
-          parentLocalPurchaseFilter
+        // For Parent Parts: include containers from both parent parts and their children
+        const allParentIds = new Set();
+        parts.forEach(part => {
+          if (part.parent_id) {
+            allParentIds.add(part.parent_id);
+          }
+        });
+        const parentAndChildParts = parts.filter(part => 
+          allParentIds.has(part.id) || part.parent_id
         );
+        const parentContainerNumbers = getFilteredContainers(parentAndChildParts, parentLocalPurchaseFilter);
         setParentContainers(parentContainerNumbers);
         
         const comprehensiveContainerNumbers = getFilteredContainers(parts, comprehensiveLocalPurchaseFilter);
@@ -781,7 +788,17 @@ function StockManagement({ userRole }) {
       const data = await res.json();
       
       // Extract and update parent containers using the helper function
-      const parentContainerNumbers = getFilteredContainers(data.filter(part => data.some(p => p.parent_id === part.id)), parentLocalPurchaseFilter);
+      // Include containers from both parent parts and their children
+      const parentIdsSet = new Set();
+      data.forEach(part => {
+        if (part.parent_id) {
+          parentIdsSet.add(part.parent_id);
+        }
+      });
+      const parentAndChildParts = data.filter(part => 
+        parentIdsSet.has(part.id) || part.parent_id
+      );
+      const parentContainerNumbers = getFilteredContainers(parentAndChildParts, parentLocalPurchaseFilter);
       setParentContainers(parentContainerNumbers);
       
       // Filter to get only parent parts (parts that have children)
