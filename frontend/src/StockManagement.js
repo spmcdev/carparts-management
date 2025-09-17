@@ -24,6 +24,7 @@ function StockManagement({ userRole }) {
   const [soldStockSummary, setSoldStockSummary] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
+  const [soldContainers, setSoldContainers] = useState([]);
   
   // New state for available stock filters
   const [availableContainerNo, setAvailableContainerNo] = useState('');
@@ -34,12 +35,14 @@ function StockManagement({ userRole }) {
   // New state for parent parts filters
   const [parentContainerNo, setParentContainerNo] = useState('');
   const [parentLocalPurchaseFilter, setParentLocalPurchaseFilter] = useState('');
+  const [parentContainers, setParentContainers] = useState([]);
 
   // New state for comprehensive stock report (available + sold)
   const [comprehensiveStock, setComprehensiveStock] = useState([]);
   const [showComprehensiveStock, setShowComprehensiveStock] = useState(false);
   const [comprehensiveContainerNo, setComprehensiveContainerNo] = useState('');
   const [comprehensiveLocalPurchaseFilter, setComprehensiveLocalPurchaseFilter] = useState('');
+  const [comprehensiveContainers, setComprehensiveContainers] = useState([]);
 
   const printStockReport = (stockData, reportType, dateRange = null, includeProfit = false) => {
     // Base64 encoded logo SVG
@@ -212,7 +215,7 @@ function StockManagement({ userRole }) {
                   <th>Parent Name</th>
                   <th>Manufacturer</th>
                   <th>Part Number</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   <th>Purchase Type</th>
                   <th>Children Count</th>
                   <th>Parent Stock</th>
@@ -233,7 +236,7 @@ function StockManagement({ userRole }) {
                   <th>Available Qty</th>
                   <th>Reserved Qty</th>
                   <th>Total Stock</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   <th>Cost Price (Rs.)</th>
                   <th>Total Cost (Rs.)</th>
                   <th>Unit Price (Rs.)</th>
@@ -244,7 +247,7 @@ function StockManagement({ userRole }) {
                   <th>Reserved Qty</th>
                   <th>Sold Qty</th>
                   <th>Total Stock</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   <th>Purchase Type</th>
                   <th>Cost Price (Rs.)</th>
                   <th>Total Cost (Rs.)</th>
@@ -259,7 +262,7 @@ function StockManagement({ userRole }) {
                   <th>Total Cost (Rs.)</th>
                   <th>Total Revenue (Rs.)</th>
                   <th>Source</th>
-                  <th>Container No.</th>
+                  <th>Container/Batch</th>
                   ${includeProfit ? '<th>Profit Margin</th>' : ''}
                 `}
                 `}
@@ -354,6 +357,79 @@ function StockManagement({ userRole }) {
     printWindow.document.close();
   };
 
+  // Helper function to get filtered containers based on purchase type
+  const getFilteredContainers = (parts, purchaseTypeFilter) => {
+    let filteredParts = parts;
+    
+    // Filter by purchase type if specified
+    if (purchaseTypeFilter !== '') {
+      const isLocalPurchase = purchaseTypeFilter === 'true';
+      filteredParts = parts.filter(part => {
+        const partIsLocal = part.local_purchase === true || part.local_purchase === 'true';
+        return partIsLocal === isLocalPurchase;
+      });
+    }
+    
+    // Extract unique container/batch numbers
+    return [...new Set(
+      filteredParts
+        .filter(part => 
+          part.container_no && 
+          part.container_no.trim() !== ''
+        )
+        .map(part => part.container_no)
+    )].sort();
+  };
+
+  // Load initial containers for all report types
+  const loadInitialContainers = async () => {
+    try {
+      const res = await fetch(API_ENDPOINTS.PARTS, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+      if (res.ok) {
+        const parts = await res.json();
+        
+        // Set initial containers for each report type based on their current filters
+        const availableContainerNumbers = getFilteredContainers(
+          parts.filter(part => parseInt(part.available_stock || 0) > 0), 
+          availableLocalPurchaseFilter
+        );
+        setAvailableContainers(availableContainerNumbers);
+        
+        const soldContainerNumbers = getFilteredContainers(parts, localPurchaseFilter);
+        setSoldContainers(soldContainerNumbers);
+        
+        // For Parent Parts: include containers from both parent parts and their children
+        const allParentIds = new Set();
+        parts.forEach(part => {
+          if (part.parent_id) {
+            allParentIds.add(part.parent_id);
+          }
+        });
+        const parentAndChildParts = parts.filter(part => 
+          allParentIds.has(part.id) || part.parent_id
+        );
+        const parentContainerNumbers = getFilteredContainers(parentAndChildParts, parentLocalPurchaseFilter);
+        setParentContainers(parentContainerNumbers);
+        
+        const comprehensiveContainerNumbers = getFilteredContainers(parts, comprehensiveLocalPurchaseFilter);
+        setComprehensiveContainers(comprehensiveContainerNumbers);
+      }
+    } catch (err) {
+      console.error('Error loading initial containers:', err);
+    }
+  };
+
+  // Load initial containers on component mount
+  useEffect(() => {
+    if (token) {
+      loadInitialContainers();
+    }
+  }, [token]);
+
   const handleGetAvailableStock = async () => {
     setLoading(true);
     setError('');
@@ -372,17 +448,8 @@ function StockManagement({ userRole }) {
       // Filter parts that have available stock > 0
       let available = data.filter(part => parseInt(part.available_stock || 0) > 0);
       
-      // Extract and update available containers from current available stock data
-      const availableContainerNumbers = [...new Set(
-        available
-          .filter(part => 
-            part.container_no && 
-            part.container_no.trim() !== '' &&
-            part.local_purchase === false
-          )
-          .map(part => part.container_no)
-      )].sort();
-      
+      // Extract and update available containers/batches using the helper function
+      const availableContainerNumbers = getFilteredContainers(available, availableLocalPurchaseFilter);
       setAvailableContainers(availableContainerNumbers);
       
       // Apply Purchase Type filter
@@ -394,7 +461,7 @@ function StockManagement({ userRole }) {
         });
       }
       
-      // Apply Container Number filter
+      // Apply Container/Batch filter
       if (availableContainerNo) {
         available = available.filter(part => part.container_no === availableContainerNo);
       }
@@ -464,7 +531,7 @@ function StockManagement({ userRole }) {
       }
       
       // Update legacy soldStock for compatibility with existing print function
-      setSoldStock(reportData.sold_parts.map(item => ({
+      const soldStockArray = reportData.sold_parts.map(item => ({
         id: item.part_id,
         name: item.part_name,
         manufacturer: item.manufacturer,
@@ -480,7 +547,13 @@ function StockManagement({ userRole }) {
         container_no: item.container_no,
         local_purchase: item.local_purchase,
         profit_margin: item.sales_summary ? item.sales_summary.average_profit_margin_percent : null
-      })));
+      }));
+      
+      setSoldStock(soldStockArray);
+      
+      // Initialize sold containers based on current filter
+      const soldContainerNumbers = getFilteredContainers(soldStockArray, localPurchaseFilter);
+      setSoldContainers(soldContainerNumbers);
       
       setShowSoldStock(true);
       if (!isAutoRefresh && reportData.summary) {
@@ -503,33 +576,6 @@ function StockManagement({ userRole }) {
   };
 
   // Function to load available containers for the dropdown
-  const loadAvailableContainers = async () => {
-    try {
-      // Load ALL containers from parts table (not just sold stock containers)
-      const res = await fetch(API_ENDPOINTS.PARTS, {
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` })
-        }
-      });
-      if (res.ok) {
-        const parts = await res.json();
-        // Get all unique container numbers from all parts
-        const containers = [...new Set(parts
-          .map(part => part.container_no)
-          .filter(container => container && container.trim() !== '')
-        )].sort();
-        setAvailableContainers(containers);
-      }
-    } catch (err) {
-      console.error('Error loading containers:', err);
-    }
-  };
-
-  // Load containers on component mount
-  React.useEffect(() => {
-    loadAvailableContainers();
-  }, []);
-
   // Auto-dismiss success and error messages after 5 seconds
   React.useEffect(() => {
     if (success || error) {
@@ -574,6 +620,138 @@ function StockManagement({ userRole }) {
     }
   }, [availableLocalPurchaseFilter, availableContainerNo]);
 
+  // Update available containers when purchase type filter changes
+  useEffect(() => {
+    // Re-fetch parts data to ensure fresh container list
+    const updateAvailableContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const availableParts = data.filter(part => parseInt(part.available_stock || 0) > 0);
+          const filteredContainers = getFilteredContainers(availableParts, availableLocalPurchaseFilter);
+          setAvailableContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (availableContainerNo && !filteredContainers.includes(availableContainerNo)) {
+            setAvailableContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating available containers:', err);
+      }
+    };
+    
+    updateAvailableContainers();
+  }, [availableLocalPurchaseFilter, token]);
+
+  // Update parent containers when purchase type filter changes
+  useEffect(() => {
+    // Re-fetch parts data to get proper parent-child relationships for container filtering
+    const updateParentContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          
+          // Use same logic as handleGetParentParts for consistency
+          const parentIdsSet = new Set();
+          data.forEach(part => {
+            if (part.parent_id) {
+              parentIdsSet.add(part.parent_id);
+            }
+          });
+          const parentAndChildParts = data.filter(part => 
+            parentIdsSet.has(part.id) || part.parent_id
+          );
+          const filteredContainers = getFilteredContainers(parentAndChildParts, parentLocalPurchaseFilter);
+          setParentContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (parentContainerNo && !filteredContainers.includes(parentContainerNo)) {
+            setParentContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating parent containers:', err);
+      }
+    };
+    
+    updateParentContainers();
+  }, [parentLocalPurchaseFilter, token]);
+
+  // Update comprehensive containers when purchase type filter changes
+  useEffect(() => {
+    // Re-fetch parts data to ensure fresh container list
+    const updateComprehensiveContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const filteredContainers = getFilteredContainers(data, comprehensiveLocalPurchaseFilter);
+          setComprehensiveContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (comprehensiveContainerNo && !filteredContainers.includes(comprehensiveContainerNo)) {
+            setComprehensiveContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating comprehensive containers:', err);
+      }
+    };
+    
+    updateComprehensiveContainers();
+  }, [comprehensiveLocalPurchaseFilter, token]);
+
+  // Update sold containers when purchase type filter changes
+  useEffect(() => {
+    // Re-fetch parts data to ensure fresh container list
+    const updateSoldContainers = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch(API_ENDPOINTS.PARTS, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const filteredContainers = getFilteredContainers(data, localPurchaseFilter);
+          setSoldContainers(filteredContainers);
+          
+          // Reset container filter if it's no longer valid
+          if (containerNo && !filteredContainers.includes(containerNo)) {
+            setContainerNo('');
+          }
+        }
+      } catch (err) {
+        console.error('Error updating sold containers:', err);
+      }
+    };
+    
+    updateSoldContainers();
+  }, [localPurchaseFilter, token]);
+
   // Auto-refresh parent parts when filters change
   useEffect(() => {
     // Only auto-refresh if we already have parent parts data and filters are applied
@@ -585,6 +763,18 @@ function StockManagement({ userRole }) {
       return () => clearTimeout(refreshTimer);
     }
   }, [parentLocalPurchaseFilter, parentContainerNo]);
+
+  // Auto-refresh sold stock when filters change
+  useEffect(() => {
+    // Only auto-refresh if we already have sold stock data and filters are applied
+    if (soldStock.length > 0 && (localPurchaseFilter !== '' || containerNo)) {
+      const refreshTimer = setTimeout(() => {
+        handleGetSoldStock(true); // Pass true to indicate auto-refresh
+      }, 500); // Debounce to avoid too many requests
+
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [localPurchaseFilter, containerNo]);
 
   // Auto-refresh comprehensive stock when filters change
   useEffect(() => {
@@ -679,6 +869,20 @@ function StockManagement({ userRole }) {
       }
       const data = await res.json();
       
+      // Extract and update parent containers using the helper function
+      // Include containers from both parent parts and their children
+      const parentIdsSet = new Set();
+      data.forEach(part => {
+        if (part.parent_id) {
+          parentIdsSet.add(part.parent_id);
+        }
+      });
+      const parentAndChildParts = data.filter(part => 
+        parentIdsSet.has(part.id) || part.parent_id
+      );
+      const parentContainerNumbers = getFilteredContainers(parentAndChildParts, parentLocalPurchaseFilter);
+      setParentContainers(parentContainerNumbers);
+      
       // Filter to get only parent parts (parts that have children)
       const allParts = data;
       const parentIds = new Set();
@@ -749,6 +953,10 @@ function StockManagement({ userRole }) {
       }
       const data = await res.json();
       
+      // Extract and update comprehensive containers using the helper function
+      const comprehensiveContainerNumbers = getFilteredContainers(data, comprehensiveLocalPurchaseFilter);
+      setComprehensiveContainers(comprehensiveContainerNumbers);
+      
       // Apply filters
       let filteredData = data;
       
@@ -804,13 +1012,7 @@ function StockManagement({ userRole }) {
                 <select
                   className="form-control"
                   value={availableLocalPurchaseFilter}
-                  onChange={(e) => {
-                    setAvailableLocalPurchaseFilter(e.target.value);
-                    // Reset container filter when purchase type changes
-                    if (e.target.value !== 'false') {
-                      setAvailableContainerNo('');
-                    }
-                  }}
+                  onChange={(e) => setAvailableLocalPurchaseFilter(e.target.value)}
                 >
                   <option value="">All Types</option>
                   <option value="true">Local Purchase</option>
@@ -818,23 +1020,25 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {availableLocalPurchaseFilter === 'false' && (
-                <div className="col-md-6">
-                  <label className="form-label">Container Number:</label>
-                  <select
-                    className="form-control"
-                    value={availableContainerNo}
-                    onChange={(e) => setAvailableContainerNo(e.target.value)}
-                  >
-                    <option value="">All Containers</option>
-                    {availableContainers.map(container => (
-                      <option key={container} value={container}>{container}</option>
-                    ))}
-                  </select>
-                  <small className="text-muted">Filter by container</small>
-                </div>
-              )}
+              {/* Container/Batch filter for both Container and Local Purchases */}
+              <div className="col-md-6">
+                <label className="form-label">Container/Batch:</label>
+                <select
+                  className="form-control"
+                  value={availableContainerNo}
+                  onChange={(e) => setAvailableContainerNo(e.target.value)}
+                >
+                  <option value="">All Containers/Batches</option>
+                  {availableContainers.map(container => (
+                    <option key={container} value={container}>{container}</option>
+                  ))}
+                </select>
+                <small className="text-muted">
+                  {availableLocalPurchaseFilter === 'true' ? 'Filter by local purchase batch' : 
+                   availableLocalPurchaseFilter === 'false' ? 'Filter by container number' : 
+                   'Filter by container number or local purchase batch'}
+                </small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3">
@@ -863,7 +1067,7 @@ function StockManagement({ userRole }) {
                       <th>Available Qty</th>
                       <th>Reserved Qty</th>
                       <th>Total Stock</th>
-                      <th>Container No.</th>
+                      <th>Container/Batch</th>
                       <th>Cost Price (Rs.)</th>
                       <th>Total Cost (Rs.)</th>
                       <th>Unit Price (Rs.)</th>
@@ -972,13 +1176,7 @@ function StockManagement({ userRole }) {
                 <select
                   className="form-control"
                   value={localPurchaseFilter}
-                  onChange={(e) => {
-                    setLocalPurchaseFilter(e.target.value);
-                    // Reset container filter when purchase type changes
-                    if (e.target.value !== 'false') {
-                      setContainerNo('');
-                    }
-                  }}
+                  onChange={(e) => setLocalPurchaseFilter(e.target.value)}
                 >
                   <option value="">All Types</option>
                   <option value="true">Local Purchase</option>
@@ -986,23 +1184,25 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {localPurchaseFilter === 'false' && (
-                <div className="col-md-3">
-                  <label className="form-label">Container Number:</label>
-                  <select
-                    className="form-control"
-                    value={containerNo}
-                    onChange={(e) => setContainerNo(e.target.value)}
-                  >
-                    <option value="">All Containers</option>
-                    {availableContainers.map(container => (
-                      <option key={container} value={container}>{container}</option>
-                    ))}
-                  </select>
-                  <small className="text-muted">Filter by container</small>
-                </div>
-              )}
+              {/* Container/Batch filter for both Container and Local Purchases */}
+              <div className="col-md-3">
+                <label className="form-label">Container/Batch:</label>
+                <select
+                  className="form-control"
+                  value={containerNo}
+                  onChange={(e) => setContainerNo(e.target.value)}
+                >
+                  <option value="">All Containers/Batches</option>
+                  {soldContainers.map(container => (
+                    <option key={container} value={container}>{container}</option>
+                  ))}
+                </select>
+                <small className="text-muted">
+                  {localPurchaseFilter === 'true' ? 'Filter by local purchase batch' : 
+                   localPurchaseFilter === 'false' ? 'Filter by container number' : 
+                   'Filter by container number or local purchase batch'}
+                </small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3 align-items-center">
@@ -1363,13 +1563,7 @@ function StockManagement({ userRole }) {
                 <select
                   className="form-control"
                   value={parentLocalPurchaseFilter}
-                  onChange={(e) => {
-                    setParentLocalPurchaseFilter(e.target.value);
-                    // Reset container filter when purchase type changes
-                    if (e.target.value !== 'false') {
-                      setParentContainerNo('');
-                    }
-                  }}
+                  onChange={(e) => setParentLocalPurchaseFilter(e.target.value)}
                 >
                   <option value="">All Types</option>
                   <option value="true">Local Purchase</option>
@@ -1377,20 +1571,25 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {parentLocalPurchaseFilter === 'false' && (
-                <div className="col-md-6">
-                  <label className="form-label">Container Number:</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Enter container number"
-                    value={parentContainerNo}
-                    onChange={(e) => setParentContainerNo(e.target.value)}
-                  />
-                  <small className="text-muted">Optional filter</small>
-                </div>
-              )}
+              {/* Container/Batch filter dropdown with dynamic options */}
+              <div className="col-md-6">
+                <label className="form-label">Container/Batch:</label>
+                <select
+                  className="form-control"
+                  value={parentContainerNo}
+                  onChange={(e) => setParentContainerNo(e.target.value)}
+                >
+                  <option value="">All Containers/Batches</option>
+                  {parentContainers.map(container => (
+                    <option key={container} value={container}>{container}</option>
+                  ))}
+                </select>
+                <small className="text-muted">
+                  {parentLocalPurchaseFilter === 'true' ? 'Filter by local purchase batch' : 
+                   parentLocalPurchaseFilter === 'false' ? 'Filter by container number' : 
+                   'Filter by container number or local purchase batch'}
+                </small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3">
@@ -1420,7 +1619,7 @@ function StockManagement({ userRole }) {
                       <th>Parent Name</th>
                       <th>Manufacturer</th>
                       <th>Part Number</th>
-                      <th>Container No.</th>
+                      <th>Container/Batch</th>
                       <th>Purchase Type</th>
                       <th>Children Count</th>
                       <th>Parent Stock</th>
@@ -1531,13 +1730,7 @@ function StockManagement({ userRole }) {
                 <select
                   className="form-control"
                   value={comprehensiveLocalPurchaseFilter}
-                  onChange={(e) => {
-                    setComprehensiveLocalPurchaseFilter(e.target.value);
-                    // Reset container filter when purchase type changes
-                    if (e.target.value !== 'false') {
-                      setComprehensiveContainerNo('');
-                    }
-                  }}
+                  onChange={(e) => setComprehensiveLocalPurchaseFilter(e.target.value)}
                 >
                   <option value="">All Types</option>
                   <option value="true">Local Purchase</option>
@@ -1545,20 +1738,25 @@ function StockManagement({ userRole }) {
                 </select>
                 <small className="text-muted">Filter by source</small>
               </div>
-              {/* Conditionally show Container Number filter only for Container Purchase */}
-              {comprehensiveLocalPurchaseFilter === 'false' && (
-                <div className="col-md-6">
-                  <label className="form-label">Container Number:</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Enter container number"
-                    value={comprehensiveContainerNo}
-                    onChange={(e) => setComprehensiveContainerNo(e.target.value)}
-                  />
-                  <small className="text-muted">Optional filter</small>
-                </div>
-              )}
+              {/* Container/Batch filter dropdown with dynamic options */}
+              <div className="col-md-6">
+                <label className="form-label">Container/Batch:</label>
+                <select
+                  className="form-control"
+                  value={comprehensiveContainerNo}
+                  onChange={(e) => setComprehensiveContainerNo(e.target.value)}
+                >
+                  <option value="">All Containers/Batches</option>
+                  {comprehensiveContainers.map(container => (
+                    <option key={container} value={container}>{container}</option>
+                  ))}
+                </select>
+                <small className="text-muted">
+                  {comprehensiveLocalPurchaseFilter === 'true' ? 'Filter by local purchase batch' : 
+                   comprehensiveLocalPurchaseFilter === 'false' ? 'Filter by container number' : 
+                   'Filter by container number or local purchase batch'}
+                </small>
+              </div>
             </div>
 
             <div className="d-flex gap-2 mb-3">

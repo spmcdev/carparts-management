@@ -400,7 +400,7 @@ function Reservations({ token, userRole }) {
                         <th>Part Number</th>
                         <th>Stock</th>
                         <th>Price</th>
-                        <th>Container</th>
+                        <th>Container/Batch</th>
                         <th>Actions</th>
                       </tr>
                     </thead>

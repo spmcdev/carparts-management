@@ -3172,7 +3172,7 @@ app.get('/sold-stock-report', authenticateToken, requireSuperAdmin, async (req, 
     const params = [];
     let paramIndex = 1;
 
-    // Filter by container number
+    // Filter by container number or batch
     if (container_no) {
       conditions.push(`p.container_no = $${paramIndex}`);
       params.push(container_no);
@@ -3566,7 +3566,7 @@ app.get('/sold-stock-summary', authenticateToken, requireSuperAdmin, async (req,
   }
 });
 
-// Get available container numbers for sold stock filtering
+// Get available container numbers and batches for sold stock filtering
 app.get('/sold-stock-containers', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -3585,7 +3585,7 @@ app.get('/sold-stock-containers', authenticateToken, requireSuperAdmin, async (r
   } catch (err) {
     console.error('Error fetching sold stock containers:', err);
     res.status(500).json({ 
-      error: 'Failed to fetch container numbers',
+      error: 'Failed to fetch container numbers and batches',
       details: err.message 
     });
   }
